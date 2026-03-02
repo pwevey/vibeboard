@@ -18,12 +18,20 @@ export interface IAIService {
  * CopilotAIService uses the vscode.lm language model API.
  */
 export class CopilotAIService implements IAIService {
-  private modelFamily = 'copilot-gpt-4o';
-
   private async getModel(): Promise<vscode.LanguageModelChat | null> {
     try {
-      const models = await vscode.lm.selectChatModels({ family: this.modelFamily });
-      return models[0] ?? null;
+      // Try specific families first, then fall back to any available model
+      const families = ['copilot-gpt-4o', 'gpt-4o', 'gpt-4', 'copilot-gpt-3.5-turbo'];
+      for (const family of families) {
+        try {
+          const models = await vscode.lm.selectChatModels({ family });
+          if (models.length > 0) { return models[0]; }
+        } catch { /* try next */ }
+      }
+      // Fallback: request any available chat model
+      const allModels = await vscode.lm.selectChatModels();
+      if (allModels.length > 0) { return allModels[0]; }
+      return null;
     } catch {
       return null;
     }
