@@ -11,7 +11,7 @@ import * as vscode from 'vscode';
 export interface IAIService {
   generateSummary(tasks: unknown[]): Promise<string>;
   breakdownTask(title: string, description: string): Promise<string[]>;
-  suggestTags(title: string): Promise<string>;
+  rewriteTitle(title: string): Promise<string>;
 }
 
 /**
@@ -79,11 +79,11 @@ export class CopilotAIService implements IAIService {
     }
   }
 
-  async suggestTags(title: string): Promise<string> {
+  async rewriteTitle(title: string): Promise<string> {
     const model = await this.getModel();
-    if (!model) { return 'note'; }
+    if (!model) { return title; }
 
-    const prompt = `Classify this task into exactly one category: feature, bug, refactor, or note. Reply with ONLY the category word.\n\nTask: ${title}`;
+    const prompt = `Rewrite this task title to be clearer, more concise, and more actionable. Return ONLY the improved title text, nothing else. Do not add quotes.\n\nOriginal: ${title}`;
 
     try {
       const messages = [vscode.LanguageModelChatMessage.User(prompt)];
@@ -92,13 +92,10 @@ export class CopilotAIService implements IAIService {
       for await (const chunk of response.text) {
         result += chunk;
       }
-      const tag = result.trim().toLowerCase();
-      if (['feature', 'bug', 'refactor', 'note'].includes(tag)) {
-        return tag;
-      }
-      return 'note';
+      const cleaned = result.trim().replace(/^["']|["']$/g, '');
+      return cleaned || title;
     } catch {
-      return 'note';
+      return title;
     }
   }
 }

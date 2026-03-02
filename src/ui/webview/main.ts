@@ -360,7 +360,7 @@ function renderQuickAdd(): string {
       <select id="quick-add-col" aria-label="Target column">
         <option value="up-next">Up Next</option><option value="backlog">Backlog</option><option value="notes">Notes</option>
       </select>
-      <button class="icon-btn ai-suggest-btn" id="btn-ai-suggest-tag" title="AI suggest tag" aria-label="AI suggest tag">&#10024;</button>
+      <button class="icon-btn ai-suggest-btn" id="btn-ai-rewrite" title="AI improve title" aria-label="AI improve title">&#10024;</button>
       <button id="btn-quick-add">Add</button>
     </div>
     <div class="template-bar">${templateBtns}</div>
@@ -547,11 +547,11 @@ function bindEvents(): void {
     vscode.postMessage({ type: 'aiSummarize', payload: {} });
   });
 
-  // AI Suggest Tag
-  document.getElementById('btn-ai-suggest-tag')?.addEventListener('click', () => {
+  // AI Rewrite Title
+  document.getElementById('btn-ai-rewrite')?.addEventListener('click', () => {
     const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
     const title = input?.value.trim();
-    if (title) { vscode.postMessage({ type: 'aiSuggestTag', payload: { title } }); }
+    if (title) { vscode.postMessage({ type: 'aiRewriteTitle', payload: { title } }); }
   });
 
   // Board switcher — click name to switch, X to close, double-click to rename
@@ -1271,7 +1271,7 @@ function renderHelpContent(section: string): string {
           <li><strong>Board Tabs</strong> &mdash; Below the session bar. Click to switch boards, <strong>&times;</strong> to close, double-click to rename, <strong>+</strong> to create a new board.</li>
           <li><strong>Stats Bar</strong> &mdash; Displays live counts for total tasks, completed, up next, and high-priority items.</li>
           <li><strong>Search &amp; Filter</strong> &mdash; Filter tasks by text, tag, or priority.</li>
-          <li><strong>Quick Add</strong> &mdash; Fast task creation with tag, priority, and column selectors plus template buttons and AI tag suggestion.</li>
+          <li><strong>Quick Add</strong> &mdash; Fast task creation with tag, priority, and column selectors plus template buttons and AI title improvement.</li>
           <li><strong>Columns</strong> &mdash; Four columns: <em>Up Next</em>, <em>Backlog</em>, <em>Completed</em>, and <em>Notes</em>. Click headers to collapse.</li>
         </ul>
         <h4>AI Features</h4>
@@ -1451,10 +1451,11 @@ function renderHelpContent(section: string): string {
           <li>Right-click a task and choose <strong>AI Breakdown</strong> from the context menu.</li>
           <li>The AI splits the task into 3&ndash;5 actionable subtasks, which are added as new tasks in <em>Up Next</em>.</li>
         </ul>
-        <h4>AI Tag Suggestion</h4>
+        <h4>AI Improve Title</h4>
         <ul>
-          <li>Click the <strong>sparkle icon</strong> (&#10024;) next to the quick-add input to have AI suggest the best tag (Feature, Bug, Refactor, or Note) based on the task title.</li>
-          <li>The suggested tag is automatically selected in the tag dropdown.</li>
+          <li>Type a rough task idea in the quick-add input, then click the <strong>sparkle icon</strong> (&#10024;) next to the Add button.</li>
+          <li>AI rewrites your text to be clearer, more concise, and more actionable.</li>
+          <li>The improved title replaces your original text in the input field. Edit further or click <em>Add</em> to create the task.</li>
         </ul>`;
 
     case 'export':
@@ -1678,16 +1679,13 @@ function handleAIResult(payload: { action: string; result: string | string[]; ta
       showAIResultModal('AI Task Breakdown', `Created ${subtasks.length} subtask${subtasks.length !== 1 ? 's' : ''}:\n\n${subtasks.map((s, i) => `${i + 1}. ${s}`).join('\n')}`);
       break;
     }
-    case 'suggestTag': {
-      const tag = typeof result === 'string' ? result : result[0];
-      const validTags = ['feature', 'bug', 'refactor', 'note'];
-      const cleanTag = tag?.toLowerCase().trim();
-      if (validTags.includes(cleanTag)) {
-        const tagSelect = document.getElementById('quick-add-tag') as HTMLSelectElement | null;
-        if (tagSelect) { tagSelect.value = cleanTag; }
-        showAIToast(`AI suggests: ${TAG_LABELS[cleanTag as TaskTag]}`, false);
-      } else {
-        showAIToast(`AI suggestion: ${tag}`, false);
+    case 'rewriteTitle': {
+      const rewritten = typeof result === 'string' ? result : result[0];
+      const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+      if (input && rewritten) {
+        input.value = rewritten;
+        input.focus();
+        showAIToast('Title improved by AI', false);
       }
       break;
     }

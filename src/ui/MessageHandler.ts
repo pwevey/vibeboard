@@ -236,9 +236,10 @@ export class MessageHandler {
         break;
       }
 
-      case 'aiSuggestTag': {
-        this.aiService.suggestTags(message.payload.title).then((tag) => {
-          this.webview?.postMessage({ type: 'aiResult', payload: { action: 'suggestTag', result: tag } });
+      case 'aiRewriteTitle': {
+        this.webview?.postMessage({ type: 'aiResult', payload: { action: 'rewriteTitle', result: '...' } });
+        this.aiService.rewriteTitle(message.payload.title).then((rewritten) => {
+          this.webview?.postMessage({ type: 'aiResult', payload: { action: 'rewriteTitle', result: rewritten } });
         });
         break;
       }
