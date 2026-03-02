@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "module": "ES2020",
+    "target": "ES2022",
+    "outDir": "dist/webview",
+    "rootDir": "src/ui/webview",
+    "lib": ["ES2022", "DOM"],
+    "sourceMap": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/ui/webview/**/*.ts"],
+  "exclude": ["node_modules"]
+}

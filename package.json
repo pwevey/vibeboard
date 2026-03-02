@@ -1,0 +1,103 @@
+{
+  "name": "vibeboard",
+  "displayName": "Vibe Board",
+  "description": "AI Brainstorm & Prompt Workflow for VSCode",
+  "version": "0.1.0",
+  "publisher": "vibeboard",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "brainstorm",
+    "kanban",
+    "productivity",
+    "copilot",
+    "workflow"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "vibeboard",
+          "title": "Vibe Board",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "vibeboard": [
+        {
+          "type": "webview",
+          "id": "vibeboard.boardView",
+          "name": "Board"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "vibeboard.startSession",
+        "title": "Vibe Board: Start Session"
+      },
+      {
+        "command": "vibeboard.endSession",
+        "title": "Vibe Board: End Session"
+      },
+      {
+        "command": "vibeboard.addTask",
+        "title": "Vibe Board: Quick Add Task"
+      },
+      {
+        "command": "vibeboard.exportMarkdown",
+        "title": "Vibe Board: Export Session as Markdown"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "vibeboard.addTask",
+        "key": "ctrl+shift+v",
+        "mac": "cmd+shift+v"
+      }
+    ],
+    "configuration": {
+      "title": "Vibe Board",
+      "properties": {
+        "vibeboard.autoPromptSession": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prompt to start a new session when VSCode opens"
+        },
+        "vibeboard.carryOverTasks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Carry over unfinished tasks to the next session"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "package": "npx @vscode/vsce package --no-dependencies",
+    "test": "npx tsx src/test/run-tests.ts",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.7.1",
+    "esbuild": "^0.20.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.0"
+  }
+}
