@@ -2684,8 +2684,8 @@ function renderHelpContent(section: string): string {
         <h4>Export Formats</h4>
         <ul>
           <li><strong>JSON</strong> &mdash; Full data backup with summary totals, all sessions (with per-session stats), active session details, and every task. Best for backups or programmatic use. Exports all data regardless of time period.</li>
-          <li><strong>CSV</strong> &mdash; Spreadsheet-ready table of tasks with columns: Session, Session Date, Session Duration, Task Title, Description, Tag, Priority, Status, Board, Time Spent, Carried Over, Created, Completed. Includes a summary section at the bottom with totals by status, tag, and priority.</li>
-          <li><strong>Markdown</strong> &mdash; Human-readable report with summary statistics table, active session details, session history table (with session name, task counts), and all tasks grouped by status. Includes breakdowns by tag and priority. Ideal for documentation and sharing.</li>
+          <li><strong>CSV</strong> &mdash; Spreadsheet-ready table of tasks with columns: Session, Session Date, Session Duration, Task Title, Description, Tag, Priority, Status, Board, Time Spent, Carried Over, Created, Completed. Includes a summary section at the top with totals by session, tasks, tag, priority, and performance metrics.</li>
+          <li><strong>Markdown</strong> &mdash; Human-readable report with summary statistics table, session history, tasks grouped by tag, and a performance metrics section. Includes breakdowns by tag and priority. Ideal for documentation and sharing.</li>
         </ul>
         <h4>Time Period Filter</h4>
         <p>When exporting to CSV or Markdown, you can choose a time period to filter the data:</p>
@@ -2699,6 +2699,17 @@ function renderHelpContent(section: string): string {
           <li><strong>Custom Range</strong> &mdash; Set a specific start and end date.</li>
         </ul>
         <p>Tasks are filtered by their <strong>creation date</strong>. The selected period is shown in the exported file.</p>
+        <h4>Performance Metrics</h4>
+        <p>CSV and Markdown exports include a <strong>Performance</strong> section with productivity insights:</p>
+        <ul>
+          <li><strong>Completion Rate</strong> &mdash; Percentage of tasks that are completed.</li>
+          <li><strong>Carry-over Rate</strong> &mdash; Percentage of tasks carried over from previous sessions.</li>
+          <li><strong>Avg Session Duration</strong> &mdash; Mean length of all sessions.</li>
+          <li><strong>Tasks Completed per Session</strong> &mdash; Average number of tasks completed each session.</li>
+          <li><strong>Avg Task Turnaround</strong> &mdash; Average time from task creation to completion.</li>
+          <li><strong>Longest Session</strong> &mdash; The session with the most elapsed time.</li>
+          <li><strong>Most Productive Session</strong> &mdash; The session with the most tasks completed.</li>
+        </ul>
         <h4>Importing Data</h4>
         <ul>
           <li>Click <strong>Import JSON</strong> on the start page to restore data from a Vibe Board JSON export or a raw <code>data.json</code> backup.</li>
