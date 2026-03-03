@@ -31,9 +31,9 @@ export class MessageHandler {
       this.sendStateUpdate();
     });
 
-    // Wire automation's send-to-copilot to our helper
+    // Wire automation's send-to-copilot to our helper (with agent mode)
     this.automationService.setSendToCopilotHandler(async (prompt, attachments) => {
-      await this.sendPromptToCopilot(prompt, attachments);
+      await this.sendPromptToCopilot(prompt, attachments, true);
     });
   }
 
@@ -681,8 +681,9 @@ export class MessageHandler {
   /**
    * Send a prompt (with optional image attachments) to Copilot Chat.
    * Extracted so it can be reused for initial send and follow-ups.
+   * @param useAgentMode If true, opens chat in Agent mode (for automation).
    */
-  private async sendPromptToCopilot(prompt: string, attachments: VBAttachment[] = []): Promise<void> {
+  private async sendPromptToCopilot(prompt: string, attachments: VBAttachment[] = [], useAgentMode = false): Promise<void> {
     const imageAttachments = attachments.filter((a) => a.mimeType.startsWith('image/'));
     const savedImagePaths: vscode.Uri[] = [];
 
@@ -706,6 +707,9 @@ export class MessageHandler {
     let chatOpened = false;
     try {
       const chatOptions: Record<string, unknown> = { query: prompt };
+      if (useAgentMode) {
+        chatOptions.mode = 'agent';
+      }
       if (savedImagePaths.length > 0) {
         chatOptions.attachFiles = savedImagePaths;
         chatOptions.isPartialQuery = true;
