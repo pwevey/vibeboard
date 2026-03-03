@@ -847,7 +847,7 @@ body.is-dragging .task-card:not(.dragging) {
 
 .start-page {
   overflow-y: auto;
-  padding-bottom: 20px;
+  padding-bottom: 60px;
   height: 100vh;
 }
 
