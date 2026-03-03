@@ -37,26 +37,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand('vibeboard.startSession', () => {
       const projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-      const prevSession = sessionManager.getActiveSession();
+      const config = vscode.workspace.getConfiguration('vibeboard');
+      const carryOver = config.get<boolean>('carryOverTasks', true);
 
-      // If there's an active session with carry-over enabled, handle it
-      if (prevSession) {
-        const config = vscode.workspace.getConfiguration('vibeboard');
-        const carryOver = config.get<boolean>('carryOverTasks', true);
+      // startSession() internally ends the active session first
+      const newSession = sessionManager.startSession(projectPath);
 
-        const summary = sessionManager.endSession();
-        const newSession = sessionManager.startSession(projectPath);
-
-        if (carryOver && summary && summary.tasksCarriedOver > 0) {
-          taskManager.carryOverTasks(prevSession.id, newSession.id);
+      // Carry over incomplete tasks from ALL ended sessions
+      if (carryOver) {
+        const carried = taskManager.carryOverAllTasks(newSession.id);
+        if (carried > 0) {
           vscode.window.showInformationMessage(
-            `Vibe Board: New session started! ${summary.tasksCarriedOver} tasks carried over.`
+            `Vibe Board: Session started! ${carried} task${carried === 1 ? '' : 's'} carried over.`
           );
         } else {
-          vscode.window.showInformationMessage('Vibe Board: New session started!');
+          vscode.window.showInformationMessage('Vibe Board: Session started!');
         }
       } else {
-        sessionManager.startSession(projectPath);
         vscode.window.showInformationMessage('Vibe Board: Session started!');
       }
 

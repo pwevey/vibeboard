@@ -246,12 +246,7 @@ export class MessageHandler {
         const carryOver = config.get<boolean>('carryOverTasks', true);
         const sessionName = (message.payload as { name?: string }).name;
 
-        // Find the most recently ended session to carry over tasks from
-        const data = this.storage.getData();
-        const lastEnded = data.sessions
-          .filter((s) => s.status === 'ended')
-          .sort((a, b) => new Date(b.endedAt!).getTime() - new Date(a.endedAt!).getTime())[0];
-
+        // startSession() internally ends the active session first
         const newSession = this.sessionManager.startSession(projectPath, sessionName);
 
         // Ensure at least one board exists, named after the session
@@ -265,11 +260,13 @@ export class MessageHandler {
           }
         }
 
-        if (carryOver && lastEnded) {
-          const carried = this.taskManager.carryOverTasks(lastEnded.id, newSession.id);
+        // Carry over incomplete tasks from ALL ended sessions (runs after
+        // startSession has ended the previous session, so nothing is missed)
+        if (carryOver) {
+          const carried = this.taskManager.carryOverAllTasks(newSession.id);
           if (carried > 0) {
             vscode.window.showInformationMessage(
-              `Vibe Board: Session started! ${carried} tasks carried over.`
+              `Vibe Board: Session started! ${carried} task${carried === 1 ? '' : 's'} carried over.`
             );
           } else {
             vscode.window.showInformationMessage('Vibe Board: Session started!');

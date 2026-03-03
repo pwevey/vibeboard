@@ -232,7 +232,41 @@ export class TaskManager {
   }
 
   /**
-   * Carry over unfinished tasks to a new session.
+   * Carry over unfinished tasks from ALL ended sessions to the new session.
+   * Updates sessionId and boardId so tasks appear on the new session's active board.
+   */
+  carryOverAllTasks(newSessionId: string): number {
+    const data = this.storage.getData();
+    const newBoardId = data.activeBoardId || 'default';
+
+    // Find all ended session IDs
+    const endedSessionIds = new Set(
+      data.sessions.filter((s) => s.status === 'ended').map((s) => s.id)
+    );
+
+    let carried = 0;
+
+    for (const task of data.tasks) {
+      if (
+        endedSessionIds.has(task.sessionId) &&
+        task.status !== 'completed'
+      ) {
+        task.carriedFromSessionId = task.sessionId;
+        task.sessionId = newSessionId;
+        task.boardId = newBoardId;
+        carried++;
+      }
+    }
+
+    if (carried > 0) {
+      this.storage.setData(data);
+    }
+
+    return carried;
+  }
+
+  /**
+   * Carry over unfinished tasks from a specific session to the new session.
    * Updates sessionId and boardId so tasks appear on the new session's active board.
    */
   carryOverTasks(oldSessionId: string, newSessionId: string): number {

@@ -236,4 +236,63 @@ test('carryOverTasks moves non-completed tasks to new session', () => {
   assert.strictEqual(active?.boardId, 'default'); // should update to new session's board
 });
 
+// ── carryOverAllTasks ──
+
+test('carryOverAllTasks gathers incomplete tasks from multiple ended sessions', () => {
+  const { tm, storage } = createTaskManager();
+
+  // Simulate two ended sessions with incomplete tasks
+  const data = storage.getData();
+  data.sessions = [
+    { id: 's1', name: 'Session 1', projectPath: '', startedAt: '2026-01-01T00:00:00Z', endedAt: '2026-01-01T01:00:00Z', status: 'ended' as const },
+    { id: 's2', name: 'Session 2', projectPath: '', startedAt: '2026-01-02T00:00:00Z', endedAt: '2026-01-02T01:00:00Z', status: 'ended' as const },
+    { id: 's3', name: 'Session 3', projectPath: '', startedAt: '2026-01-03T00:00:00Z', endedAt: null, status: 'active' as const },
+  ];
+  data.activeSessionId = 's3';
+  storage.setData(data);
+
+  // Add tasks to each ended session
+  tm.addTask({ title: 'S1 Task', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  tm.addTask({ title: 'S1 Done', tag: 'bug', status: 'up-next', sessionId: 's1' });
+  tm.completeTask(storage.getData().tasks.find((t) => t.title === 'S1 Done')!.id);
+  tm.addTask({ title: 'S2 Task A', tag: 'refactor', status: 'backlog', sessionId: 's2' });
+  tm.addTask({ title: 'S2 Task B', tag: 'note', status: 'notes', sessionId: 's2' });
+
+  // Carry over all to session 3
+  const carried = tm.carryOverAllTasks('s3');
+  assert.strictEqual(carried, 3); // S1 Task + S2 Task A + S2 Task B (not S1 Done which is completed)
+
+  const tasks = storage.getData().tasks;
+  const carriedTasks = tasks.filter((t) => t.sessionId === 's3' && t.carriedFromSessionId);
+  assert.strictEqual(carriedTasks.length, 3);
+
+  // Verify they came from different sessions
+  const fromS1 = carriedTasks.filter((t) => t.carriedFromSessionId === 's1');
+  const fromS2 = carriedTasks.filter((t) => t.carriedFromSessionId === 's2');
+  assert.strictEqual(fromS1.length, 1);
+  assert.strictEqual(fromS2.length, 2);
+});
+
+test('carryOverAllTasks skips active session tasks', () => {
+  const { tm, storage } = createTaskManager();
+
+  const data = storage.getData();
+  data.sessions = [
+    { id: 's1', name: 'Session 1', projectPath: '', startedAt: '2026-01-01T00:00:00Z', endedAt: '2026-01-01T01:00:00Z', status: 'ended' as const },
+    { id: 's2', name: 'Session 2', projectPath: '', startedAt: '2026-01-02T00:00:00Z', endedAt: null, status: 'active' as const },
+  ];
+  data.activeSessionId = 's2';
+  storage.setData(data);
+
+  tm.addTask({ title: 'Old Task', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  tm.addTask({ title: 'Current Task', tag: 'feature', status: 'up-next', sessionId: 's2' });
+
+  const carried = tm.carryOverAllTasks('s2');
+  assert.strictEqual(carried, 1); // Only the s1 task, not the s2 task
+
+  const old = storage.getData().tasks.find((t) => t.title === 'Old Task');
+  assert.strictEqual(old?.sessionId, 's2');
+  assert.strictEqual(old?.carriedFromSessionId, 's1');
+});
+
 console.log('\nDone.\n');
