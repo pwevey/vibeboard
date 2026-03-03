@@ -134,6 +134,9 @@ let followUpTaskId: string | null = null;
 let pendingFollowUpAttachments: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[] = [];
 let voiceTargetId: string = 'quick-add-input'; // which textarea voice recording targets
 let pendingAIClassification: { tag: string; priority: string; status: string } | null = null;
+let quickAddTag: string = 'feature';
+let quickAddPriority: string = 'medium';
+let quickAddCol: string = 'up-next';
 
 // ============================================================
 // Initialization
@@ -247,29 +250,20 @@ function render(): void {
 
   // Preserve quick-add textarea value across re-renders
   const prevInput = (document.getElementById('quick-add-input') as HTMLTextAreaElement | null)?.value ?? '';
-  const prevTag = (document.getElementById('quick-add-tag') as HTMLSelectElement | null)?.value ?? '';
-  const prevPriority = (document.getElementById('quick-add-priority') as HTMLSelectElement | null)?.value ?? '';
-  const prevCol = (document.getElementById('quick-add-col') as HTMLSelectElement | null)?.value ?? '';
+  // Capture current dropdown values into state variables (so renderQuickAdd uses them)
+  const curTag = (document.getElementById('quick-add-tag') as HTMLSelectElement | null)?.value;
+  const curPriority = (document.getElementById('quick-add-priority') as HTMLSelectElement | null)?.value;
+  const curCol = (document.getElementById('quick-add-col') as HTMLSelectElement | null)?.value;
+  if (curTag) { quickAddTag = curTag; }
+  if (curPriority) { quickAddPriority = curPriority; }
+  if (curCol) { quickAddCol = curCol; }
   const prevFollowUp = (document.getElementById('follow-up-input') as HTMLTextAreaElement | null)?.value ?? '';
 
   app.innerHTML = html;
 
   // Restore quick-add values
   const restoredInput = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
-  const restoredTag = document.getElementById('quick-add-tag') as HTMLSelectElement | null;
-  const restoredPriority = document.getElementById('quick-add-priority') as HTMLSelectElement | null;
-  const restoredCol = document.getElementById('quick-add-col') as HTMLSelectElement | null;
   if (restoredInput && prevInput) { restoredInput.value = prevInput; }
-  if (restoredTag && prevTag) { restoredTag.value = prevTag; }
-  if (restoredPriority && prevPriority) { restoredPriority.value = prevPriority; }
-  if (restoredCol && prevCol) { restoredCol.value = prevCol; }
-
-  // Apply pending AI classification (overrides preserved values)
-  if (pendingAIClassification) {
-    if (restoredTag) { restoredTag.value = pendingAIClassification.tag; }
-    if (restoredPriority) { restoredPriority.value = pendingAIClassification.priority; }
-    if (restoredCol) { restoredCol.value = pendingAIClassification.status; }
-  }
   // Restore follow-up textarea value
   const restoredFollowUp = document.getElementById('follow-up-input') as HTMLTextAreaElement | null;
   if (restoredFollowUp && prevFollowUp) { restoredFollowUp.value = prevFollowUp; }
@@ -475,14 +469,14 @@ function renderQuickAdd(): string {
     ${pendingThumbs}
     <div class="quick-add-controls">
       <select id="quick-add-tag" aria-label="Task tag">
-        <option value="feature">Feature</option><option value="bug">Bug</option>
-        <option value="refactor">Refactor</option><option value="note">Note</option>
+        <option value="feature" ${quickAddTag === 'feature' ? 'selected' : ''}>Feature</option><option value="bug" ${quickAddTag === 'bug' ? 'selected' : ''}>Bug</option>
+        <option value="refactor" ${quickAddTag === 'refactor' ? 'selected' : ''}>Refactor</option><option value="note" ${quickAddTag === 'note' ? 'selected' : ''}>Note</option>
       </select>
       <select id="quick-add-priority" aria-label="Task priority">
-        <option value="medium">Medium</option><option value="high">High</option><option value="low">Low</option>
+        <option value="medium" ${quickAddPriority === 'medium' ? 'selected' : ''}>Medium</option><option value="high" ${quickAddPriority === 'high' ? 'selected' : ''}>High</option><option value="low" ${quickAddPriority === 'low' ? 'selected' : ''}>Low</option>
       </select>
       <select id="quick-add-col" aria-label="Target column">
-        <option value="in-progress">In Progress</option><option value="up-next">Up Next</option><option value="backlog">Backlog</option><option value="notes">Notes</option>
+        <option value="in-progress" ${quickAddCol === 'in-progress' ? 'selected' : ''}>In Progress</option><option value="up-next" ${quickAddCol === 'up-next' ? 'selected' : ''}>Up Next</option><option value="backlog" ${quickAddCol === 'backlog' ? 'selected' : ''}>Backlog</option><option value="notes" ${quickAddCol === 'notes' ? 'selected' : ''}>Notes</option>
       </select>
       <button class="icon-btn ai-suggest-btn" id="btn-ai-rewrite" title="AI improve task" aria-label="AI improve task">&#10024;</button>
       <button class="icon-btn voice-btn ${isVoiceRecording ? 'recording' : ''}" id="btn-voice" title="${isVoiceRecording ? 'Stop recording' : 'Voice input'}" aria-label="${isVoiceRecording ? 'Stop voice recording' : 'Start voice recording'}">${micSvg}</button>
@@ -1056,6 +1050,10 @@ function bindQuickAdd(): void {
     pendingAIDescription = '';
     pendingQuickAddAttachments = [];
     pendingAIClassification = null;
+    // Reset dropdown state to defaults
+    quickAddTag = 'feature';
+    quickAddPriority = 'medium';
+    quickAddCol = 'up-next';
     addInput.focus();
   };
 
@@ -1063,6 +1061,11 @@ function bindQuickAdd(): void {
   addInput?.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doAdd(); }
   });
+
+  // Track dropdown changes in state so they persist across re-renders
+  addTag?.addEventListener('change', () => { quickAddTag = addTag.value; pendingAIClassification = null; });
+  addPriority?.addEventListener('change', () => { quickAddPriority = addPriority.value; pendingAIClassification = null; });
+  addCol?.addEventListener('change', () => { quickAddCol = addCol.value; pendingAIClassification = null; });
 
   // Paste image into quick-add textarea → pending attachment
   addInput?.addEventListener('paste', (e: ClipboardEvent) => {
@@ -1561,10 +1564,20 @@ function showContextMenu(taskId: string, event: Event): void {
     <div class="ctx-item danger" data-ctx-delete role="menuitem">&#128465; Delete</div>`;
 
   const x = Math.min(mouseEvent.clientX, window.innerWidth - 160);
-  const y = Math.min(mouseEvent.clientY, window.innerHeight - 250);
   menu.style.left = `${x}px`;
-  menu.style.top = `${y}px`;
+  menu.style.top = `0px`;
+  menu.style.visibility = 'hidden';
   document.body.appendChild(menu);
+
+  // Measure actual menu height and flip upward if it would clip
+  const menuRect = menu.getBoundingClientRect();
+  const menuHeight = menuRect.height;
+  let y = mouseEvent.clientY;
+  if (y + menuHeight > window.innerHeight) {
+    y = Math.max(0, y - menuHeight);
+  }
+  menu.style.top = `${y}px`;
+  menu.style.visibility = 'visible';
 
   menu.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -2970,6 +2983,11 @@ function handleAIResult(payload: { action: string; result: string | string[]; ta
           pendingAIDescription = '';
 
           // Set tag, priority, and column from AI classification
+          // Update state variables so next render picks them up
+          if (parsed.tag) { quickAddTag = parsed.tag; }
+          if (parsed.priority) { quickAddPriority = parsed.priority; }
+          if (parsed.status) { quickAddCol = parsed.status; }
+          // Also set DOM directly for immediate visual feedback
           if (tagSelect && parsed.tag) { tagSelect.value = parsed.tag; }
           if (prioSelect && parsed.priority) { prioSelect.value = parsed.priority; }
           if (colSelect && parsed.status) { colSelect.value = parsed.status; }
