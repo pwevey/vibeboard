@@ -2525,12 +2525,10 @@ textarea:focus-visible {
 
 .auto-queue-item.failed {
   color: #F44336;
-  text-decoration: line-through;
 }
 
-.auto-queue-item.failed .auto-retry-btn {
-  text-decoration: none;
-  display: inline-block;
+.auto-queue-item.failed .auto-queue-name {
+  text-decoration: line-through;
 }
 
 .auto-retry-btn {
@@ -2560,6 +2558,9 @@ textarea:focus-visible {
 
 .auto-queue-item.skipped {
   color: var(--vscode-disabledForeground, #888);
+}
+
+.auto-queue-item.skipped .auto-queue-name {
   text-decoration: line-through;
 }
 

@@ -452,7 +452,7 @@ function renderAutomationBar(): string {
       : item.status === 'failed' && retryCount >= maxRetries
       ? ' <span class="auto-retry-exhausted" title="Max retries reached">(max retries)</span>'
       : '';
-    return `<div class="auto-queue-item ${cls}"><span class="auto-queue-dot">${statusDot}</span> ${name}${retryBtn}</div>`;
+    return `<div class="auto-queue-item ${cls}"><span class="auto-queue-dot">${statusDot}</span> <span class="auto-queue-name">${name}</span>${retryBtn}</div>`;
   }).join('');
 
   return `<div class="automation-bar" role="region" aria-label="Automation progress">
@@ -2845,7 +2845,7 @@ function renderHelpContent(section: string): string {
           <li>Click the <strong>rocket icon</strong> (&#x1F680;) on any task card to send it directly to <strong>Copilot Chat</strong>.</li>
           <li>You can also right-click a task and choose <strong>Send to Copilot</strong> from the context menu.</li>
           <li>The task title and description are placed into the Copilot Chat input so you can start prompting immediately.</li>
-          <li><strong>Plan tasks</strong> automatically open in <strong>Plan mode</strong>, so Copilot creates an implementation plan instead of executing immediately.</li>
+          <li><strong>Plan tasks</strong> automatically open in <strong>Ask mode</strong>, so Copilot provides a planning response instead of making changes immediately.</li>
           <li>The task is <strong>automatically moved to In Progress</strong> and flagged as sent to Copilot.</li>
           <li>If Copilot Chat is not available, the prompt is copied to your clipboard instead.</li>
         </ul>

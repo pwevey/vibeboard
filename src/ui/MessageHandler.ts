@@ -31,10 +31,10 @@ export class MessageHandler {
       this.sendStateUpdate();
     });
 
-    // Wire automation's send-to-copilot to our helper (agent mode, or plan mode for plan tasks)
+    // Wire automation's send-to-copilot to our helper (agent mode, or ask mode for plan tasks)
     this.automationService.setSendToCopilotHandler(async (prompt, attachments, tag) => {
-      const usePlanMode = tag === 'plan';
-      await this.sendPromptToCopilot(prompt, attachments, !usePlanMode, usePlanMode);
+      const useAskMode = tag === 'plan';
+      await this.sendPromptToCopilot(prompt, attachments, !useAskMode, useAskMode);
     });
   }
 
@@ -304,9 +304,9 @@ export class MessageHandler {
         }
 
         // Send to Copilot using the shared helper
-        // Plan tasks open in plan mode so Copilot creates an implementation plan
-        const usePlanMode = task.tag === 'plan';
-        await this.sendPromptToCopilot(prompt, task.attachments || [], false, usePlanMode);
+        // Plan tasks open in Ask mode so Copilot provides a planning response
+        const useAskMode = task.tag === 'plan';
+        await this.sendPromptToCopilot(prompt, task.attachments || [], false, useAskMode);
 
         // Auto-move task to In Progress when sent to Copilot
         if (task.status !== 'completed' && task.status !== 'in-progress') {
@@ -695,7 +695,7 @@ export class MessageHandler {
    * Extracted so it can be reused for initial send and follow-ups.
    * @param useAgentMode If true, opens chat in Agent mode (for automation).
    */
-  private async sendPromptToCopilot(prompt: string, attachments: VBAttachment[] = [], useAgentMode = false, usePlanMode = false): Promise<void> {
+  private async sendPromptToCopilot(prompt: string, attachments: VBAttachment[] = [], useAgentMode = false, useAskMode = false): Promise<void> {
     const imageAttachments = attachments.filter((a) => a.mimeType.startsWith('image/'));
     const savedImagePaths: vscode.Uri[] = [];
 
@@ -721,8 +721,8 @@ export class MessageHandler {
       const chatOptions: Record<string, unknown> = { query: prompt };
       if (useAgentMode) {
         chatOptions.mode = 'agent';
-      } else if (usePlanMode) {
-        chatOptions.mode = 'plan';
+      } else if (useAskMode) {
+        chatOptions.mode = 'ask';
       }
       if (savedImagePaths.length > 0) {
         chatOptions.attachFiles = savedImagePaths;
