@@ -355,6 +355,10 @@ export class MessageHandler {
     let filterLabel: string;
     let ext: string;
 
+    // Use local date for filename (toISOString gives UTC which can be the wrong day)
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
     if (format === 'json') {
       const exportObj = {
         exportedAt: new Date().toISOString(),
@@ -366,7 +370,7 @@ export class MessageHandler {
       };
       content = JSON.stringify(exportObj, null, 2);
       ext = 'json';
-      defaultName = `vibeboard-export-${new Date().toISOString().slice(0, 10)}.json`;
+      defaultName = `vibeboard-export-${localDate}.json`;
       filterLabel = 'JSON';
     } else if (format === 'csv') {
       const lines = ['Session Date,Session Duration,Task Title,Description,Tag,Priority,Status,Time Spent,Created,Completed'];
@@ -393,13 +397,13 @@ export class MessageHandler {
       }
       content = lines.join('\n');
       ext = 'csv';
-      defaultName = `vibeboard-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      defaultName = `vibeboard-export-${localDate}.csv`;
       filterLabel = 'CSV';
     } else {
       // Markdown export
       content = this.generateMarkdown(data, history);
       ext = 'md';
-      defaultName = `vibeboard-export-${new Date().toISOString().slice(0, 10)}.md`;
+      defaultName = `vibeboard-export-${localDate}.md`;
       filterLabel = 'Markdown';
     }
 
