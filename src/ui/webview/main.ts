@@ -545,7 +545,7 @@ function renderNoSessionState(): string {
       .filter((t) => t.status === 'completed')
       .sort((a, b) => new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime());
 
-    const TASK_PREVIEW = 10;
+    const TASK_PREVIEW = 5;
     if (completedTasks.length > 0) {
       const showAllTasks = completedTasks.length > TASK_PREVIEW;
       html += `<div class="start-section"><div class="start-section-header"><h3>&#10003; Completed Tasks <span class="start-section-count">(${completedTasks.length})</span></h3></div><div class="start-section-list start-section-scrollable" id="completed-tasks-list">`;
