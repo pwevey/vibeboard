@@ -296,21 +296,16 @@ export class MessageHandler {
         }
 
         // Open Copilot Chat with prompt and any image attachments
+        let chatOpened = false;
         try {
           const chatOptions: Record<string, unknown> = { query: prompt };
           if (savedImagePaths.length > 0) {
             chatOptions.attachFiles = savedImagePaths;
-            // Use isPartialQuery to prevent auto-submit (image loading is async
-            // and would be missed if query fires immediately). After a delay we
-            // programmatically accept the input so both text + image are sent.
+            // Prevent auto-submit so the async image attachment can load first
             chatOptions.isPartialQuery = true;
           }
           await vscode.commands.executeCommand('workbench.action.chat.open', chatOptions);
-          if (savedImagePaths.length > 0) {
-            // Give the image attachment time to load, then submit
-            await new Promise((r) => setTimeout(r, 800));
-            await vscode.commands.executeCommand('workbench.action.chat.acceptInput');
-          }
+          chatOpened = true;
         } catch {
           // Fallback: try GitHub Copilot Chat panel
           try {
@@ -321,6 +316,18 @@ export class MessageHandler {
             // Last fallback: just copy to clipboard
             await vscode.env.clipboard.writeText(prompt);
             vscode.window.showInformationMessage('Vibe Board: Prompt copied to clipboard. Open Copilot Chat and paste.');
+          }
+        }
+
+        // If chat opened with images, wait for attachment to load then submit
+        if (chatOpened && savedImagePaths.length > 0) {
+          await new Promise((r) => setTimeout(r, 1000));
+          try {
+            await vscode.commands.executeCommand('workbench.action.chat.submit');
+          } catch {
+            try {
+              await vscode.commands.executeCommand('workbench.action.edits.submit');
+            } catch { /* user can press Enter manually */ }
           }
         }
         break;
