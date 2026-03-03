@@ -169,12 +169,27 @@ User input: ${input}`;
 
       const parts = result.split('===');
       if (parts.length >= 3) {
-        const rawTag = parts[0].trim().toLowerCase();
-        const title = parts[1].trim().replace(/^["']|["']$/g, '');
-        const description = parts.slice(2).join('===').trim();
+        // Strip markdown formatting (backticks, asterisks, etc.) from the category
+        const rawTag = parts[0].trim().toLowerCase().replace(/[`*_#\r\n]/g, '').trim();
+        const title = parts[1].trim().replace(/^["']|["']$/g, '').replace(/[`*]/g, '');
+        const description = parts.slice(2).join('===').trim().replace(/^```[\s\S]*?```$/gm, '').trim();
 
         const validTags = ['bug', 'feature', 'refactor', 'note'];
-        const tag = validTags.includes(rawTag) ? rawTag : 'note';
+        // Try exact match first, then check if any valid tag is contained in the raw output
+        let tag = validTags.includes(rawTag) ? rawTag : '';
+        if (!tag) {
+          for (const vt of validTags) {
+            if (rawTag.includes(vt)) { tag = vt; break; }
+          }
+        }
+        // If title has a known prefix, infer the tag from it
+        if (!tag) {
+          const lowerTitle = title.toLowerCase();
+          if (lowerTitle.startsWith('bug:')) { tag = 'bug'; }
+          else if (lowerTitle.startsWith('spike:')) { tag = 'feature'; }
+          else if (lowerTitle.startsWith('refactor:')) { tag = 'refactor'; }
+          else { tag = 'note'; }
+        }
 
         const tagDefaults: Record<string, { priority: string; status: string }> = {
           bug: { priority: 'high', status: 'up-next' },
