@@ -899,6 +899,42 @@ body.is-dragging .task-card:not(.dragging) {
   gap: 4px;
 }
 
+.start-section-count {
+  font-weight: 400;
+  color: var(--vscode-descriptionForeground);
+}
+
+.start-hidden-item {
+  display: none;
+}
+
+.start-expanded .start-hidden-item {
+  display: block;
+}
+
+.start-section-scrollable.start-scrollable-active {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.start-toggle-btn {
+  display: block;
+  width: 100%;
+  padding: 6px 0;
+  margin-top: 4px;
+  background: none;
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 4px;
+  color: var(--vscode-textLink-foreground);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.start-toggle-btn:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
 /* Session history items on start page */
 
 .start-history-item {

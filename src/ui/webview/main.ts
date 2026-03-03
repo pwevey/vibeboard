@@ -513,9 +513,12 @@ function renderNoSessionState(): string {
       .filter((s) => s.status === 'ended')
       .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
 
+    const SESSION_PREVIEW = 5;
     if (endedSessions.length > 0) {
-      html += `<div class="start-section"><div class="start-section-header"><h3>&#128218; Session History</h3></div><div class="start-section-list">`;
-      for (const s of endedSessions) {
+      const showAllSessions = endedSessions.length > SESSION_PREVIEW;
+      html += `<div class="start-section"><div class="start-section-header"><h3>&#128218; Session History <span class="start-section-count">(${endedSessions.length})</span></h3></div><div class="start-section-list start-section-scrollable" id="session-history-list">`;
+      for (let i = 0; i < endedSessions.length; i++) {
+        const s = endedSessions[i];
         const date = new Date(s.startedAt).toLocaleDateString();
         const time = new Date(s.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const endMs = s.endedAt ? new Date(s.endedAt).getTime() : Date.now();
@@ -524,12 +527,17 @@ function renderNoSessionState(): string {
         const completed = sessionTasks.filter((t) => t.status === 'completed').length;
         const carried = sessionTasks.filter((t) => t.carriedFromSessionId).length;
         const carriedStr = carried > 0 ? `<span>&#8634; ${carried} carried over</span>` : '';
-        html += `<div class="start-history-item">
+        const hiddenClass = showAllSessions && i >= SESSION_PREVIEW ? ' start-hidden-item' : '';
+        html += `<div class="start-history-item${hiddenClass}">
           <div class="start-history-row"><span class="start-history-date">${date} ${time}</span><span class="start-history-dur">${dur}</span></div>
           <div class="start-history-stats"><span>&#10003; ${completed}/${sessionTasks.length} tasks</span>${carriedStr}</div>
         </div>`;
       }
-      html += '</div></div>';
+      html += '</div>';
+      if (showAllSessions) {
+        html += `<button class="start-toggle-btn" data-target="session-history-list" data-count="${endedSessions.length}">Show all ${endedSessions.length} sessions</button>`;
+      }
+      html += '</div>';
     }
 
     // Completed tasks
@@ -537,17 +545,25 @@ function renderNoSessionState(): string {
       .filter((t) => t.status === 'completed')
       .sort((a, b) => new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime());
 
+    const TASK_PREVIEW = 10;
     if (completedTasks.length > 0) {
-      html += `<div class="start-section"><div class="start-section-header"><h3>&#10003; Completed Tasks</h3></div><div class="start-section-list">`;
-      for (const t of completedTasks) {
+      const showAllTasks = completedTasks.length > TASK_PREVIEW;
+      html += `<div class="start-section"><div class="start-section-header"><h3>&#10003; Completed Tasks <span class="start-section-count">(${completedTasks.length})</span></h3></div><div class="start-section-list start-section-scrollable" id="completed-tasks-list">`;
+      for (let i = 0; i < completedTasks.length; i++) {
+        const t = completedTasks[i];
         const when = t.completedAt ? getTimeAgo(t.completedAt) : getTimeAgo(t.createdAt);
         const timeStr = (t.timeSpentMs || 0) > 0 ? ` (${formatDurationCompact(t.timeSpentMs)})` : '';
-        html += `<div class="start-completed-item">
+        const hiddenClass = showAllTasks && i >= TASK_PREVIEW ? ' start-hidden-item' : '';
+        html += `<div class="start-completed-item${hiddenClass}">
           <span class="start-completed-title">${escapeHtml(t.title)}${timeStr}</span>
           <div class="start-completed-meta"><span class="task-tag ${t.tag}">${TAG_LABELS[t.tag]}</span><span class="start-completed-time">${when}</span></div>
         </div>`;
       }
-      html += '</div></div>';
+      html += '</div>';
+      if (showAllTasks) {
+        html += `<button class="start-toggle-btn" data-target="completed-tasks-list" data-count="${completedTasks.length}">Show all ${completedTasks.length} tasks</button>`;
+      }
+      html += '</div>';
     }
   }
 
@@ -592,6 +608,26 @@ function bindEvents(): void {
       details.style.display = isHidden ? 'block' : 'none';
       if (expandBtn) { expandBtn.innerHTML = isHidden ? '&#9650;' : '&#9660;'; }
     }
+  });
+
+  // Start page show all / show less toggles
+  document.querySelectorAll<HTMLButtonElement>('.start-toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.target;
+      const list = targetId ? document.getElementById(targetId) : null;
+      if (!list) return;
+      const isExpanded = list.classList.toggle('start-expanded');
+      const count = btn.dataset.count || '';
+      const isSessionList = targetId === 'session-history-list';
+      if (isExpanded) {
+        list.classList.add('start-scrollable-active');
+        btn.textContent = isSessionList ? 'Show less' : 'Show less';
+      } else {
+        list.classList.remove('start-scrollable-active');
+        btn.textContent = isSessionList ? `Show all ${count} sessions` : `Show all ${count} tasks`;
+        list.scrollTop = 0;
+      }
+    });
   });
 
   // AI Summarize
