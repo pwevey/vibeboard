@@ -38,6 +38,7 @@ export class AutomationService {
   private startedAt: string | undefined;
 
   private fileWatcher: vscode.FileSystemWatcher | undefined;
+  private docChangeListener: vscode.Disposable | undefined;
   private changeTimer: ReturnType<typeof setTimeout> | undefined;
   private timeoutTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -341,9 +342,22 @@ export class AutomationService {
         }, CHANGE_DEBOUNCE_MS);
       };
 
+      // Watch on-disk file changes
       this.fileWatcher.onDidChange(() => resetDebounce());
       this.fileWatcher.onDidCreate(() => resetDebounce());
       this.fileWatcher.onDidDelete(() => resetDebounce());
+
+      // Watch in-memory document edits (Copilot Agent uses WorkspaceEdit)
+      this.docChangeListener = vscode.workspace.onDidChangeTextDocument((e) => {
+        // Ignore output/debug panels, our own data file, and git internals
+        const scheme = e.document.uri.scheme;
+        if (scheme === 'output' || scheme === 'debug') { return; }
+        const fsPath = e.document.uri.fsPath || '';
+        if (fsPath.includes('.vibeboard') || fsPath.includes('.git')) { return; }
+        if (e.contentChanges.length > 0) {
+          resetDebounce();
+        }
+      });
 
       // Timeout: if no changes within CHANGE_TIMEOUT_MS, go to checkpoint anyway
       this.timeoutTimer = setTimeout(async () => {
@@ -371,6 +385,29 @@ export class AutomationService {
 
       item.changedFiles = changedFiles;
       item.diffSummary = diffStat;
+
+      // If git shows nothing, also check for dirty (unsaved) documents
+      if (changedFiles.length === 0) {
+        const dirtyDocs = vscode.workspace.textDocuments.filter(
+          (d) => d.isDirty && d.uri.scheme === 'file'
+        );
+        if (dirtyDocs.length > 0) {
+          for (const d of dirtyDocs) {
+            changedFiles.push(vscode.workspace.asRelativePath(d.uri));
+          }
+        }
+      }
+
+      // Also check untitled (new unsaved) documents
+      const untitledDocs = vscode.workspace.textDocuments.filter(
+        (d) => d.uri.scheme === 'untitled' && d.getText().trim().length > 0
+      );
+      for (const d of untitledDocs) {
+        const name = d.uri.path || d.uri.fsPath || 'Untitled';
+        if (!changedFiles.includes(name)) {
+          changedFiles.push(name);
+        }
+      }
 
       if (changedFiles.length === 0) {
         item.status = 'checkpoint';
@@ -455,6 +492,10 @@ export class AutomationService {
     if (this.fileWatcher) {
       this.fileWatcher.dispose();
       this.fileWatcher = undefined;
+    }
+    if (this.docChangeListener) {
+      this.docChangeListener.dispose();
+      this.docChangeListener = undefined;
     }
   }
 
