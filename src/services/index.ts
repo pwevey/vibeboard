@@ -174,22 +174,34 @@ User input: ${input}`;
         const title = parts[1].trim().replace(/^["']|["']$/g, '').replace(/[`*]/g, '');
         const description = parts.slice(2).join('===').trim().replace(/^```[\s\S]*?```$/gm, '').trim();
 
-        const validTags = ['bug', 'feature', 'refactor', 'note'];
-        // Try exact match first, then check if any valid tag is contained in the raw output
-        let tag = validTags.includes(rawTag) ? rawTag : '';
+        // Infer tag from title prefix — this is the most reliable signal
+        // because the model formats the title correctly even when it misclassifies
+        const lowerTitle = title.toLowerCase();
+        let tag = '';
+        if (lowerTitle.startsWith('bug:')) { tag = 'bug'; }
+        else if (lowerTitle.startsWith('spike:')) { tag = 'feature'; }
+        else if (lowerTitle.startsWith('refactor:')) { tag = 'refactor'; }
+
+        // Fall back to the model's explicit category if title prefix didn't match
         if (!tag) {
-          for (const vt of validTags) {
-            if (rawTag.includes(vt)) { tag = vt; break; }
+          const validTags = ['bug', 'feature', 'refactor', 'note'];
+          tag = validTags.includes(rawTag) ? rawTag : '';
+          if (!tag) {
+            for (const vt of validTags) {
+              if (rawTag.includes(vt)) { tag = vt; break; }
+            }
           }
         }
-        // If title has a known prefix, infer the tag from it
+
+        // Also check description structure as another signal
         if (!tag) {
-          const lowerTitle = title.toLowerCase();
-          if (lowerTitle.startsWith('bug:')) { tag = 'bug'; }
-          else if (lowerTitle.startsWith('spike:')) { tag = 'feature'; }
-          else if (lowerTitle.startsWith('refactor:')) { tag = 'refactor'; }
+          const lowerDesc = description.toLowerCase();
+          if (lowerDesc.includes('steps to reproduce') || lowerDesc.includes('expected:') || lowerDesc.includes('actual:')) { tag = 'bug'; }
+          else if (lowerDesc.includes('goal:') || lowerDesc.includes('approach:')) { tag = 'feature'; }
+          else if (lowerDesc.includes('current state:') || lowerDesc.includes('desired state:')) { tag = 'refactor'; }
           else { tag = 'note'; }
         }
+        if (!tag) { tag = 'note'; }
 
         const tagDefaults: Record<string, { priority: string; status: string }> = {
           bug: { priority: 'high', status: 'up-next' },
