@@ -799,6 +799,7 @@ body.is-dragging .task-card:not(.dragging) {
 .history-list {
   padding: 8px;
   overflow-y: auto;
+  height: calc(100vh - 50px);
 }
 
 .history-item {
@@ -1025,6 +1026,15 @@ body.is-dragging .task-card:not(.dragging) {
 
 .start-import-actions button {
   width: 100%;
+}
+
+.danger-btn {
+  color: var(--vscode-errorForeground) !important;
+  border-color: var(--vscode-errorForeground) !important;
+}
+
+.danger-btn:hover {
+  background: var(--vscode-inputValidation-errorBackground) !important;
 }
 
 /* Empty state (for when there's really no data) */

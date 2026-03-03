@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { WebviewToExtensionMessage, TASK_TEMPLATES } from '../storage/models';
+import { WebviewToExtensionMessage, TASK_TEMPLATES, createDefaultWorkspaceData } from '../storage/models';
 import { SessionManager } from '../session/SessionManager';
 import { TaskManager } from '../tasks/TaskManager';
 import { StorageProvider } from '../storage/StorageProvider';
@@ -328,6 +328,11 @@ export class MessageHandler {
         this.importData();
         break;
       }
+
+      case 'clearAllData': {
+        this.clearAllData();
+        break;
+      }
     }
   }
 
@@ -401,6 +406,24 @@ export class MessageHandler {
       await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf-8'));
       vscode.window.showInformationMessage(`Vibe Board: Exported to ${uri.fsPath}`);
     }
+  }
+
+  /**
+   * Clear all data and reset to a fresh state.
+   */
+  private async clearAllData(): Promise<void> {
+    const confirm = await vscode.window.showWarningMessage(
+      'Are you sure you want to delete ALL Vibe Board data? This will permanently remove all sessions, tasks, and boards. This cannot be undone.',
+      { modal: true },
+      'Delete Everything'
+    );
+
+    if (confirm !== 'Delete Everything') return;
+
+    const freshData = createDefaultWorkspaceData();
+    this.storage.setData(freshData);
+    this.sendStateUpdate();
+    vscode.window.showInformationMessage('Vibe Board: All data has been cleared.');
   }
 
   /**

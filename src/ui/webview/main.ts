@@ -575,6 +575,14 @@ function renderNoSessionState(): string {
     }
   }
 
+  // Clear all data (shown when there's data to clear)
+  if (state && (state.sessions.length > 0 || state.tasks.length > 0)) {
+    html += `<div class="start-section"><div class="start-section-header"><h3>&#128465; Danger Zone</h3></div>
+      <p style="font-size:11px;color:var(--vscode-descriptionForeground);margin-bottom:8px;">Permanently delete all sessions, tasks, and boards. This cannot be undone. Consider exporting first.</p>
+      <button class="secondary danger-btn" id="btn-clear-all-data">Clear All Data</button>
+    </div>`;
+  }
+
   html += '</div>';
   return html;
 }
@@ -690,6 +698,9 @@ function bindEvents(): void {
   document.getElementById('btn-export-csv')?.addEventListener('click', () => vscode.postMessage({ type: 'exportData', payload: { format: 'csv' } }));
   document.getElementById('btn-export-md')?.addEventListener('click', () => vscode.postMessage({ type: 'exportData', payload: { format: 'markdown' } }));
   document.getElementById('btn-import-data')?.addEventListener('click', () => vscode.postMessage({ type: 'importData', payload: {} }));
+
+  // Clear all data
+  document.getElementById('btn-clear-all-data')?.addEventListener('click', () => vscode.postMessage({ type: 'clearAllData', payload: {} }));
 
   // Templates
   document.querySelectorAll<HTMLElement>('[data-template]').forEach((el) => {
@@ -1612,6 +1623,12 @@ function renderHelpContent(section: string): string {
           <li>All Vibe Board data is stored locally in your workspace at <code>.vibeboard/data.json</code>.</li>
           <li>Data is auto-saved with a 300ms debounce after each change.</li>
           <li>No data is sent to external servers.</li>
+        </ul>
+        <h4>Clear All Data</h4>
+        <ul>
+          <li>The <strong>Danger Zone</strong> section on the start page lets you permanently delete all sessions, tasks, and boards.</li>
+          <li>A confirmation dialog prevents accidental deletion.</li>
+          <li>Consider exporting your data first as a backup &mdash; this action cannot be undone.</li>
         </ul>`;
 
     case 'shortcuts':
