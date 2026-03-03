@@ -101,7 +101,8 @@ export class AutomationService {
 
   /** Pause automation after the current task's checkpoint. */
   pause(): void {
-    if (this.state !== 'running') { return; }
+    if (this.state !== 'running' && this.state !== 'reviewing') { return; }
+    this.cleanup(); // Clear any lingering timers
     this.state = 'paused';
     this.broadcastProgress();
     vscode.window.showInformationMessage('Vibe Board: Automation paused.');
@@ -147,6 +148,8 @@ export class AutomationService {
     const current = this.queue[this.currentIndex];
     if (!current) { return; }
 
+    this.cleanup(); // Clear any lingering timers from waitForChanges
+
     current.status = 'done';
     current.completedAt = new Date().toISOString();
 
@@ -168,6 +171,8 @@ export class AutomationService {
   rejectCurrent(): void {
     const current = this.queue[this.currentIndex];
     if (!current) { return; }
+
+    this.cleanup(); // Clear any lingering timers from waitForChanges
 
     current.status = 'failed';
     current.completedAt = new Date().toISOString();
@@ -323,6 +328,8 @@ export class AutomationService {
         if (resolved) { return; }
         resolved = true;
         this.disposeWatcher();
+        if (this.changeTimer) { clearTimeout(this.changeTimer); this.changeTimer = undefined; }
+        if (this.timeoutTimer) { clearTimeout(this.timeoutTimer); this.timeoutTimer = undefined; }
         resolve();
       };
 
@@ -361,6 +368,7 @@ export class AutomationService {
 
       // Timeout: if no changes within CHANGE_TIMEOUT_MS, go to checkpoint anyway
       this.timeoutTimer = setTimeout(async () => {
+        if (resolved) { return; }
         done();
         item.status = 'checkpoint';
         item.result = 'No file changes detected within timeout. Please verify manually.';
