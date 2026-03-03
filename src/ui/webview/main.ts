@@ -138,6 +138,17 @@ let quickAddTag: string = 'feature';
 let quickAddPriority: string = 'medium';
 let quickAddCol: string = 'up-next';
 
+// Automation state
+interface AutomationProgress {
+  state: 'idle' | 'running' | 'paused' | 'reviewing';
+  queue: { taskId: string; status: string; result?: string; diffSummary?: string; changedFiles?: string[]; startedAt?: string; completedAt?: string }[];
+  currentIndex: number;
+  totalTasks: number;
+  completedTasks: number;
+  startedAt?: string;
+}
+let automationProgress: AutomationProgress | null = null;
+
 // ============================================================
 // Initialization
 // ============================================================
@@ -176,6 +187,11 @@ window.addEventListener('message', (event) => {
         pendingFollowUpAttachments = pendingFollowUpAttachments.concat(message.payload.files);
         render();
       }
+      break;
+    case 'automationProgress':
+      automationProgress = message.payload as AutomationProgress;
+      if (automationProgress.state === 'idle') { automationProgress = null; }
+      render();
       break;
   }
 });
@@ -236,6 +252,7 @@ function render(): void {
 
   if (activeSession) {
     html += renderCarriedOverBanner();
+    html += renderAutomationBar();
     html += renderStatsBar();
     html += renderSearchBar();
     html += renderQuickAdd();
@@ -317,6 +334,7 @@ function renderSessionBar(session: VBSession | null): string {
   const redoBtn = `<button class="icon-btn" id="btn-redo" title="Redo (Ctrl+Y)" aria-label="Redo last action">&#8631;</button>`;
   const helpBtn = `<button class="icon-btn help-btn" id="btn-help" title="Help (F1)" aria-label="Open help">&#63;</button>`;
   const aiBtn = session ? `<button class="icon-btn ai-btn" id="btn-ai-summarize" title="AI Summarize Session" aria-label="AI summarize session">&#10024;</button>` : '';
+  const autoBtn = session ? `<button class="icon-btn auto-btn" id="btn-start-automation" title="Run Automation (process tasks via Copilot)" aria-label="Start automation">&#9881;</button>` : '';
 
   const boardSwitcher = session ? renderBoardSwitcher() : '';
 
@@ -341,9 +359,174 @@ function renderSessionBar(session: VBSession | null): string {
       <span class="${timerClass}" id="session-timer" aria-live="polite">00:00:00</span>
       ${pausePlayBtn}
     </div>
-    <div class="session-actions">${aiBtn}${undoBtn}${redoBtn}<button class="secondary" id="btn-end-session">End Session</button>${helpBtn}</div>
+    <div class="session-actions">${aiBtn}${autoBtn}${undoBtn}${redoBtn}<button class="secondary" id="btn-end-session">End Session</button>${helpBtn}</div>
   </div>
   ${boardSwitcher}`;
+}
+
+// ============================================================
+// Automation Bar
+// ============================================================
+
+function renderAutomationBar(): string {
+  if (!automationProgress) { return ''; }
+
+  const { state: autoState, queue, currentIndex, totalTasks, completedTasks } = automationProgress;
+  const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const currentItem = queue[currentIndex];
+  const currentTask = currentItem ? findTask(currentItem.taskId) : null;
+  const currentTitle = currentTask ? escapeHtml(currentTask.title) : 'Unknown task';
+
+  // Status label
+  let statusLabel = '';
+  let statusIcon = '';
+  if (autoState === 'running') {
+    const stepStatus = currentItem?.status || 'pending';
+    const stepLabels: Record<string, string> = {
+      pending: 'Queued',
+      sending: 'Sending to Copilot…',
+      waiting: 'Waiting for changes…',
+      verifying: 'Verifying completion…',
+      checkpoint: 'Review needed',
+      done: 'Done',
+      skipped: 'Skipped',
+      failed: 'Failed',
+    };
+    statusLabel = stepLabels[stepStatus] || stepStatus;
+    statusIcon = '&#9654;'; // play
+  } else if (autoState === 'paused') {
+    statusLabel = 'Paused';
+    statusIcon = '&#9208;'; // pause
+  } else if (autoState === 'reviewing') {
+    statusLabel = 'Review needed';
+    statusIcon = '&#9888;'; // warning
+  }
+
+  // Action buttons based on state
+  let actions = '';
+  if (autoState === 'running') {
+    actions = `<button class="auto-bar-btn" id="btn-auto-pause" title="Pause">&#9208;</button>
+      <button class="auto-bar-btn" id="btn-auto-skip" title="Skip this task">Skip</button>
+      <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
+  } else if (autoState === 'paused') {
+    actions = `<button class="auto-bar-btn primary" id="btn-auto-resume" title="Resume">&#9654; Resume</button>
+      <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
+  } else if (autoState === 'reviewing') {
+    actions = `<button class="auto-bar-btn success" id="btn-auto-approve" title="Approve and complete task">&#10003; Approve</button>
+      <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject and skip">&#10007; Reject</button>
+      <button class="auto-bar-btn" id="btn-auto-skip" title="Skip without rejecting">Skip</button>`;
+  }
+
+  // Checkpoint detail (verification result)
+  let checkpointDetail = '';
+  if (autoState === 'reviewing' && currentItem) {
+    const result = currentItem.result || '';
+    const changedFiles = currentItem.changedFiles || [];
+    const fileList = changedFiles.length > 0
+      ? `<div class="auto-files"><strong>Changed files:</strong> ${changedFiles.map((f) => escapeHtml(f)).join(', ')}</div>`
+      : '';
+    checkpointDetail = `<div class="auto-checkpoint-detail">
+      ${result ? `<div class="auto-verdict">${escapeHtml(result)}</div>` : ''}
+      ${fileList}
+    </div>`;
+  }
+
+  // Queue mini-list
+  const queueItems = queue.map((item, i) => {
+    const task = findTask(item.taskId);
+    const name = task ? escapeHtml(task.title.length > 40 ? task.title.slice(0, 40) + '…' : task.title) : '?';
+    const statusDot = item.status === 'done' ? '&#10003;'
+      : item.status === 'failed' ? '&#10007;'
+      : item.status === 'skipped' ? '&#8211;'
+      : i === currentIndex ? '&#9654;'
+      : '&#9675;';
+    const cls = item.status === 'done' ? 'done' : item.status === 'failed' ? 'failed' : item.status === 'skipped' ? 'skipped' : i === currentIndex ? 'current' : '';
+    return `<div class="auto-queue-item ${cls}"><span class="auto-queue-dot">${statusDot}</span> ${name}</div>`;
+  }).join('');
+
+  return `<div class="automation-bar" role="region" aria-label="Automation progress">
+    <div class="auto-header">
+      <span class="auto-status-icon">${statusIcon}</span>
+      <span class="auto-status-label">${statusLabel}</span>
+      <span class="auto-progress-text">${completedTasks}/${totalTasks} (${pct}%)</span>
+      <div class="auto-actions">${actions}</div>
+    </div>
+    <div class="auto-progress-bar"><div class="auto-progress-fill" style="width:${pct}%"></div></div>
+    <div class="auto-current">Current: <strong>${currentTitle}</strong></div>
+    ${checkpointDetail}
+    <div class="auto-queue">${queueItems}</div>
+  </div>`;
+}
+
+function showAutomationTaskPicker(): void {
+  if (!state) { return; }
+  const tasks = getActiveSessionTasks().filter((t) => t.status !== 'completed');
+  if (tasks.length === 0) {
+    showAIToast('No incomplete tasks to automate.', false);
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Select tasks for automation');
+
+  const taskCheckboxes = tasks.map((t) => {
+    const tagBadge = `<span class="task-tag ${t.tag}" style="font-size:10px;padding:1px 5px;">${TAG_LABELS[t.tag]}</span>`;
+    return `<label class="auto-pick-item">
+      <input type="checkbox" value="${t.id}" checked />
+      ${tagBadge}
+      <span class="auto-pick-title">${escapeHtml(t.title.length > 60 ? t.title.slice(0, 60) + '…' : t.title)}</span>
+    </label>`;
+  }).join('');
+
+  overlay.innerHTML = `<div class="modal-card" style="max-width:420px;">
+    <h3>&#9881; Run Automation</h3>
+    <p style="font-size:12px;color:var(--vscode-descriptionForeground);margin-bottom:8px;">
+      Select tasks to process via Copilot. Each task will be sent to Copilot Chat, then verified automatically.
+      You'll be asked to approve at checkpoints.
+    </p>
+    <div class="auto-pick-controls" style="margin-bottom:6px;display:flex;gap:8px;">
+      <button class="secondary" id="auto-pick-all" style="font-size:11px;padding:2px 8px;">Select All</button>
+      <button class="secondary" id="auto-pick-none" style="font-size:11px;padding:2px 8px;">Select None</button>
+    </div>
+    <div class="auto-pick-list" style="max-height:250px;overflow-y:auto;margin-bottom:12px;">
+      ${taskCheckboxes}
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" id="auto-pick-cancel">Cancel</button>
+      <button class="primary" id="auto-pick-start">&#9654; Start Automation</button>
+    </div>
+  </div>`;
+
+  document.body.appendChild(overlay);
+
+  // Select all / none
+  document.getElementById('auto-pick-all')?.addEventListener('click', () => {
+    overlay.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((cb) => { cb.checked = true; });
+  });
+  document.getElementById('auto-pick-none')?.addEventListener('click', () => {
+    overlay.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((cb) => { cb.checked = false; });
+  });
+
+  // Cancel
+  document.getElementById('auto-pick-cancel')?.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
+
+  // Start
+  document.getElementById('auto-pick-start')?.addEventListener('click', () => {
+    const selected: string[] = [];
+    overlay.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked').forEach((cb) => {
+      selected.push(cb.value);
+    });
+    overlay.remove();
+    if (selected.length === 0) { return; }
+    vscode.postMessage({ type: 'startAutomation', payload: { taskIds: selected } });
+  });
+
+  // Focus start button
+  (document.getElementById('auto-pick-start') as HTMLElement)?.focus();
 }
 
 // ============================================================
@@ -824,6 +1007,35 @@ function bindEvents(): void {
   // AI Summarize
   document.getElementById('btn-ai-summarize')?.addEventListener('click', () => {
     vscode.postMessage({ type: 'aiSummarize', payload: {} });
+  });
+
+  // Automation — open task selection modal
+  document.getElementById('btn-start-automation')?.addEventListener('click', () => {
+    if (automationProgress) {
+      // Already running — do nothing, bar is visible
+      return;
+    }
+    showAutomationTaskPicker();
+  });
+
+  // Automation bar buttons
+  document.getElementById('btn-auto-pause')?.addEventListener('click', () => {
+    vscode.postMessage({ type: 'pauseAutomation', payload: {} });
+  });
+  document.getElementById('btn-auto-resume')?.addEventListener('click', () => {
+    vscode.postMessage({ type: 'resumeAutomation', payload: {} });
+  });
+  document.getElementById('btn-auto-cancel')?.addEventListener('click', () => {
+    vscode.postMessage({ type: 'cancelAutomation', payload: {} });
+  });
+  document.getElementById('btn-auto-skip')?.addEventListener('click', () => {
+    vscode.postMessage({ type: 'skipAutomationTask', payload: {} });
+  });
+  document.getElementById('btn-auto-approve')?.addEventListener('click', () => {
+    vscode.postMessage({ type: 'approveAutomationTask', payload: {} });
+  });
+  document.getElementById('btn-auto-reject')?.addEventListener('click', () => {
+    vscode.postMessage({ type: 'rejectAutomationTask', payload: {} });
   });
 
   // AI Rewrite Title
@@ -2264,6 +2476,7 @@ function showHelp(): void {
         <button class="help-tab" data-help-tab="timers" role="tab" aria-selected="false">Timers</button>
         <button class="help-tab" data-help-tab="templates" role="tab" aria-selected="false">Templates</button>
         <button class="help-tab" data-help-tab="ai" role="tab" aria-selected="false">AI Features</button>
+        <button class="help-tab" data-help-tab="automation" role="tab" aria-selected="false">Automation</button>
         <button class="help-tab" data-help-tab="voice" role="tab" aria-selected="false">Voice Input</button>
         <button class="help-tab" data-help-tab="attachments" role="tab" aria-selected="false">Attachments</button>
         <button class="help-tab" data-help-tab="export" role="tab" aria-selected="false">Export / Import</button>
@@ -2626,6 +2839,55 @@ function renderHelpContent(section: string): string {
           </li>
           <li>The full result (title on the first line, structured description below) appears in the <strong>quick-add textarea</strong> for you to review and edit. The tag, priority, and column dropdowns are set automatically.</li>
           <li>Click <em>Add</em> to create the task. The first line becomes the title; remaining lines become the description.</li>
+        </ul>`;
+
+    case 'automation':
+      return `
+        <h3>Task Automation</h3>
+        <p>Automate your workflow by sending multiple tasks to Copilot Chat in sequence, with automatic change detection and AI-powered verification.</p>
+        <h4>How It Works</h4>
+        <ol>
+          <li>Click the <strong>gear icon</strong> (&#9881;) in the session bar to open the automation task picker.</li>
+          <li>Select which incomplete tasks you want to automate, then click <strong>Start Automation</strong>.</li>
+          <li>For each task, the automation engine will:
+            <ol>
+              <li><strong>Send the task to Copilot Chat</strong> &mdash; The task title and description are sent as a prompt.</li>
+              <li><strong>Watch for file changes</strong> &mdash; A file system watcher monitors your workspace for modifications.</li>
+              <li><strong>Capture git changes</strong> &mdash; When changes settle (8 seconds after last change), the git diff is captured.</li>
+              <li><strong>Verify with AI</strong> &mdash; The Language Model API analyzes the diff against the task to determine if it was completed.</li>
+              <li><strong>Checkpoint</strong> &mdash; If confidence is high (&ge;85%), the task is auto-completed. Otherwise, you're asked to approve or reject.</li>
+            </ol>
+          </li>
+          <li>The process repeats for each selected task until all are processed.</li>
+        </ol>
+        <h4>Automation Bar</h4>
+        <p>When automation is running, a progress bar appears below the board tabs showing:</p>
+        <ul>
+          <li><strong>Status</strong> &mdash; Current step (Sending, Waiting, Verifying, Review needed, Paused)</li>
+          <li><strong>Progress</strong> &mdash; How many tasks have been completed out of the total</li>
+          <li><strong>Current task</strong> &mdash; Which task is being processed</li>
+          <li><strong>Queue</strong> &mdash; Visual list of all tasks with their status (&#10003; done, &#10007; failed, &ndash; skipped, &#9654; current, &#9675; pending)</li>
+        </ul>
+        <h4>Controls</h4>
+        <ul>
+          <li><strong>Pause</strong> &mdash; Pause after the current task finishes. Resume whenever you're ready.</li>
+          <li><strong>Skip</strong> &mdash; Skip the current task and move to the next one.</li>
+          <li><strong>Cancel</strong> &mdash; Stop automation entirely. Remaining tasks are marked as skipped.</li>
+        </ul>
+        <h4>Checkpoints</h4>
+        <p>When the AI verification has low confidence or cannot determine completion, you'll see a checkpoint with:</p>
+        <ul>
+          <li>The AI's assessment and confidence percentage</li>
+          <li>List of changed files</li>
+          <li><strong>Approve</strong> &mdash; Accept the changes, mark the task complete, and continue to the next task.</li>
+          <li><strong>Reject</strong> &mdash; Mark the task as failed and pause automation.</li>
+          <li><strong>Skip</strong> &mdash; Skip without marking as failed and continue.</li>
+        </ul>
+        <h4>Requirements</h4>
+        <ul>
+          <li><strong>GitHub Copilot Chat</strong> must be installed and active (for sending tasks and AI verification).</li>
+          <li><strong>Git</strong> must be available in the workspace (for change detection and diff capture).</li>
+          <li>Works best with tasks that have clear, actionable descriptions.</li>
         </ul>`;
 
     case 'voice':

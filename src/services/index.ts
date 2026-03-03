@@ -12,6 +12,7 @@ export interface IAIService {
   generateSummary(tasks: unknown[]): Promise<string>;
   breakdownTask(title: string, description: string): Promise<string[]>;
   rewriteTask(input: string): Promise<{ title: string; description: string; tag: string; priority: string; status: string }>;
+  verifyTaskCompletion(taskTitle: string, taskDescription: string, diffSummary: string, changedFiles: string[]): Promise<{ completed: boolean; confidence: number; explanation: string }>;
 }
 
 /**
@@ -216,6 +217,77 @@ User input: ${input}`;
       return fallback;
     } catch {
       return fallback;
+    }
+  }
+
+  async verifyTaskCompletion(
+    taskTitle: string,
+    taskDescription: string,
+    diffSummary: string,
+    changedFiles: string[]
+  ): Promise<{ completed: boolean; confidence: number; explanation: string }> {
+    const fallback = { completed: false, confidence: 0, explanation: 'Verification unavailable — no AI model found.' };
+    const model = await this.getModel();
+    if (!model) { return fallback; }
+
+    const fileList = changedFiles.length > 0
+      ? changedFiles.map((f) => `  - ${f}`).join('\n')
+      : '  (no files changed)';
+
+    const prompt = `You are a code review assistant. Determine if a task has been completed based on the workspace changes.
+
+Task Title: ${taskTitle}
+Task Description: ${taskDescription || '(no description)'}
+
+Files changed:
+${fileList}
+
+Diff summary:
+${diffSummary || '(no diff available)'}
+
+Analyze the changes and determine:
+1. Whether the task appears to be completed
+2. Your confidence level (0-100)
+3. A brief explanation
+
+Respond in EXACTLY this format (3 lines):
+COMPLETED: true or false
+CONFIDENCE: number 0-100
+EXPLANATION: one sentence explanation
+
+Example:
+COMPLETED: true
+CONFIDENCE: 85
+EXPLANATION: The bug fix adds proper null checking in the handler as described in the task.`;
+
+    try {
+      const messages = [vscode.LanguageModelChatMessage.User(prompt)];
+      const response = await model.sendRequest(messages, {});
+      let result = '';
+      for await (const chunk of response.text) {
+        result += chunk;
+      }
+
+      const lines = result.trim().split('\n').map((l) => l.trim());
+      let completed = false;
+      let confidence = 50;
+      let explanation = 'Could not parse verification result.';
+
+      for (const line of lines) {
+        const lower = line.toLowerCase();
+        if (lower.startsWith('completed:')) {
+          completed = lower.includes('true');
+        } else if (lower.startsWith('confidence:')) {
+          const num = parseInt(line.replace(/[^0-9]/g, ''), 10);
+          if (!isNaN(num)) { confidence = Math.min(100, Math.max(0, num)); }
+        } else if (lower.startsWith('explanation:')) {
+          explanation = line.substring(line.indexOf(':') + 1).trim();
+        }
+      }
+
+      return { completed, confidence, explanation };
+    } catch {
+      return { completed: false, confidence: 0, explanation: 'AI verification failed — model request error.' };
     }
   }
 }

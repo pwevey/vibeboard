@@ -2364,3 +2364,212 @@ textarea:focus-visible {
   font-size: 11px;
   padding: 4px 8px;
 }
+
+/* ============================================================
+   Automation Bar
+   ============================================================ */
+
+.automation-bar {
+  background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0 4px;
+  font-size: 12px;
+}
+
+.auto-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.auto-status-icon {
+  font-size: 14px;
+}
+
+.auto-status-label {
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+.auto-progress-text {
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  margin-left: auto;
+}
+
+.auto-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.auto-bar-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.auto-bar-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.auto-bar-btn.primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.auto-bar-btn.primary:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.auto-bar-btn.success {
+  background: #2ea04366;
+  color: #4caf50;
+  border-color: #4caf5044;
+}
+
+.auto-bar-btn.success:hover {
+  background: #2ea04388;
+}
+
+.auto-bar-btn.danger {
+  background: #F4433622;
+  color: #F44336;
+  border-color: #F4433644;
+}
+
+.auto-bar-btn.danger:hover {
+  background: #F4433644;
+}
+
+.auto-progress-bar {
+  height: 3px;
+  background: var(--vscode-progressBar-background, #333);
+  border-radius: 2px;
+  margin: 6px 0 4px;
+  overflow: hidden;
+}
+
+.auto-progress-fill {
+  height: 100%;
+  background: var(--vscode-progressBar-background, #0078d4);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.auto-current {
+  font-size: 11px;
+  color: var(--vscode-foreground);
+  margin-bottom: 4px;
+}
+
+.auto-current strong {
+  font-weight: 600;
+}
+
+.auto-checkpoint-detail {
+  background: var(--vscode-inputValidation-warningBackground, #5a50001a);
+  border: 1px solid var(--vscode-inputValidation-warningBorder, #b89500);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  font-size: 11px;
+}
+
+.auto-verdict {
+  margin-bottom: 4px;
+  color: var(--vscode-foreground);
+}
+
+.auto-files {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+  word-break: break-all;
+}
+
+.auto-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.auto-queue-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  padding: 1px 0;
+}
+
+.auto-queue-item.current {
+  color: var(--vscode-foreground);
+  font-weight: 600;
+}
+
+.auto-queue-item.done {
+  color: #4caf50;
+}
+
+.auto-queue-item.failed {
+  color: #F44336;
+  text-decoration: line-through;
+}
+
+.auto-queue-item.skipped {
+  color: var(--vscode-disabledForeground, #888);
+  text-decoration: line-through;
+}
+
+.auto-queue-dot {
+  font-size: 10px;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* Automation button in session bar */
+.auto-btn {
+  color: var(--vscode-foreground);
+}
+
+.auto-btn:hover {
+  color: var(--vscode-button-background);
+}
+
+/* Automation task picker */
+.auto-pick-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.auto-pick-item:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.auto-pick-item input[type="checkbox"] {
+  flex-shrink: 0;
+}
+
+.auto-pick-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}

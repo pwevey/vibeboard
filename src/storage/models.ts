@@ -108,6 +108,31 @@ export interface TaskTemplate {
 
 export type ExportTimePeriod = 'all' | 'day' | 'week' | 'month' | 'year' | 'current-month' | 'last-month' | 'custom';
 
+// === Automation Types ===
+
+export type AutomationState = 'idle' | 'running' | 'paused' | 'reviewing';
+
+export type AutomationStepStatus = 'pending' | 'sending' | 'waiting' | 'verifying' | 'checkpoint' | 'done' | 'skipped' | 'failed';
+
+export interface AutomationQueueItem {
+  taskId: string;
+  status: AutomationStepStatus;
+  result?: string;           // verification result from LM API
+  diffSummary?: string;      // git diff summary
+  changedFiles?: string[];   // files modified during this step
+  startedAt?: string;        // ISO 8601
+  completedAt?: string;      // ISO 8601
+}
+
+export interface AutomationProgress {
+  state: AutomationState;
+  queue: AutomationQueueItem[];
+  currentIndex: number;      // index of the task currently being processed
+  totalTasks: number;
+  completedTasks: number;
+  startedAt?: string;
+}
+
 // === Webview Message Types ===
 
 export type WebviewToExtensionMessage =
@@ -145,6 +170,13 @@ export type WebviewToExtensionMessage =
   | { type: 'sendFollowUp'; payload: { taskId: string; prompt: string; attachments?: VBAttachment[] } }
   | { type: 'pickFilesForFollowUp'; payload: { taskId: string } }
   | { type: 'copilotDismiss'; payload: { taskId: string } }
+  | { type: 'startAutomation'; payload: { taskIds: string[] } }
+  | { type: 'pauseAutomation'; payload: Record<string, never> }
+  | { type: 'resumeAutomation'; payload: Record<string, never> }
+  | { type: 'cancelAutomation'; payload: Record<string, never> }
+  | { type: 'skipAutomationTask'; payload: Record<string, never> }
+  | { type: 'approveAutomationTask'; payload: Record<string, never> }
+  | { type: 'rejectAutomationTask'; payload: Record<string, never> }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
@@ -154,7 +186,8 @@ export type ExtensionToWebviewMessage =
   | { type: 'aiResult'; payload: { action: string; result: string | string[]; taskId?: string } }
   | { type: 'quickAddFiles'; payload: { files: VBAttachment[] } }
   | { type: 'showFollowUp'; payload: { taskId: string } }
-  | { type: 'followUpFiles'; payload: { taskId: string; files: VBAttachment[] } };
+  | { type: 'followUpFiles'; payload: { taskId: string; files: VBAttachment[] } }
+  | { type: 'automationProgress'; payload: AutomationProgress };
 
 // === Factory Functions ===
 

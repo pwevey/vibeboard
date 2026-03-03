@@ -18,3 +18,4 @@ const vscodeMockPath = path.join(__dirname, 'vscode-mock');
 // Run test files
 import('./taskManager.test');
 import('./sessionManager.test');
+import('./automation.test');

@@ -4,6 +4,7 @@ import { SessionManager } from '../session/SessionManager';
 import { TaskManager } from '../tasks/TaskManager';
 import { StorageProvider } from '../storage/StorageProvider';
 import { CopilotAIService } from '../services/index';
+import { AutomationService } from '../services/AutomationService';
 import { generateId } from '../utils/uuid';
 
 /**
@@ -13,6 +14,7 @@ import { generateId } from '../utils/uuid';
 export class MessageHandler {
   private webview: vscode.Webview | null = null;
   private aiService: CopilotAIService;
+  private automationService: AutomationService;
 
   constructor(
     private storage: StorageProvider,
@@ -20,6 +22,19 @@ export class MessageHandler {
     private taskManager: TaskManager
   ) {
     this.aiService = new CopilotAIService();
+    this.automationService = new AutomationService(storage, taskManager, this.aiService);
+
+    // Wire automation progress to webview
+    this.automationService.setProgressHandler((progress) => {
+      this.webview?.postMessage({ type: 'automationProgress', payload: progress });
+      // Also send state update so task statuses refresh
+      this.sendStateUpdate();
+    });
+
+    // Wire automation's send-to-copilot to our helper
+    this.automationService.setSendToCopilotHandler(async (prompt, attachments) => {
+      await this.sendPromptToCopilot(prompt, attachments);
+    });
   }
 
   /**
@@ -36,6 +51,10 @@ export class MessageHandler {
     switch (message.type) {
       case 'ready':
         this.sendStateUpdate();
+        // Send automation progress if active
+        if (this.automationService.isActive()) {
+          this.webview?.postMessage({ type: 'automationProgress', payload: this.automationService.getProgress() });
+        }
         break;
 
       case 'addTask': {
@@ -359,6 +378,42 @@ export class MessageHandler {
           this.storage.setData(dData);
           this.sendStateUpdate();
         }
+        break;
+      }
+
+      case 'startAutomation': {
+        const { taskIds } = message.payload as { taskIds: string[] };
+        await this.automationService.start(taskIds);
+        break;
+      }
+
+      case 'pauseAutomation': {
+        this.automationService.pause();
+        break;
+      }
+
+      case 'resumeAutomation': {
+        await this.automationService.resume();
+        break;
+      }
+
+      case 'cancelAutomation': {
+        this.automationService.cancel();
+        break;
+      }
+
+      case 'skipAutomationTask': {
+        await this.automationService.skipCurrent();
+        break;
+      }
+
+      case 'approveAutomationTask': {
+        await this.automationService.approveCurrent();
+        break;
+      }
+
+      case 'rejectAutomationTask': {
+        this.automationService.rejectCurrent();
         break;
       }
 
