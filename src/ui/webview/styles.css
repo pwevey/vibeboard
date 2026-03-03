@@ -19,7 +19,7 @@ body {
   color: var(--vscode-foreground);
   background: var(--vscode-sideBar-background);
   overflow-x: hidden;
-  overflow-y: hidden;
+  overflow-y: auto;
 }
 
 /* ============================================================
@@ -357,7 +357,6 @@ button.icon-btn.view-toggle.active {
 .board {
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
 }
 
 .column {
