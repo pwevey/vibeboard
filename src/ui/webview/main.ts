@@ -231,7 +231,24 @@ function render(): void {
     html += renderNoSessionState();
   }
 
+  // Preserve quick-add textarea value across re-renders
+  const prevInput = (document.getElementById('quick-add-input') as HTMLTextAreaElement | null)?.value ?? '';
+  const prevTag = (document.getElementById('quick-add-tag') as HTMLSelectElement | null)?.value ?? '';
+  const prevPriority = (document.getElementById('quick-add-priority') as HTMLSelectElement | null)?.value ?? '';
+  const prevCol = (document.getElementById('quick-add-col') as HTMLSelectElement | null)?.value ?? '';
+
   app.innerHTML = html;
+
+  // Restore quick-add values
+  const restoredInput = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+  const restoredTag = document.getElementById('quick-add-tag') as HTMLSelectElement | null;
+  const restoredPriority = document.getElementById('quick-add-priority') as HTMLSelectElement | null;
+  const restoredCol = document.getElementById('quick-add-col') as HTMLSelectElement | null;
+  if (restoredInput && prevInput) { restoredInput.value = prevInput; }
+  if (restoredTag && prevTag) { restoredTag.value = prevTag; }
+  if (restoredPriority && prevPriority) { restoredPriority.value = prevPriority; }
+  if (restoredCol && prevCol) { restoredCol.value = prevCol; }
+
   bindEvents();
   startTimer(activeSession);
   startTaskTimers();
