@@ -275,7 +275,7 @@ export class MessageHandler {
         }
 
         // If the task has image attachments, save them to temp files so they can
-        // be referenced or auto-attached in Copilot Chat
+        // be opened as editor tabs for easy drag-and-drop into Copilot Chat
         const imageAttachments = (task.attachments || []).filter((a) => a.mimeType.startsWith('image/'));
         const savedImagePaths: vscode.Uri[] = [];
         if (imageAttachments.length > 0) {
@@ -292,9 +292,6 @@ export class MessageHandler {
                 savedImagePaths.push(tempFile);
               } catch { /* skip failed images */ }
             }
-          }
-          if (savedImagePaths.length > 0) {
-            prompt += '\n\n[Attached images saved to .vibeboard/temp/: ' + savedImagePaths.map((p) => p.path.split('/').pop()).join(', ') + ']';
           }
         }
 
@@ -313,6 +310,20 @@ export class MessageHandler {
             await vscode.env.clipboard.writeText(prompt);
             vscode.window.showInformationMessage('Vibe Board: Prompt copied to clipboard. Open Copilot Chat and paste.');
           }
+        }
+
+        // Open each saved image in an editor tab and notify the user to attach them
+        if (savedImagePaths.length > 0) {
+          for (const imgUri of savedImagePaths) {
+            try {
+              await vscode.commands.executeCommand('vscode.open', imgUri, { viewColumn: vscode.ViewColumn.Beside, preview: true });
+            } catch { /* skip if image can't be opened */ }
+          }
+          const count = savedImagePaths.length;
+          const noun = count === 1 ? 'image' : 'images';
+          vscode.window.showInformationMessage(
+            `Vibe Board: ${count} ${noun} opened in editor. Drag into Copilot Chat or click 📎 in the chat to attach.`
+          );
         }
         break;
       }
