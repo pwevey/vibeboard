@@ -33,8 +33,11 @@ export class MessageHandler {
 
     // Wire automation's send-to-copilot to our helper (agent mode, or ask mode for plan tasks)
     this.automationService.setSendToCopilotHandler(async (prompt, attachments, tag) => {
-      const useAskMode = tag === 'plan';
-      await this.sendPromptToCopilot(prompt, attachments, !useAskMode, useAskMode);
+      const isplan = tag === 'plan';
+      if (isplan) {
+        prompt = 'Create a detailed implementation plan for the following. Do not make any changes yet \u2014 just outline the steps, files involved, and approach:\n\n' + prompt;
+      }
+      await this.sendPromptToCopilot(prompt, attachments, !isplan, isplan);
     });
   }
 
@@ -303,9 +306,11 @@ export class MessageHandler {
           prompt += '\n\n' + task.description;
         }
 
-        // Send to Copilot using the shared helper
-        // Plan tasks open in Ask mode so Copilot provides a planning response
+        // Plan tasks: prefix with planning instructions and open in Ask mode
         const useAskMode = task.tag === 'plan';
+        if (useAskMode) {
+          prompt = 'Create a detailed implementation plan for the following. Do not make any changes yet — just outline the steps, files involved, and approach:\n\n' + prompt;
+        }
         await this.sendPromptToCopilot(prompt, task.attachments || [], false, useAskMode);
 
         // Auto-move task to In Progress when sent to Copilot
