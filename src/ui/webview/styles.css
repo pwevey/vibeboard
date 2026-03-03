@@ -9,12 +9,17 @@
   box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+}
+
 body {
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
   color: var(--vscode-foreground);
   background: var(--vscode-sideBar-background);
   overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 /* ============================================================
@@ -843,6 +848,7 @@ body.is-dragging .task-card:not(.dragging) {
 .start-page {
   overflow-y: auto;
   padding-bottom: 20px;
+  height: 100vh;
 }
 
 .start-hero {

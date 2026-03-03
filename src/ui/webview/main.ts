@@ -500,6 +500,14 @@ function renderNoSessionState(): string {
     </div>`;
 
   if (state && state.sessions.length > 0) {
+    // Export (always visible at top)
+    html += `<div class="start-section"><div class="start-section-header"><h3>&#128230; Export Data</h3></div>
+      <div class="start-export-actions">
+        <button class="secondary" id="btn-export-json">JSON</button>
+        <button class="secondary" id="btn-export-csv">CSV</button>
+        <button class="secondary" id="btn-export-md">Markdown</button>
+      </div></div>`;
+
     // Session history
     const endedSessions = state.sessions
       .filter((s) => s.status === 'ended')
@@ -541,14 +549,6 @@ function renderNoSessionState(): string {
       }
       html += '</div></div>';
     }
-
-    // Export
-    html += `<div class="start-section"><div class="start-section-header"><h3>&#128230; Export Data</h3></div>
-      <div class="start-export-actions">
-        <button class="secondary" id="btn-export-json">JSON</button>
-        <button class="secondary" id="btn-export-csv">CSV</button>
-        <button class="secondary" id="btn-export-md">Markdown</button>
-      </div></div>`;
   }
 
   html += '</div>';
