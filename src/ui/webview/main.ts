@@ -960,6 +960,38 @@ function bindQuickAdd(): void {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doAdd(); }
   });
 
+  // Paste image into quick-add textarea → pending attachment
+  addInput?.addEventListener('paste', (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) { return; }
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (!blob) { continue; }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUri = reader.result as string;
+          if (dataUri) {
+            const mimeMatch = dataUri.match(/^data:([^;]+);/);
+            const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+            pendingQuickAddAttachments.push({
+              id: 'qa-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+              filename: `paste-${Date.now()}.png`,
+              mimeType,
+              dataUri,
+              addedAt: new Date().toISOString(),
+            });
+            render();
+          }
+        };
+        reader.readAsDataURL(blob);
+        break;
+      }
+    }
+  });
+
   // Voice input button
   document.getElementById('btn-voice')?.addEventListener('click', () => {
     toggleVoiceRecording();
