@@ -701,8 +701,14 @@ function bindQuickAdd(): void {
 
   const doAdd = () => {
     if (!addInput || !addTag || !addCol) { return; }
-    const title = addInput.value.trim();
-    if (!title) { return; }
+    const rawText = addInput.value.trim();
+    if (!rawText) { return; }
+
+    // First line is the title, everything after is the description
+    const lines = rawText.split('\n');
+    const title = lines[0].trim();
+    const description = lines.slice(1).join('\n').trim() || pendingAIDescription || undefined;
+
     vscode.postMessage({
       type: 'addTask',
       payload: {
@@ -710,7 +716,7 @@ function bindQuickAdd(): void {
         tag: addTag.value as TaskTag,
         priority: (addPriority?.value ?? 'medium') as TaskPriority,
         status: addCol.value as TaskStatus,
-        description: pendingAIDescription || undefined,
+        description,
       },
     });
     addInput.value = '';
@@ -1700,9 +1706,16 @@ function handleAIResult(payload: { action: string; result: string | string[]; ta
         const colSelect = document.getElementById('quick-add-col') as HTMLSelectElement | null;
 
         if (input && parsed.title) {
-          input.value = parsed.title;
+          // Show full content in textarea: title on first line, description below
+          const fullContent = parsed.description
+            ? parsed.title + '\n' + parsed.description
+            : parsed.title;
+          input.value = fullContent;
           input.focus();
-          pendingAIDescription = parsed.description || '';
+          // Auto-resize textarea to fit content
+          input.style.height = 'auto';
+          input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+          pendingAIDescription = '';
 
           // Set tag, priority, and column from AI classification
           if (tagSelect && parsed.tag) { tagSelect.value = parsed.tag; }
@@ -1710,7 +1723,7 @@ function handleAIResult(payload: { action: string; result: string | string[]; ta
           if (colSelect && parsed.status) { colSelect.value = parsed.status; }
 
           const tagLabel = parsed.tag ? TAG_LABELS[parsed.tag as TaskTag] || parsed.tag : '';
-          showAIToast(`Classified as ${tagLabel} — title & description ready`, false);
+          showAIToast(`Classified as ${tagLabel} — review & edit, then click Add`, false);
         }
       } catch {
         // Fallback if not JSON
