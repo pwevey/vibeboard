@@ -1244,12 +1244,35 @@ function showExportTimePicker(format: 'csv' | 'markdown'): void {
     });
   });
 
+  // Enforce start ≤ end for custom range date inputs
+  const startInput = document.getElementById('export-custom-start') as HTMLInputElement;
+  const endInput = document.getElementById('export-custom-end') as HTMLInputElement;
+  startInput.addEventListener('change', () => {
+    if (startInput.value && endInput.value && startInput.value > endInput.value) {
+      endInput.value = startInput.value;
+    }
+    endInput.min = startInput.value;
+  });
+  endInput.addEventListener('change', () => {
+    if (endInput.value && startInput.value && endInput.value < startInput.value) {
+      startInput.value = endInput.value;
+    }
+    startInput.max = endInput.value;
+  });
+
   document.getElementById('export-time-confirm')!.addEventListener('click', () => {
     const selected = overlay.querySelector<HTMLInputElement>('input[name="export-time"]:checked')!.value;
     const payload: Record<string, string> = { format, timePeriod: selected };
     if (selected === 'custom') {
-      payload.customStart = (document.getElementById('export-custom-start') as HTMLInputElement).value;
-      payload.customEnd = (document.getElementById('export-custom-end') as HTMLInputElement).value;
+      const cStart = startInput.value;
+      const cEnd = endInput.value;
+      if (cStart > cEnd) {
+        startInput.style.borderColor = 'var(--vscode-inputValidation-errorBorder, red)';
+        endInput.style.borderColor = 'var(--vscode-inputValidation-errorBorder, red)';
+        return;
+      }
+      payload.customStart = cStart;
+      payload.customEnd = cEnd;
     }
     vscode.postMessage({ type: 'exportData', payload });
     overlay.remove();
