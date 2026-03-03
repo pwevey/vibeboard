@@ -133,6 +133,7 @@ let pendingQuickAddAttachments: { id: string; filename: string; mimeType: string
 let followUpTaskId: string | null = null;
 let pendingFollowUpAttachments: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[] = [];
 let voiceTargetId: string = 'quick-add-input'; // which textarea voice recording targets
+let pendingAIClassification: { tag: string; priority: string; status: string } | null = null;
 
 // ============================================================
 // Initialization
@@ -262,6 +263,13 @@ function render(): void {
   if (restoredTag && prevTag) { restoredTag.value = prevTag; }
   if (restoredPriority && prevPriority) { restoredPriority.value = prevPriority; }
   if (restoredCol && prevCol) { restoredCol.value = prevCol; }
+
+  // Apply pending AI classification (overrides preserved values)
+  if (pendingAIClassification) {
+    if (restoredTag) { restoredTag.value = pendingAIClassification.tag; }
+    if (restoredPriority) { restoredPriority.value = pendingAIClassification.priority; }
+    if (restoredCol) { restoredCol.value = pendingAIClassification.status; }
+  }
   // Restore follow-up textarea value
   const restoredFollowUp = document.getElementById('follow-up-input') as HTMLTextAreaElement | null;
   if (restoredFollowUp && prevFollowUp) { restoredFollowUp.value = prevFollowUp; }
@@ -1047,6 +1055,7 @@ function bindQuickAdd(): void {
     addInput.value = '';
     pendingAIDescription = '';
     pendingQuickAddAttachments = [];
+    pendingAIClassification = null;
     addInput.focus();
   };
 
@@ -2964,6 +2973,9 @@ function handleAIResult(payload: { action: string; result: string | string[]; ta
           if (tagSelect && parsed.tag) { tagSelect.value = parsed.tag; }
           if (prioSelect && parsed.priority) { prioSelect.value = parsed.priority; }
           if (colSelect && parsed.status) { colSelect.value = parsed.status; }
+
+          // Store classification so it survives any re-renders
+          pendingAIClassification = { tag: parsed.tag, priority: parsed.priority, status: parsed.status };
 
           const tagLabel = parsed.tag ? TAG_LABELS[parsed.tag as TaskTag] || parsed.tag : '';
           showAIToast(`Classified as ${tagLabel} — review & edit, then click Add`, false);
