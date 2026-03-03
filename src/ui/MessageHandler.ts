@@ -1011,6 +1011,15 @@ export class MessageHandler {
       if (t.carriedFromSessionId) carriedOverCount++;
     }
 
+    // Sum all session durations (subtracting paused time)
+    let totalSessionMs = 0;
+    for (const s of data.sessions) {
+      const end = s.endedAt ? new Date(s.endedAt).getTime() : Date.now();
+      const raw = end - new Date(s.startedAt).getTime();
+      const paused = s.totalPausedMs || 0;
+      totalSessionMs += Math.max(0, raw - paused);
+    }
+
     return {
       totalSessions,
       activeSessions,
@@ -1021,6 +1030,8 @@ export class MessageHandler {
       byPriority,
       totalTimeSpent: this.formatDuration(totalTimeMs),
       totalTimeMs,
+      totalSessionTime: this.formatDuration(totalSessionMs),
+      totalSessionMs,
       carriedOverCount,
     };
   }
@@ -1049,7 +1060,7 @@ export class MessageHandler {
       const sessionName = session?.name || '';
       const sessionDate = session ? new Date(session.startedAt).toLocaleDateString() : '';
       const sessionDur = session ? this.formatDuration(
-        (session.endedAt ? new Date(session.endedAt).getTime() : Date.now()) - new Date(session.startedAt).getTime()
+        Math.max(0, ((session.endedAt ? new Date(session.endedAt).getTime() : Date.now()) - new Date(session.startedAt).getTime()) - (session.totalPausedMs || 0))
       ) : '';
       const timeSpent = this.formatDuration(task.timeSpentMs || 0);
       const board = data.boards?.find((b) => b.id === task.boardId);
@@ -1092,7 +1103,8 @@ export class MessageHandler {
     lines.push(`High Priority,${totals.byPriority['high'] || 0}`);
     lines.push(`Medium Priority,${totals.byPriority['medium'] || 0}`);
     lines.push(`Low Priority,${totals.byPriority['low'] || 0}`);
-    lines.push(`Total Time Spent,${totals.totalTimeSpent}`);
+    lines.push(`Total Session Time,${totals.totalSessionTime}`);
+    lines.push(`Total Task Timer Time,${totals.totalTimeSpent}`);
 
     return lines.join('\n');
   }
@@ -1131,7 +1143,8 @@ export class MessageHandler {
     lines.push(`| Backlog | ${totals.byStatus['backlog'] || 0} |`);
     lines.push(`| Notes | ${totals.byStatus['notes'] || 0} |`);
     lines.push(`| Carried Over | ${totals.carriedOverCount} |`);
-    lines.push(`| Total Time Spent | ${totals.totalTimeSpent} |`);
+    lines.push(`| Total Session Time | ${totals.totalSessionTime} |`);
+    lines.push(`| Total Task Timer Time | ${totals.totalTimeSpent} |`);
     lines.push('');
     lines.push('**By Tag:** ');
     lines.push(`Feature: ${totals.byTag['feature'] || 0} · Bug: ${totals.byTag['bug'] || 0} · Refactor: ${totals.byTag['refactor'] || 0} · Note: ${totals.byTag['note'] || 0}`);
