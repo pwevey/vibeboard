@@ -503,9 +503,14 @@ function renderNoSessionState(): string {
     // Export (always visible at top)
     html += `<div class="start-section"><div class="start-section-header"><h3>&#128230; Export Data</h3></div>
       <div class="start-export-actions">
-        <button class="secondary" id="btn-export-json">JSON</button>
-        <button class="secondary" id="btn-export-csv">CSV</button>
-        <button class="secondary" id="btn-export-md">Markdown</button>
+        <button class="secondary" id="btn-export-json" title="Full data backup — all sessions, tasks, and settings in machine-readable format">JSON</button>
+        <button class="secondary" id="btn-export-csv" title="Spreadsheet-ready table — all tasks with session info, plus summary totals">CSV</button>
+        <button class="secondary" id="btn-export-md" title="Human-readable report — summary stats, session history, and all tasks">Markdown</button>
+      </div>
+      <div class="start-export-hints">
+        <span>JSON: Full backup</span>
+        <span>CSV: Spreadsheet</span>
+        <span>MD: Report</span>
       </div></div>`;
 
     // Session history
@@ -1578,16 +1583,16 @@ function renderHelpContent(section: string): string {
     case 'export':
       return `
         <h3>Exporting Data</h3>
-        <p>Vibe Board supports three export formats to share or archive your work.</p>
+        <p>Vibe Board supports three export formats. All formats include comprehensive data with summary totals.</p>
         <h4>Export Formats</h4>
         <ul>
-          <li><strong>JSON</strong> &mdash; Full data export including all sessions, tasks, and metadata. Useful for backups or programmatic processing.</li>
-          <li><strong>CSV</strong> &mdash; Spreadsheet-compatible format with columns: Session Date, Session Duration, Task Title, Description, Tag, Priority, Status, Time Spent, Created, Completed. Great for reporting.</li>
-          <li><strong>Markdown</strong> &mdash; Formatted document with tasks grouped by column, session history table, and completed tasks list. Ideal for documentation and sharing.</li>
+          <li><strong>JSON</strong> &mdash; Full data backup with summary totals, all sessions (with per-session stats), active session details, and every task. Best for backups or programmatic use.</li>
+          <li><strong>CSV</strong> &mdash; Spreadsheet-ready table of all tasks with columns: Session, Session Date, Session Duration, Task Title, Description, Tag, Priority, Status, Board, Time Spent, Carried Over, Created, Completed. Includes a summary section at the bottom with totals by status, tag, and priority.</li>
+          <li><strong>Markdown</strong> &mdash; Human-readable report with summary statistics table, active session details, session history table (with session name, task counts), and all tasks grouped by status. Includes breakdowns by tag and priority. Ideal for documentation and sharing.</li>
         </ul>
         <h4>How to Export</h4>
         <ul>
-          <li><strong>Start page</strong> &mdash; When no session is active, export buttons appear at the bottom of the start page.</li>
+          <li><strong>Start page</strong> &mdash; When no session is active, export buttons appear at the top of the start page with brief descriptions.</li>
           <li><strong>Command Palette</strong> &mdash; Run <em>Vibe Board: Export Session as Markdown</em> from the command palette at any time.</li>
         </ul>
         <h4>Data Storage</h4>

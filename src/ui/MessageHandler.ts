@@ -343,6 +343,8 @@ export class MessageHandler {
   private async exportData(format: 'json' | 'csv' | 'markdown'): Promise<void> {
     const data = this.storage.getData();
     const history = this.sessionManager.getSessionHistory();
+    const allTasks = data.tasks;
+    const totals = this.computeExportTotals(data);
     let content: string;
     let defaultName: string;
     let filterLabel: string;
@@ -355,46 +357,30 @@ export class MessageHandler {
     if (format === 'json') {
       const exportObj = {
         exportedAt: new Date().toISOString(),
+        summary: totals,
         sessions: history.sessions.map((s, i) => ({
           ...s,
           summary: history.summaries[i],
         })),
-        tasks: data.tasks,
+        activeSession: data.activeSessionId ? {
+          id: data.activeSessionId,
+          session: data.sessions.find((s) => s.id === data.activeSessionId),
+          tasks: allTasks.filter((t) => t.sessionId === data.activeSessionId),
+        } : null,
+        tasks: allTasks,
       };
       content = JSON.stringify(exportObj, null, 2);
       ext = 'json';
       defaultName = `vibeboard-export-${localDate}.json`;
       filterLabel = 'JSON';
     } else if (format === 'csv') {
-      const lines = ['Session Date,Session Duration,Task Title,Description,Tag,Priority,Status,Time Spent,Created,Completed'];
-      for (const task of data.tasks) {
-        const session = data.sessions.find((s) => s.id === task.sessionId);
-        const sessionDate = session ? new Date(session.startedAt).toLocaleDateString() : '';
-        const sessionDur = session ? this.formatDuration(
-          (session.endedAt ? new Date(session.endedAt).getTime() : Date.now()) - new Date(session.startedAt).getTime()
-        ) : '';
-        const csvEsc = (s: string) => `"${s.replace(/"/g, '""')}"`;
-        const timeSpent = this.formatDuration(task.timeSpentMs || 0);
-        lines.push([
-          sessionDate,
-          sessionDur,
-          csvEsc(task.title),
-          csvEsc(task.description),
-          task.tag,
-          task.priority || 'medium',
-          task.status,
-          timeSpent,
-          new Date(task.createdAt).toLocaleString(),
-          task.completedAt ? new Date(task.completedAt).toLocaleString() : '',
-        ].join(','));
-      }
-      content = lines.join('\n');
+      content = this.generateCsv(data, totals);
       ext = 'csv';
       defaultName = `vibeboard-export-${localDate}.csv`;
       filterLabel = 'CSV';
     } else {
       // Markdown export
-      content = this.generateMarkdown(data, history);
+      content = this.generateMarkdown(data, history, totals);
       ext = 'md';
       defaultName = `vibeboard-export-${localDate}.md`;
       filterLabel = 'Markdown';
@@ -413,11 +399,114 @@ export class MessageHandler {
   }
 
   /**
+   * Compute aggregate totals for export.
+   */
+  private computeExportTotals(data: ReturnType<StorageProvider['getData']>) {
+    const allTasks = data.tasks;
+    const totalSessions = data.sessions.length;
+    const activeSessions = data.sessions.filter((s) => s.status === 'active').length;
+    const endedSessions = data.sessions.filter((s) => s.status === 'ended').length;
+
+    const totalTasks = allTasks.length;
+    const byStatus: Record<string, number> = { 'up-next': 0, backlog: 0, completed: 0, notes: 0 };
+    const byTag: Record<string, number> = { feature: 0, bug: 0, refactor: 0, note: 0 };
+    const byPriority: Record<string, number> = { low: 0, medium: 0, high: 0 };
+    let totalTimeMs = 0;
+    let carriedOverCount = 0;
+
+    for (const t of allTasks) {
+      byStatus[t.status] = (byStatus[t.status] || 0) + 1;
+      byTag[t.tag] = (byTag[t.tag] || 0) + 1;
+      byPriority[t.priority || 'medium'] = (byPriority[t.priority || 'medium'] || 0) + 1;
+      totalTimeMs += t.timeSpentMs || 0;
+      if (t.carriedFromSessionId) carriedOverCount++;
+    }
+
+    return {
+      totalSessions,
+      activeSessions,
+      endedSessions,
+      totalTasks,
+      byStatus,
+      byTag,
+      byPriority,
+      totalTimeSpent: this.formatDuration(totalTimeMs),
+      totalTimeMs,
+      carriedOverCount,
+    };
+  }
+
+  /**
+   * Generate a CSV export with all tasks and a summary section.
+   */
+  private generateCsv(
+    data: ReturnType<StorageProvider['getData']>,
+    totals: ReturnType<MessageHandler['computeExportTotals']>
+  ): string {
+    const csvEsc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    const lines: string[] = [];
+
+    // Task data
+    lines.push('Session,Session Date,Session Duration,Task Title,Description,Tag,Priority,Status,Board,Time Spent,Carried Over,Created,Completed');
+    for (const task of data.tasks) {
+      const session = data.sessions.find((s) => s.id === task.sessionId);
+      const sessionName = session?.name || '';
+      const sessionDate = session ? new Date(session.startedAt).toLocaleDateString() : '';
+      const sessionDur = session ? this.formatDuration(
+        (session.endedAt ? new Date(session.endedAt).getTime() : Date.now()) - new Date(session.startedAt).getTime()
+      ) : '';
+      const timeSpent = this.formatDuration(task.timeSpentMs || 0);
+      const board = data.boards?.find((b) => b.id === task.boardId);
+      const boardName = board?.name || task.boardId;
+      const carriedOver = task.carriedFromSessionId ? 'Yes' : 'No';
+      lines.push([
+        csvEsc(sessionName),
+        sessionDate,
+        sessionDur,
+        csvEsc(task.title),
+        csvEsc(task.description),
+        task.tag,
+        task.priority || 'medium',
+        task.status,
+        csvEsc(boardName),
+        timeSpent,
+        carriedOver,
+        new Date(task.createdAt).toLocaleString(),
+        task.completedAt ? new Date(task.completedAt).toLocaleString() : '',
+      ].join(','));
+    }
+
+    // Blank separator + summary section
+    lines.push('');
+    lines.push('SUMMARY');
+    lines.push(`Total Sessions,${totals.totalSessions}`);
+    lines.push(`Active Sessions,${totals.activeSessions}`);
+    lines.push(`Ended Sessions,${totals.endedSessions}`);
+    lines.push(`Total Tasks,${totals.totalTasks}`);
+    lines.push(`Completed,${totals.byStatus['completed'] || 0}`);
+    lines.push(`Up Next,${totals.byStatus['up-next'] || 0}`);
+    lines.push(`Backlog,${totals.byStatus['backlog'] || 0}`);
+    lines.push(`Notes,${totals.byStatus['notes'] || 0}`);
+    lines.push(`Carried Over,${totals.carriedOverCount}`);
+    lines.push(`Features,${totals.byTag['feature'] || 0}`);
+    lines.push(`Bugs,${totals.byTag['bug'] || 0}`);
+    lines.push(`Refactors,${totals.byTag['refactor'] || 0}`);
+    lines.push(`Note Tags,${totals.byTag['note'] || 0}`);
+    lines.push(`High Priority,${totals.byPriority['high'] || 0}`);
+    lines.push(`Medium Priority,${totals.byPriority['medium'] || 0}`);
+    lines.push(`Low Priority,${totals.byPriority['low'] || 0}`);
+    lines.push(`Total Time Spent,${totals.totalTimeSpent}`);
+
+    return lines.join('\n');
+  }
+
+  /**
    * Generate a Markdown document from session/task data.
    */
   private generateMarkdown(
     data: ReturnType<StorageProvider['getData']>,
-    history: ReturnType<SessionManager['getSessionHistory']>
+    history: ReturnType<SessionManager['getSessionHistory']>,
+    totals: ReturnType<MessageHandler['computeExportTotals']>
   ): string {
     const lines: string[] = [];
     lines.push('# Vibe Board Export');
@@ -425,16 +514,39 @@ export class MessageHandler {
     lines.push(`*Exported: ${new Date().toLocaleString()}*`);
     lines.push('');
 
-    // Current session tasks
+    // Summary / Totals
+    lines.push('## Summary');
+    lines.push('');
+    lines.push('| Metric | Count |');
+    lines.push('|--------|-------|');
+    lines.push(`| Total Sessions | ${totals.totalSessions} |`);
+    lines.push(`| Active Sessions | ${totals.activeSessions} |`);
+    lines.push(`| Ended Sessions | ${totals.endedSessions} |`);
+    lines.push(`| Total Tasks | ${totals.totalTasks} |`);
+    lines.push(`| Completed | ${totals.byStatus['completed'] || 0} |`);
+    lines.push(`| Up Next | ${totals.byStatus['up-next'] || 0} |`);
+    lines.push(`| Backlog | ${totals.byStatus['backlog'] || 0} |`);
+    lines.push(`| Notes | ${totals.byStatus['notes'] || 0} |`);
+    lines.push(`| Carried Over | ${totals.carriedOverCount} |`);
+    lines.push(`| Total Time Spent | ${totals.totalTimeSpent} |`);
+    lines.push('');
+    lines.push('**By Tag:** ');
+    lines.push(`Feature: ${totals.byTag['feature'] || 0} · Bug: ${totals.byTag['bug'] || 0} · Refactor: ${totals.byTag['refactor'] || 0} · Note: ${totals.byTag['note'] || 0}`);
+    lines.push('');
+    lines.push('**By Priority:** ');
+    lines.push(`High: ${totals.byPriority['high'] || 0} · Medium: ${totals.byPriority['medium'] || 0} · Low: ${totals.byPriority['low'] || 0}`);
+    lines.push('');
+
+    // Active session
     if (data.activeSessionId) {
       const session = data.sessions.find((s) => s.id === data.activeSessionId);
       if (session) {
         lines.push('## Active Session');
         lines.push('');
-        lines.push(`Started: ${new Date(session.startedAt).toLocaleString()}`);
+        lines.push(`**${session.name}** — Started: ${new Date(session.startedAt).toLocaleString()}`);
         lines.push('');
 
-        for (const col of ['up-next', 'backlog', 'completed', 'notes']) {
+        for (const col of ['up-next', 'backlog', 'completed', 'notes'] as const) {
           const colTasks = data.tasks
             .filter((t) => t.sessionId === data.activeSessionId && t.status === col)
             .sort((a, b) => a.order - b.order);
@@ -447,7 +559,8 @@ export class MessageHandler {
               const prio = t.priority ? ` \`${t.priority}\`` : '';
               const tag = ` \`${t.tag}\``;
               const time = t.timeSpentMs ? ` (${this.formatDuration(t.timeSpentMs)})` : '';
-              lines.push(`- ${check} **${t.title}**${prio}${tag}${time}`);
+              const carried = t.carriedFromSessionId ? ' ↺' : '';
+              lines.push(`- ${check} **${t.title}**${prio}${tag}${time}${carried}`);
               if (t.description) {
                 for (const descLine of t.description.split('\n')) {
                   lines.push(`  ${descLine}`);
@@ -464,32 +577,52 @@ export class MessageHandler {
     if (history.sessions.length > 0) {
       lines.push('## Session History');
       lines.push('');
-      lines.push('| Date | Duration | Completed | Carried Over |');
-      lines.push('|------|----------|-----------|-------------|');
+      lines.push('| # | Date | Name | Duration | Tasks | Completed | Carried Over |');
+      lines.push('|---|------|------|----------|-------|-----------|-------------|');
       for (let i = 0; i < history.sessions.length; i++) {
         const s = history.sessions[i];
         const sum = history.summaries[i];
         const date = new Date(s.startedAt).toLocaleDateString();
         const dur = this.formatDuration(sum.duration);
-        lines.push(`| ${date} | ${dur} | ${sum.tasksCompleted} | ${sum.tasksCarriedOver} |`);
+        const totalTasks = data.tasks.filter((t) => t.sessionId === s.id).length;
+        lines.push(`| ${i + 1} | ${date} | ${s.name} | ${dur} | ${totalTasks} | ${sum.tasksCompleted} | ${sum.tasksCarriedOver} |`);
       }
       lines.push('');
     }
 
-    // All completed tasks
-    const completed = data.tasks
-      .filter((t) => t.status === 'completed')
-      .sort((a, b) => new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime());
+    // All tasks grouped by status
+    for (const status of ['completed', 'up-next', 'backlog', 'notes'] as const) {
+      const tasks = data.tasks
+        .filter((t) => t.status === status)
+        .sort((a, b) => {
+          if (status === 'completed') {
+            return new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime();
+          }
+          return a.order - b.order;
+        });
 
-    if (completed.length > 0) {
-      lines.push('## All Completed Tasks');
-      lines.push('');
-      for (const t of completed) {
-        const when = t.completedAt ? new Date(t.completedAt).toLocaleDateString() : '';
-        const time = t.timeSpentMs ? ` (${this.formatDuration(t.timeSpentMs)})` : '';
-        lines.push(`- [x] **${t.title}** \`${t.tag}\`${time} — ${when}`);
+      if (tasks.length > 0) {
+        const label = status === 'up-next' ? 'Up Next' : status === 'backlog' ? 'Backlog' : status === 'completed' ? 'All Completed Tasks' : 'Notes';
+        lines.push(`## ${label} (${tasks.length})`);
+        lines.push('');
+        for (const t of tasks) {
+          const check = status === 'completed' ? '[x]' : '[ ]';
+          const prio = t.priority ? ` \`${t.priority}\`` : '';
+          const tag = ` \`${t.tag}\``;
+          const time = t.timeSpentMs ? ` (${this.formatDuration(t.timeSpentMs)})` : '';
+          const when = t.completedAt ? ` — ${new Date(t.completedAt).toLocaleDateString()}` : '';
+          const carried = t.carriedFromSessionId ? ' ↺' : '';
+          const session = data.sessions.find((s) => s.id === t.sessionId);
+          const sessionInfo = session ? ` [${session.name}]` : '';
+          lines.push(`- ${check} **${t.title}**${prio}${tag}${time}${carried}${when}${sessionInfo}`);
+          if (t.description) {
+            for (const descLine of t.description.split('\n')) {
+              lines.push(`  ${descLine}`);
+            }
+          }
+        }
+        lines.push('');
       }
-      lines.push('');
     }
 
     return lines.join('\n');

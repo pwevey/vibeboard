@@ -999,11 +999,24 @@ body.is-dragging .task-card:not(.dragging) {
 .start-export-actions {
   display: flex;
   gap: 8px;
-  padding: 8px 0;
+  padding: 8px 0 4px;
 }
 
 .start-export-actions button {
   flex: 1;
+}
+
+.start-export-hints {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+.start-export-hints span {
+  flex: 1;
+  text-align: center;
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
 }
 
 /* Empty state (for when there's really no data) */
