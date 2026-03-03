@@ -116,6 +116,7 @@ let boardClickTimer: ReturnType<typeof setTimeout> | null = null;
 let sessionHistoryData: { sessions: VBSession[]; summaries: VBSessionSummary[] } | null = null;
 let editingTaskId: string | null = null;
 let contextMenuTaskId: string | null = null;
+let pendingAIDescription: string = '';
 
 // ============================================================
 // Initialization
@@ -550,8 +551,10 @@ function bindEvents(): void {
   // AI Rewrite Title
   document.getElementById('btn-ai-rewrite')?.addEventListener('click', () => {
     const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+    const tagSelect = document.getElementById('quick-add-tag') as HTMLSelectElement | null;
     const title = input?.value.trim();
-    if (title) { vscode.postMessage({ type: 'aiRewriteTitle', payload: { title } }); }
+    const tag = tagSelect?.value || 'note';
+    if (title) { vscode.postMessage({ type: 'aiRewriteTitle', payload: { title, tag } }); }
   });
 
   // Board switcher — click name to switch, X to close, double-click to rename
@@ -709,9 +712,11 @@ function bindQuickAdd(): void {
         tag: addTag.value as TaskTag,
         priority: (addPriority?.value ?? 'medium') as TaskPriority,
         status: addCol.value as TaskStatus,
+        description: pendingAIDescription || undefined,
       },
     });
     addInput.value = '';
+    pendingAIDescription = '';
     addInput.focus();
   };
 
@@ -1453,9 +1458,17 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>AI Improve Title</h4>
         <ul>
-          <li>Type a rough task idea in the quick-add input, then click the <strong>sparkle icon</strong> (&#10024;) next to the Add button.</li>
-          <li>AI rewrites your text to be clearer, more concise, and more actionable.</li>
-          <li>The improved title replaces your original text in the input field. Edit further or click <em>Add</em> to create the task.</li>
+          <li>Type a rough task idea in the quick-add input, select the appropriate <strong>tag type</strong> (Feature, Bug, Refactor, or Note), then click the <strong>sparkle icon</strong> (&#10024;) next to the Add button.</li>
+          <li>AI rewrites your text into a clearer, more actionable title.</li>
+          <li>AI also generates a <strong>structured description</strong> based on the selected tag type, using the same format as the built-in templates:
+            <ul>
+              <li><strong>Bug</strong> &mdash; Steps to reproduce, Expected behavior, Actual behavior</li>
+              <li><strong>Feature</strong> &mdash; Goal, Approach, Questions</li>
+              <li><strong>Refactor</strong> &mdash; Current state, Desired state, Risks</li>
+              <li><strong>Note</strong> &mdash; Clear contextual note</li>
+            </ul>
+          </li>
+          <li>The improved title replaces your input text. The description is automatically attached when you click <em>Add</em>.</li>
         </ul>`;
 
     case 'export':
@@ -1680,12 +1693,28 @@ function handleAIResult(payload: { action: string; result: string | string[]; ta
       break;
     }
     case 'rewriteTitle': {
-      const rewritten = typeof result === 'string' ? result : result[0];
-      const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
-      if (input && rewritten) {
-        input.value = rewritten;
-        input.focus();
-        showAIToast('Title improved by AI', false);
+      const raw = typeof result === 'string' ? result : result[0];
+      try {
+        const parsed = JSON.parse(raw);
+        const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+        if (input && parsed.title) {
+          input.value = parsed.title;
+          input.focus();
+          pendingAIDescription = parsed.description || '';
+          if (pendingAIDescription) {
+            showAIToast('Task improved — title & description ready', false);
+          } else {
+            showAIToast('Title improved by AI', false);
+          }
+        }
+      } catch {
+        // Fallback if not JSON
+        const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+        if (input && raw) {
+          input.value = raw;
+          input.focus();
+          showAIToast('Title improved by AI', false);
+        }
       }
       break;
     }

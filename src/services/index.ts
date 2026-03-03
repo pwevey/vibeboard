@@ -11,7 +11,7 @@ import * as vscode from 'vscode';
 export interface IAIService {
   generateSummary(tasks: unknown[]): Promise<string>;
   breakdownTask(title: string, description: string): Promise<string[]>;
-  rewriteTitle(title: string): Promise<string>;
+  rewriteTask(title: string, tag: string): Promise<{ title: string; description: string }>;
 }
 
 /**
@@ -79,11 +79,30 @@ export class CopilotAIService implements IAIService {
     }
   }
 
-  async rewriteTitle(title: string): Promise<string> {
+  async rewriteTask(title: string, tag: string): Promise<{ title: string; description: string }> {
     const model = await this.getModel();
-    if (!model) { return title; }
+    if (!model) { return { title, description: '' }; }
 
-    const prompt = `Rewrite this task title to be clearer, more concise, and more actionable. Return ONLY the improved title text, nothing else. Do not add quotes.\n\nOriginal: ${title}`;
+    const templateHints: Record<string, string> = {
+      bug: 'Format the description as a bug report with sections: Steps to reproduce (numbered), Expected behavior, Actual behavior.',
+      feature: 'Format the description as a feature spike with sections: Goal, Approach, Questions.',
+      refactor: 'Format the description as a refactor plan with sections: Current state, Desired state, Risks.',
+      note: 'Format the description as a clear note capturing the key idea or context.',
+    };
+
+    const hint = templateHints[tag] || templateHints['note'];
+
+    const prompt = `You are improving a task for a Kanban board. The task type is "${tag}".
+
+1. Rewrite the title to be clearer, more concise, and actionable. Keep it short (under 10 words if possible).
+2. ${hint}
+
+Respond in EXACTLY this format (two lines separated by ===):
+IMPROVED TITLE HERE
+===
+DESCRIPTION HERE
+
+Original input: ${title}`;
 
     try {
       const messages = [vscode.LanguageModelChatMessage.User(prompt)];
@@ -92,10 +111,18 @@ export class CopilotAIService implements IAIService {
       for await (const chunk of response.text) {
         result += chunk;
       }
+
+      const parts = result.split('===');
+      if (parts.length >= 2) {
+        const newTitle = parts[0].trim().replace(/^["']|["']$/g, '');
+        const newDesc = parts.slice(1).join('===').trim();
+        return { title: newTitle || title, description: newDesc };
+      }
+      // Fallback: treat whole response as improved title
       const cleaned = result.trim().replace(/^["']|["']$/g, '');
-      return cleaned || title;
+      return { title: cleaned || title, description: '' };
     } catch {
-      return title;
+      return { title, description: '' };
     }
   }
 }

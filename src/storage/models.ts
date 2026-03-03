@@ -110,7 +110,7 @@ export type WebviewToExtensionMessage =
   | { type: 'renameBoard'; payload: { boardId: string; name: string } }
   | { type: 'aiSummarize'; payload: Record<string, never> }
   | { type: 'aiBreakdown'; payload: { taskId: string } }
-  | { type: 'aiRewriteTitle'; payload: { title: string } }
+  | { type: 'aiRewriteTitle'; payload: { title: string; tag: string } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
