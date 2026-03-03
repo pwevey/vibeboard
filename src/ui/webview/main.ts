@@ -2912,8 +2912,6 @@ function renderHelpContent(section: string): string {
           <li>Automatically resumes automation if it was paused.</li>
           <li>Each task can be retried up to <strong>3 times</strong>. After that, the retry button is replaced with <em>(max retries)</em>.</li>
         </ul>
-        <h4>Progress Notifications</h4>
-        <p>While automation is running, a <strong>VS Code notification</strong> appears showing real-time progress (e.g., "2/5 — Build login page (Waiting for changes…)"). You can also cancel automation directly from the notification's cancel button.</p>
         <h4>Auto-Approve Threshold</h4>
         <p>By default, tasks with &ge;85% AI confidence are auto-approved without a checkpoint. You can adjust this in VS Code settings:</p>
         <ul>

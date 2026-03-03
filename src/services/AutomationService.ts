@@ -44,7 +44,6 @@ export class AutomationService {
   private docChangeListener: vscode.Disposable | undefined;
   private changeTimer: ReturnType<typeof setTimeout> | undefined;
   private timeoutTimer: ReturnType<typeof setTimeout> | undefined;
-  private progressResolve: (() => void) | undefined; // resolves the withProgress promise
 
   /** Callback to broadcast progress to the webview. */
   private onProgress: ((progress: AutomationProgress) => void) | undefined;
@@ -100,25 +99,6 @@ export class AutomationService {
     );
 
     this.broadcastProgress();
-
-    // Show VS Code progress notification for the entire automation run
-    vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: 'Vibe Board: Automation',
-        cancellable: true,
-      },
-      async (progress, token) => {
-        token.onCancellationRequested(() => this.cancel());
-        this.updateVSCodeProgress(progress);
-
-        // Keep alive until automation finishes
-        return new Promise<void>((resolve) => {
-          this.progressResolve = resolve;
-        });
-      }
-    );
-
     await this.processNext();
   }
 
@@ -151,13 +131,6 @@ export class AutomationService {
     }
     this.state = 'idle';
     this.broadcastProgress();
-
-    // Dismiss the VS Code progress notification
-    if (this.progressResolve) {
-      this.progressResolve();
-      this.progressResolve = undefined;
-    }
-
     vscode.window.showInformationMessage('Vibe Board: Automation cancelled.');
   }
 
@@ -555,12 +528,6 @@ export class AutomationService {
     this.state = 'idle';
     this.broadcastProgress();
 
-    // Dismiss the VS Code progress notification
-    if (this.progressResolve) {
-      this.progressResolve();
-      this.progressResolve = undefined;
-    }
-
     vscode.window.showInformationMessage(
       `Vibe Board: Automation complete! ${completed} done, ${failed} failed, ${skipped} skipped.`
     );
@@ -589,30 +556,5 @@ export class AutomationService {
     if (this.onProgress) {
       this.onProgress(this.getProgress());
     }
-  }
-
-  /** Update the VS Code notification progress bar. */
-  private updateVSCodeProgress(progress: vscode.Progress<{ message?: string; increment?: number }>): void {
-    const update = () => {
-      if (this.state === 'idle') { return; }
-      const current = this.queue[this.currentIndex];
-      const task = current ? this.storage.getData().tasks.find((t) => t.id === current.taskId) : null;
-      const taskName = task ? (task.title.length > 30 ? task.title.slice(0, 30) + '…' : task.title) : 'Processing';
-      const stepLabels: Record<string, string> = {
-        pending: 'Queued', sending: 'Sending…', waiting: 'Waiting for changes…',
-        verifying: 'Verifying…', checkpoint: 'Review needed', done: 'Done',
-        skipped: 'Skipped', failed: 'Failed',
-      };
-      const step = current ? (stepLabels[current.status] || current.status) : '';
-      progress.report({ message: `${this.queue.filter(q => q.status === 'done').length}/${this.queue.length} — ${taskName} (${step})` });
-    };
-
-    // Hook into broadcastProgress to also update VS Code progress
-    const originalOnProgress = this.onProgress;
-    this.onProgress = (p) => {
-      if (originalOnProgress) { originalOnProgress(p); }
-      update();
-    };
-    update();
   }
 }
