@@ -300,8 +300,6 @@ export class MessageHandler {
           const chatOptions: Record<string, unknown> = { query: prompt };
           if (savedImagePaths.length > 0) {
             chatOptions.attachFiles = savedImagePaths;
-            // Don't auto-submit so images have time to attach — user presses Enter
-            chatOptions.isPartialQuery = true;
           }
           await vscode.commands.executeCommand('workbench.action.chat.open', chatOptions);
         } catch {
