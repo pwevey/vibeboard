@@ -2905,6 +2905,13 @@ function renderHelpContent(section: string): string {
           <li><strong>Reject</strong> &mdash; Mark the task as failed and pause automation.</li>
           <li><strong>Skip</strong> &mdash; Skip without marking as failed and continue.</li>
         </ul>
+        <h4>Retrying Failed Tasks</h4>
+        <p>If a task fails or is rejected, a <strong>&#8635; Retry</strong> button appears next to it in the queue list. Clicking it:</p>
+        <ul>
+          <li>Resets the task to pending and re-sends it to Copilot with added context: <em>"The previous attempt was rejected. Please try a different approach."</em></li>
+          <li>Automatically resumes automation if it was paused.</li>
+          <li>Each task can be retried up to <strong>3 times</strong>. After that, the retry button is replaced with <em>(max retries)</em>.</li>
+        </ul>
         <h4>Requirements</h4>
         <ul>
           <li><strong>GitHub Copilot Chat</strong> must be installed and active (for sending tasks and AI verification).</li>
