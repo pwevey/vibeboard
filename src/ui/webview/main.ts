@@ -188,11 +188,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     (document.getElementById('quick-add-input') as HTMLTextAreaElement | null)?.focus();
     return;
   }
-  if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
-    e.preventDefault();
-    toggleView();
-    return;
-  }
+
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
     e.preventDefault();
     vscode.postMessage({ type: 'undo', payload: {} });
@@ -315,7 +311,6 @@ function findTask(id: string): VBTask | undefined {
 // ============================================================
 
 function renderSessionBar(session: VBSession | null): string {
-  const viewToggle = `<button class="icon-btn view-toggle ${activeView === 'history' ? 'active' : ''}" id="btn-toggle-view" title="Session History (Ctrl+H)" aria-label="Toggle session history">&#128218;</button>`;
   const undoBtn = `<button class="icon-btn" id="btn-undo" title="Undo (Ctrl+Z)" aria-label="Undo last action">&#8630;</button>`;
   const redoBtn = `<button class="icon-btn" id="btn-redo" title="Redo (Ctrl+Y)" aria-label="Redo last action">&#8631;</button>`;
   const helpBtn = `<button class="icon-btn help-btn" id="btn-help" title="Help (F1)" aria-label="Open help">&#63;</button>`;
@@ -326,7 +321,7 @@ function renderSessionBar(session: VBSession | null): string {
   if (!session) {
     return `<div class="session-bar" role="toolbar" aria-label="Session controls">
       <div class="session-info"><span style="font-size:12px;font-weight:600;">Vibe Board</span></div>
-      <div class="session-actions">${helpBtn}${viewToggle}<button class="btn-start-session">Start Session</button></div>
+      <div class="session-actions"><button class="btn-start-session">Start Session</button>${helpBtn}</div>
     </div>`;
   }
 
@@ -344,7 +339,7 @@ function renderSessionBar(session: VBSession | null): string {
       <span class="${timerClass}" id="session-timer" aria-live="polite">00:00:00</span>
       ${pausePlayBtn}
     </div>
-    <div class="session-actions">${aiBtn}${undoBtn}${redoBtn}${helpBtn}${viewToggle}<button class="secondary" id="btn-end-session">End Session</button></div>
+    <div class="session-actions">${aiBtn}${undoBtn}${redoBtn}<button class="secondary" id="btn-end-session">End Session</button>${helpBtn}</div>
   </div>
   ${boardSwitcher}`;
 }
@@ -789,9 +784,6 @@ function bindEvents(): void {
   document.getElementById('btn-redo')?.addEventListener('click', () => {
     vscode.postMessage({ type: 'redo', payload: {} });
   });
-
-  // View toggle
-  document.getElementById('btn-toggle-view')?.addEventListener('click', () => toggleView());
 
   // Help
   document.getElementById('btn-help')?.addEventListener('click', () => showHelp());
@@ -1904,11 +1896,11 @@ function renderHistory(): void {
   let html = `<div class="session-bar" role="toolbar">
     <div class="session-info"><span style="font-size:12px;font-weight:600;">Session History</span></div>
     <div class="session-actions">
-      <button class="icon-btn help-btn" id="btn-help" title="Help (F1)" aria-label="Open help">&#63;</button>
-      <button class="icon-btn view-toggle active" id="btn-toggle-view" title="Back to Board (Ctrl+H)" aria-label="Back to board">&#128218;</button>
+      <button class="icon-btn view-toggle active" id="btn-toggle-view" title="Back to Board" aria-label="Back to board">&#128218;</button>
       ${getActiveSession()
     ? '<button class="secondary" id="btn-end-session">End Session</button>'
     : '<button class="btn-start-session">Start Session</button>'}
+      <button class="icon-btn help-btn" id="btn-help" title="Help (F1)" aria-label="Open help">&#63;</button>
     </div>
   </div>`;
 
@@ -2496,9 +2488,7 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Session History</h4>
         <ul>
-          <li>Click the <strong>book icon</strong> (&#128218;) or press <kbd>Ctrl+H</kbd> to toggle the history view.</li>
-          <li>History shows all past sessions with duration, completion count, and tag breakdown.</li>
-          <li>The start page also shows recent session history and completed tasks.</li>
+          <li>The start page shows recent session history with duration, completion count, and tag breakdown.</li>
         </ul>
         <h4>Undo / Redo</h4>
         <ul>
@@ -2744,7 +2734,7 @@ function renderHelpContent(section: string): string {
           <tbody>
             <tr><td><kbd>F1</kbd></td><td>Toggle this help panel</td></tr>
             <tr><td><kbd>Ctrl+N</kbd></td><td>Focus the quick-add input</td></tr>
-            <tr><td><kbd>Ctrl+H</kbd></td><td>Toggle session history view</td></tr>
+
             <tr><td><kbd>Ctrl+Z</kbd></td><td>Undo last action</td></tr>
             <tr><td><kbd>Ctrl+Shift+V</kbd></td><td>Quick Add Task (global VS Code keybinding)</td></tr>
             <tr><td><kbd>Enter</kbd></td><td>Submit quick-add / edit task (when focused)</td></tr>
