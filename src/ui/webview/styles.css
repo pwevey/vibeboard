@@ -1215,6 +1215,79 @@ body.is-dragging .task-card:not(.dragging) {
   opacity: 1;
 }
 
+.help-search-bar {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--vscode-widget-border);
+  flex-shrink: 0;
+}
+
+.help-search-bar input {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid var(--vscode-input-border, var(--vscode-widget-border));
+  border-radius: 4px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.help-search-bar input:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.help-search-bar input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+.help-search-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.help-search-empty p:first-child {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.help-search-result {
+  margin-bottom: 12px;
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.help-search-result-header {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--vscode-sideBarSectionHeader-background, var(--vscode-editor-background));
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.help-search-result-header:hover {
+  text-decoration: underline;
+}
+
+.help-search-result-snippet {
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--vscode-foreground);
+  word-break: break-word;
+}
+
+.help-search-result-snippet mark {
+  background: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.33));
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
 .help-body {
   display: flex;
   flex-direction: column;

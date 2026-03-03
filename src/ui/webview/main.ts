@@ -1418,6 +1418,157 @@ function getTaskTotalMs(task: VBTask): number {
 // Help System
 // ============================================================
 
+function escapeHtml(text: string): string {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function stripHtml(html: string): string {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div.textContent || div.innerText || '';
+}
+
+interface FuzzyMatchResult {
+  score: number;
+  indices: number[];
+}
+
+function fuzzyMatch(query: string, text: string): FuzzyMatchResult | null {
+  const lowerQuery = query.toLowerCase();
+  const lowerText = text.toLowerCase();
+
+  // Exact substring match gets highest score
+  const exactIdx = lowerText.indexOf(lowerQuery);
+  if (exactIdx !== -1) {
+    const indices: number[] = [];
+    for (let i = 0; i < lowerQuery.length; i++) { indices.push(exactIdx + i); }
+    return { score: 100 + lowerQuery.length, indices };
+  }
+
+  // Word-start matching: check if each query char matches start of words in order
+  const words = lowerQuery.split(/\s+/).filter(Boolean);
+  if (words.length > 1) {
+    let allFound = true;
+    let totalScore = 0;
+    const allIndices: number[] = [];
+    for (const word of words) {
+      const wIdx = lowerText.indexOf(word);
+      if (wIdx === -1) { allFound = false; break; }
+      totalScore += word.length;
+      for (let i = 0; i < word.length; i++) { allIndices.push(wIdx + i); }
+    }
+    if (allFound) {
+      return { score: 50 + totalScore, indices: allIndices };
+    }
+  }
+
+  // Fuzzy character-by-character matching
+  let qIdx = 0;
+  const indices: number[] = [];
+  let score = 0;
+  let prevMatchIdx = -2;
+
+  for (let tIdx = 0; tIdx < lowerText.length && qIdx < lowerQuery.length; tIdx++) {
+    if (lowerText[tIdx] === lowerQuery[qIdx]) {
+      indices.push(tIdx);
+      // Consecutive matches score higher
+      if (tIdx === prevMatchIdx + 1) { score += 3; } else { score += 1; }
+      // Word boundary bonus
+      if (tIdx === 0 || /\s|[^a-z0-9]/i.test(text[tIdx - 1])) { score += 2; }
+      prevMatchIdx = tIdx;
+      qIdx++;
+    }
+  }
+
+  if (qIdx === lowerQuery.length) {
+    // Penalize spread-out matches
+    const spread = indices[indices.length - 1] - indices[0];
+    score -= Math.floor(spread / 10);
+    return { score: Math.max(1, score), indices };
+  }
+
+  return null;
+}
+
+interface HelpSearchResult {
+  section: string;
+  tabLabel: string;
+  snippetHtml: string;
+  score: number;
+}
+
+const helpTabLabels: Record<string, string> = {
+  'getting-started': 'Getting Started',
+  'tasks': 'Tasks',
+  'board': 'Board',
+  'sessions': 'Sessions',
+  'timers': 'Timers',
+  'templates': 'Templates',
+  'ai': 'AI Features',
+  'export': 'Export / Import',
+  'shortcuts': 'Shortcuts'
+};
+
+function searchHelpSections(query: string): HelpSearchResult[] {
+  const sections = Object.keys(helpTabLabels);
+  const results: HelpSearchResult[] = [];
+
+  for (const section of sections) {
+    const html = renderHelpContent(section);
+    const plainText = stripHtml(html);
+
+    const match = fuzzyMatch(query, plainText);
+    if (!match) { continue; }
+
+    // Extract snippet around first match position
+    const firstIdx = match.indices[0];
+    const snippetRadius = 80;
+    let snippetStart = Math.max(0, firstIdx - snippetRadius);
+    let snippetEnd = Math.min(plainText.length, firstIdx + snippetRadius);
+
+    // Snap to word boundaries
+    if (snippetStart > 0) {
+      const spaceIdx = plainText.indexOf(' ', snippetStart);
+      if (spaceIdx !== -1 && spaceIdx < firstIdx) { snippetStart = spaceIdx + 1; }
+    }
+    if (snippetEnd < plainText.length) {
+      const spaceIdx = plainText.lastIndexOf(' ', snippetEnd);
+      if (spaceIdx > firstIdx) { snippetEnd = spaceIdx; }
+    }
+
+    let snippet = plainText.substring(snippetStart, snippetEnd);
+    const prefix = snippetStart > 0 ? '...' : '';
+    const suffix = snippetEnd < plainText.length ? '...' : '';
+
+    // Highlight matched characters in snippet
+    const offsetIndices = match.indices
+      .filter(i => i >= snippetStart && i < snippetEnd)
+      .map(i => i - snippetStart);
+
+    let highlighted = '';
+    for (let i = 0; i < snippet.length; i++) {
+      if (offsetIndices.includes(i)) {
+        highlighted += `<mark>${escapeHtml(snippet[i])}</mark>`;
+      } else {
+        highlighted += escapeHtml(snippet[i]);
+      }
+    }
+
+    results.push({
+      section,
+      tabLabel: helpTabLabels[section] || section,
+      snippetHtml: prefix + highlighted + suffix,
+      score: match.score
+    });
+  }
+
+  // Sort by score descending
+  results.sort((a, b) => b.score - a.score);
+  return results;
+}
+
 function showHelp(): void {
   // Close if already open
   const existing = document.querySelector('.help-overlay');
@@ -1433,8 +1584,11 @@ function showHelp(): void {
       <h2>&#10067; Vibe Board Help</h2>
       <button class="icon-btn help-close-btn" id="btn-help-close" aria-label="Close help">&times;</button>
     </div>
+    <div class="help-search-bar">
+      <input type="text" id="help-search-input" placeholder="Search help docs..." aria-label="Search help documentation" autocomplete="off" />
+    </div>
     <div class="help-body">
-      <nav class="help-nav" role="tablist" aria-label="Help sections">
+      <nav class="help-nav" role="tablist" aria-label="Help sections" id="help-nav">
         <button class="help-tab active" data-help-tab="getting-started" role="tab" aria-selected="true">Getting Started</button>
         <button class="help-tab" data-help-tab="tasks" role="tab" aria-selected="false">Tasks</button>
         <button class="help-tab" data-help-tab="board" role="tab" aria-selected="false">Board</button>
@@ -1454,17 +1608,73 @@ function showHelp(): void {
   document.body.appendChild(overlay);
 
   // Tab switching
+  const switchToTab = (tab: HTMLElement) => {
+    overlay.querySelectorAll('.help-tab').forEach((t) => {
+      t.classList.remove('active');
+      t.setAttribute('aria-selected', 'false');
+    });
+    tab.classList.add('active');
+    tab.setAttribute('aria-selected', 'true');
+    const content = overlay.querySelector('.help-content');
+    if (content) { content.innerHTML = renderHelpContent(tab.dataset.helpTab!); }
+  };
+
   overlay.querySelectorAll<HTMLElement>('[data-help-tab]').forEach((tab) => {
     tab.addEventListener('click', () => {
-      overlay.querySelectorAll('.help-tab').forEach((t) => {
-        t.classList.remove('active');
-        t.setAttribute('aria-selected', 'false');
-      });
-      tab.classList.add('active');
-      tab.setAttribute('aria-selected', 'true');
-      const content = overlay.querySelector('.help-content');
-      if (content) { content.innerHTML = renderHelpContent(tab.dataset.helpTab!); }
+      // Clear search when clicking a tab
+      const searchInput = document.getElementById('help-search-input') as HTMLInputElement;
+      if (searchInput) { searchInput.value = ''; }
+      const nav = document.getElementById('help-nav');
+      if (nav) { nav.style.display = ''; }
+      switchToTab(tab);
     });
+  });
+
+  // Fuzzy search
+  const searchInput = document.getElementById('help-search-input') as HTMLInputElement;
+  let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  searchInput.addEventListener('input', () => {
+    if (searchTimeout) { clearTimeout(searchTimeout); }
+    searchTimeout = setTimeout(() => {
+      const query = searchInput.value.trim();
+      const content = overlay.querySelector('.help-content');
+      const nav = document.getElementById('help-nav');
+      if (!content || !nav) { return; }
+
+      if (!query) {
+        // Restore active tab content
+        nav.style.display = '';
+        const activeTab = overlay.querySelector('.help-tab.active') as HTMLElement;
+        content.innerHTML = renderHelpContent(activeTab?.dataset.helpTab || 'getting-started');
+        return;
+      }
+
+      // Hide tabs during search
+      nav.style.display = 'none';
+
+      // Search all sections
+      const results = searchHelpSections(query);
+      if (results.length === 0) {
+        content.innerHTML = `<div class="help-search-empty"><p>No results found for "<strong>${escapeHtml(query)}</strong>"</p><p style="font-size:11px;color:var(--vscode-descriptionForeground);">Try different keywords or shorter search terms.</p></div>`;
+      } else {
+        content.innerHTML = results.map((r) => `<div class="help-search-result">
+          <div class="help-search-result-header" data-help-section="${r.section}">${r.tabLabel}</div>
+          <div class="help-search-result-snippet">${r.snippetHtml}</div>
+        </div>`).join('');
+
+        // Click result header to open that tab
+        content.querySelectorAll<HTMLElement>('.help-search-result-header').forEach((header) => {
+          header.addEventListener('click', () => {
+            const section = header.dataset.helpSection!;
+            searchInput.value = '';
+            nav.style.display = '';
+            const tab = overlay.querySelector(`[data-help-tab="${section}"]`) as HTMLElement;
+            if (tab) { switchToTab(tab); }
+          });
+        });
+      }
+    }, 150);
   });
 
   // Close handlers
@@ -1472,8 +1682,8 @@ function showHelp(): void {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
   overlay.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Escape') { overlay.remove(); } });
 
-  // Focus management
-  (document.getElementById('btn-help-close') as HTMLElement)?.focus();
+  // Focus management — focus search input for immediate typing
+  searchInput.focus();
 }
 
 function renderHelpContent(section: string): string {
