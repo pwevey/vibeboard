@@ -707,8 +707,8 @@ function bindEvents(): void {
 
   // Export & Import
   document.getElementById('btn-export-json')?.addEventListener('click', () => vscode.postMessage({ type: 'exportData', payload: { format: 'json' } }));
-  document.getElementById('btn-export-csv')?.addEventListener('click', () => vscode.postMessage({ type: 'exportData', payload: { format: 'csv' } }));
-  document.getElementById('btn-export-md')?.addEventListener('click', () => vscode.postMessage({ type: 'exportData', payload: { format: 'markdown' } }));
+  document.getElementById('btn-export-csv')?.addEventListener('click', () => showExportTimePicker('csv'));
+  document.getElementById('btn-export-md')?.addEventListener('click', () => showExportTimePicker('markdown'));
   document.getElementById('btn-import-data')?.addEventListener('click', () => vscode.postMessage({ type: 'importData', payload: {} }));
 
   // Clear all data
@@ -1197,6 +1197,70 @@ function showConfirmDialog(title: string, message: string, onConfirm: () => void
 }
 
 // ============================================================
+// Export Time Period Picker
+// ============================================================
+
+function showExportTimePicker(format: 'csv' | 'markdown'): void {
+  const formatLabel = format === 'csv' ? 'CSV' : 'Markdown';
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', `Export ${formatLabel} — Select Time Period`);
+
+  // Calculate default date values for custom range
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  overlay.innerHTML = `<div class="modal-card export-time-picker">
+    <h3>Export ${formatLabel} — Time Period</h3>
+    <p>Select a time range to filter the exported data.</p>
+    <div class="export-time-options">
+      <label class="export-time-option"><input type="radio" name="export-time" value="all" checked /> All Time</label>
+      <label class="export-time-option"><input type="radio" name="export-time" value="day" /> By Day</label>
+      <label class="export-time-option"><input type="radio" name="export-time" value="week" /> By Week</label>
+      <label class="export-time-option"><input type="radio" name="export-time" value="month" /> By Month</label>
+      <label class="export-time-option"><input type="radio" name="export-time" value="year" /> By Year</label>
+      <label class="export-time-option"><input type="radio" name="export-time" value="current-month" /> Current Month</label>
+      <label class="export-time-option"><input type="radio" name="export-time" value="last-month" /> Last Month</label>
+      <label class="export-time-option"><input type="radio" name="export-time" value="custom" /> Custom Range</label>
+    </div>
+    <div class="export-custom-range" id="export-custom-range" style="display:none;">
+      <label>From: <input type="date" id="export-custom-start" value="${todayStr}" /></label>
+      <label>To: <input type="date" id="export-custom-end" value="${todayStr}" /></label>
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" id="export-time-cancel">Cancel</button>
+      <button id="export-time-confirm">Export</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+
+  // Show/hide custom range inputs based on radio selection
+  overlay.querySelectorAll<HTMLInputElement>('input[name="export-time"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      const customDiv = document.getElementById('export-custom-range')!;
+      customDiv.style.display = radio.value === 'custom' ? 'flex' : 'none';
+    });
+  });
+
+  document.getElementById('export-time-confirm')!.addEventListener('click', () => {
+    const selected = overlay.querySelector<HTMLInputElement>('input[name="export-time"]:checked')!.value;
+    const payload: Record<string, string> = { format, timePeriod: selected };
+    if (selected === 'custom') {
+      payload.customStart = (document.getElementById('export-custom-start') as HTMLInputElement).value;
+      payload.customEnd = (document.getElementById('export-custom-end') as HTMLInputElement).value;
+    }
+    vscode.postMessage({ type: 'exportData', payload });
+    overlay.remove();
+  });
+
+  document.getElementById('export-time-cancel')!.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
+  (document.getElementById('export-time-cancel') as HTMLElement)?.focus();
+}
+
+// ============================================================
 // Session Summary
 // ============================================================
 
@@ -1615,10 +1679,22 @@ function renderHelpContent(section: string): string {
         <p>Vibe Board supports three export formats. All formats include comprehensive data with summary totals.</p>
         <h4>Export Formats</h4>
         <ul>
-          <li><strong>JSON</strong> &mdash; Full data backup with summary totals, all sessions (with per-session stats), active session details, and every task. Best for backups or programmatic use.</li>
-          <li><strong>CSV</strong> &mdash; Spreadsheet-ready table of all tasks with columns: Session, Session Date, Session Duration, Task Title, Description, Tag, Priority, Status, Board, Time Spent, Carried Over, Created, Completed. Includes a summary section at the bottom with totals by status, tag, and priority.</li>
+          <li><strong>JSON</strong> &mdash; Full data backup with summary totals, all sessions (with per-session stats), active session details, and every task. Best for backups or programmatic use. Exports all data regardless of time period.</li>
+          <li><strong>CSV</strong> &mdash; Spreadsheet-ready table of tasks with columns: Session, Session Date, Session Duration, Task Title, Description, Tag, Priority, Status, Board, Time Spent, Carried Over, Created, Completed. Includes a summary section at the bottom with totals by status, tag, and priority.</li>
           <li><strong>Markdown</strong> &mdash; Human-readable report with summary statistics table, active session details, session history table (with session name, task counts), and all tasks grouped by status. Includes breakdowns by tag and priority. Ideal for documentation and sharing.</li>
         </ul>
+        <h4>Time Period Filter</h4>
+        <p>When exporting to CSV or Markdown, you can choose a time period to filter the data:</p>
+        <ul>
+          <li><strong>All Time</strong> &mdash; Export everything.</li>
+          <li><strong>By Day</strong> &mdash; Tasks created today.</li>
+          <li><strong>By Week</strong> &mdash; Tasks created this week (Sunday to today).</li>
+          <li><strong>By Month / Current Month</strong> &mdash; Tasks created this calendar month.</li>
+          <li><strong>By Year</strong> &mdash; Tasks created this calendar year.</li>
+          <li><strong>Last Month</strong> &mdash; Tasks created in the previous calendar month.</li>
+          <li><strong>Custom Range</strong> &mdash; Set a specific start and end date.</li>
+        </ul>
+        <p>Tasks are filtered by their <strong>creation date</strong>. The selected period is shown in the exported file.</p>
         <h4>Importing Data</h4>
         <ul>
           <li>Click <strong>Import JSON</strong> on the start page to restore data from a Vibe Board JSON export or a raw <code>data.json</code> backup.</li>

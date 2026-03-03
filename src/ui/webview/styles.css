@@ -758,6 +758,70 @@ body.is-dragging .task-card:not(.dragging) {
 }
 
 /* ============================================================
+   Export Time Period Picker
+   ============================================================ */
+
+.export-time-picker {
+  max-width: 320px;
+}
+
+.export-time-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.export-time-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 3px;
+}
+
+.export-time-option:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.export-time-option input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.export-custom-range {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.export-custom-range label {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.export-custom-range input[type="date"] {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-widget-border));
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: inherit;
+}
+
+.export-custom-range input[type="date"]:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  border-color: var(--vscode-focusBorder);
+}
+
+/* ============================================================
    Session Summary Card
    ============================================================ */
 

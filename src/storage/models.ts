@@ -89,6 +89,8 @@ export interface TaskTemplate {
   status: TaskStatus;
 }
 
+export type ExportTimePeriod = 'all' | 'day' | 'week' | 'month' | 'year' | 'current-month' | 'last-month' | 'custom';
+
 // === Webview Message Types ===
 
 export type WebviewToExtensionMessage =
@@ -101,7 +103,7 @@ export type WebviewToExtensionMessage =
   | { type: 'endSession'; payload: Record<string, never> }
   | { type: 'endSessions'; payload: { sessionIds: string[] } }
   | { type: 'requestHistory'; payload: Record<string, never> }
-  | { type: 'exportData'; payload: { format: 'json' | 'csv' | 'markdown' } }
+  | { type: 'exportData'; payload: { format: 'json' | 'csv' | 'markdown'; timePeriod?: ExportTimePeriod; customStart?: string; customEnd?: string } }
   | { type: 'importData'; payload: Record<string, never> }
   | { type: 'clearAllData'; payload: Record<string, never> }
   | { type: 'undo'; payload: Record<string, never> }

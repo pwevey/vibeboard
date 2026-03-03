@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { WebviewToExtensionMessage, TASK_TEMPLATES, createDefaultWorkspaceData } from '../storage/models';
+import { WebviewToExtensionMessage, TASK_TEMPLATES, createDefaultWorkspaceData, ExportTimePeriod } from '../storage/models';
 import { SessionManager } from '../session/SessionManager';
 import { TaskManager } from '../tasks/TaskManager';
 import { StorageProvider } from '../storage/StorageProvider';
@@ -331,7 +331,7 @@ export class MessageHandler {
       }
 
       case 'exportData': {
-        this.exportData(message.payload.format);
+        this.exportData(message.payload.format, message.payload.timePeriod, message.payload.customStart, message.payload.customEnd);
         break;
       }
 
@@ -359,13 +359,106 @@ export class MessageHandler {
   }
 
   /**
+   * Compute a date range from a time period selection.
+   */
+  private getDateRange(period: ExportTimePeriod, customStart?: string, customEnd?: string): { start: Date; end: Date } | null {
+    if (period === 'all') { return null; }
+
+    const now = new Date();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+
+    switch (period) {
+      case 'day': {
+        return { start: startOfDay(now), end: endOfDay(now) };
+      }
+      case 'week': {
+        const dayOfWeek = now.getDay();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - dayOfWeek);
+        return { start: startOfDay(weekStart), end: endOfDay(now) };
+      }
+      case 'month': {
+        return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: endOfDay(now) };
+      }
+      case 'year': {
+        return { start: new Date(now.getFullYear(), 0, 1), end: endOfDay(now) };
+      }
+      case 'current-month': {
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: endOfDay(monthEnd) };
+      }
+      case 'last-month': {
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+        return { start: lastMonthStart, end: endOfDay(lastMonthEnd) };
+      }
+      case 'custom': {
+        if (!customStart || !customEnd) { return null; }
+        return { start: new Date(customStart), end: endOfDay(new Date(customEnd)) };
+      }
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Filter tasks by a date range (based on createdAt).
+   */
+  private filterTasksByDateRange(
+    tasks: ReturnType<StorageProvider['getData']>['tasks'],
+    range: { start: Date; end: Date } | null
+  ) {
+    if (!range) { return tasks; }
+    return tasks.filter((t) => {
+      const created = new Date(t.createdAt).getTime();
+      return created >= range.start.getTime() && created <= range.end.getTime();
+    });
+  }
+
+  /**
+   * Get a human-readable label for a time period.
+   */
+  private getTimePeriodLabel(period: ExportTimePeriod, customStart?: string, customEnd?: string): string {
+    switch (period) {
+      case 'all': return 'All Time';
+      case 'day': return `Today (${new Date().toLocaleDateString()})`;
+      case 'week': return 'This Week';
+      case 'month': return 'This Month';
+      case 'year': return 'This Year';
+      case 'current-month': {
+        const now = new Date();
+        return now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      }
+      case 'last-month': {
+        const last = new Date();
+        last.setMonth(last.getMonth() - 1);
+        return last.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      }
+      case 'custom': return `${customStart || '?'} to ${customEnd || '?'}`;
+      default: return 'All Time';
+    }
+  }
+
+  /**
    * Export workspace data to a file (JSON, CSV, or Markdown).
    */
-  private async exportData(format: 'json' | 'csv' | 'markdown'): Promise<void> {
+  private async exportData(
+    format: 'json' | 'csv' | 'markdown',
+    timePeriod?: ExportTimePeriod,
+    customStart?: string,
+    customEnd?: string
+  ): Promise<void> {
     const data = this.storage.getData();
     const history = this.sessionManager.getSessionHistory();
-    const allTasks = data.tasks;
-    const totals = this.computeExportTotals(data);
+    const period = timePeriod || 'all';
+    const dateRange = this.getDateRange(period, customStart, customEnd);
+    const filteredTasks = this.filterTasksByDateRange(data.tasks, dateRange);
+    const periodLabel = this.getTimePeriodLabel(period, customStart, customEnd);
+
+    // For totals computation, use filtered tasks
+    const filteredData = { ...data, tasks: filteredTasks };
+    const totals = this.computeExportTotals(filteredData);
     let content: string;
     let defaultName: string;
     let filterLabel: string;
@@ -376,9 +469,11 @@ export class MessageHandler {
     const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     if (format === 'json') {
+      // JSON is always a full backup — no time filtering
+      const allTotals = this.computeExportTotals(data);
       const exportObj = {
         exportedAt: new Date().toISOString(),
-        summary: totals,
+        summary: allTotals,
         sessions: history.sessions.map((s, i) => ({
           ...s,
           summary: history.summaries[i],
@@ -386,22 +481,22 @@ export class MessageHandler {
         activeSession: data.activeSessionId ? {
           id: data.activeSessionId,
           session: data.sessions.find((s) => s.id === data.activeSessionId),
-          tasks: allTasks.filter((t) => t.sessionId === data.activeSessionId),
+          tasks: data.tasks.filter((t) => t.sessionId === data.activeSessionId),
         } : null,
-        tasks: allTasks,
+        tasks: data.tasks,
       };
       content = JSON.stringify(exportObj, null, 2);
       ext = 'json';
       defaultName = `vibeboard-export-${localDate}.json`;
       filterLabel = 'JSON';
     } else if (format === 'csv') {
-      content = this.generateCsv(data, totals);
+      content = this.generateCsv(filteredData, totals, periodLabel);
       ext = 'csv';
       defaultName = `vibeboard-export-${localDate}.csv`;
       filterLabel = 'CSV';
     } else {
       // Markdown export
-      content = this.generateMarkdown(data, history, totals);
+      content = this.generateMarkdown(filteredData, history, totals, periodLabel);
       ext = 'md';
       defaultName = `vibeboard-export-${localDate}.md`;
       filterLabel = 'Markdown';
@@ -617,10 +712,17 @@ export class MessageHandler {
    */
   private generateCsv(
     data: ReturnType<StorageProvider['getData']>,
-    totals: ReturnType<MessageHandler['computeExportTotals']>
+    totals: ReturnType<MessageHandler['computeExportTotals']>,
+    periodLabel?: string
   ): string {
     const csvEsc = (s: string) => `"${s.replace(/"/g, '""')}"`;
     const lines: string[] = [];
+
+    // Period header
+    if (periodLabel && periodLabel !== 'All Time') {
+      lines.push(`Time Period,${csvEsc(periodLabel)}`);
+      lines.push('');
+    }
 
     // Task data
     lines.push('Session,Session Date,Session Duration,Task Title,Description,Tag,Priority,Status,Board,Time Spent,Carried Over,Created,Completed');
@@ -682,12 +784,17 @@ export class MessageHandler {
   private generateMarkdown(
     data: ReturnType<StorageProvider['getData']>,
     history: ReturnType<SessionManager['getSessionHistory']>,
-    totals: ReturnType<MessageHandler['computeExportTotals']>
+    totals: ReturnType<MessageHandler['computeExportTotals']>,
+    periodLabel?: string
   ): string {
     const lines: string[] = [];
     lines.push('# Vibe Board Export');
     lines.push('');
     lines.push(`*Exported: ${new Date().toLocaleString()}*`);
+    if (periodLabel && periodLabel !== 'All Time') {
+      lines.push('');
+      lines.push(`**Time Period:** ${periodLabel}`);
+    }
     lines.push('');
 
     // Summary / Totals
