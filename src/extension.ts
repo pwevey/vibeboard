@@ -24,10 +24,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const taskManager = new TaskManager(storageProvider);
   const messageHandler = new MessageHandler(storageProvider, sessionManager, taskManager);
 
-  // Register the sidebar webview provider
+  // Register the sidebar webview provider (retainContextWhenHidden keeps the
+  // webview alive when the user switches to another sidebar panel)
   const webviewProvider = new WebviewProvider(context.extensionUri, messageHandler);
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(WebviewProvider.viewType, webviewProvider)
+    vscode.window.registerWebviewViewProvider(WebviewProvider.viewType, webviewProvider, {
+      webviewOptions: { retainContextWhenHidden: true },
+    })
   );
 
   // Register commands
@@ -155,7 +158,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 export function deactivate(): void {
   if (storageProvider) {
-    storageProvider.flush();
+    // Use flushSync to ensure data is written before the process exits
+    storageProvider.flushSync();
     storageProvider.dispose();
   }
 }

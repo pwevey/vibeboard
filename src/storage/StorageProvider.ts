@@ -111,6 +111,20 @@ export class StorageProvider {
   }
 
   /**
+   * Synchronous flush for use in deactivate (fire-and-forget).
+   */
+  flushSync(): void {
+    if (!this.storageUri) { return; }
+    if (this.writeTimer) {
+      clearTimeout(this.writeTimer);
+      this.writeTimer = null;
+    }
+    const content = JSON.stringify(this.data, null, 2);
+    const bytes = Buffer.from(content, 'utf-8');
+    vscode.workspace.fs.writeFile(this.storageUri, bytes);
+  }
+
+  /**
    * Clean up timers on dispose.
    */
   dispose(): void {
