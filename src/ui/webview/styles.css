@@ -1019,6 +1019,14 @@ body.is-dragging .task-card:not(.dragging) {
   color: var(--vscode-descriptionForeground);
 }
 
+.start-import-actions {
+  padding-top: 6px;
+}
+
+.start-import-actions button {
+  width: 100%;
+}
+
 /* Empty state (for when there's really no data) */
 
 .empty-state {

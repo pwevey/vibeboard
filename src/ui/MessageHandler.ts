@@ -323,6 +323,11 @@ export class MessageHandler {
         this.exportData(message.payload.format);
         break;
       }
+
+      case 'importData': {
+        this.importData();
+        break;
+      }
     }
   }
 
@@ -395,6 +400,143 @@ export class MessageHandler {
     if (uri) {
       await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf-8'));
       vscode.window.showInformationMessage(`Vibe Board: Exported to ${uri.fsPath}`);
+    }
+  }
+
+  /**
+   * Import data from a JSON file.
+   */
+  private async importData(): Promise<void> {
+    const uris = await vscode.window.showOpenDialog({
+      canSelectMany: false,
+      filters: { 'JSON': ['json'] },
+      title: 'Import Vibe Board Data',
+      openLabel: 'Import',
+    });
+
+    if (!uris || uris.length === 0) return;
+
+    try {
+      const raw = await vscode.workspace.fs.readFile(uris[0]);
+      const text = Buffer.from(raw).toString('utf-8');
+      const imported = JSON.parse(text);
+
+      // Validate the structure
+      if (!imported || typeof imported !== 'object') {
+        vscode.window.showErrorMessage('Import failed: file does not contain valid JSON.');
+        return;
+      }
+
+      // Support two formats:
+      // 1. Vibe Board export JSON (has .sessions array with .summary, .tasks array)
+      // 2. Raw workspace data (has .version, .sessions, .tasks)
+
+      let sessions: any[] = [];
+      let tasks: any[] = [];
+      let boards: any[] | undefined;
+
+      if (imported.version === 1 && Array.isArray(imported.sessions) && Array.isArray(imported.tasks)) {
+        // Raw workspace data format (direct copy of data.json)
+        sessions = imported.sessions;
+        tasks = imported.tasks;
+        boards = imported.boards;
+      } else if (Array.isArray(imported.sessions) && Array.isArray(imported.tasks)) {
+        // Export format — sessions may have .summary attached
+        sessions = imported.sessions.map((s: any) => {
+          const { summary, ...sessionData } = s;
+          return sessionData;
+        });
+        tasks = imported.tasks;
+      } else {
+        vscode.window.showErrorMessage('Import failed: unrecognized file format. Use a Vibe Board JSON export or data.json backup.');
+        return;
+      }
+
+      // Validate sessions and tasks have required fields
+      for (const s of sessions) {
+        if (!s.id || !s.startedAt || !s.status) {
+          vscode.window.showErrorMessage('Import failed: one or more sessions are missing required fields (id, startedAt, status).');
+          return;
+        }
+      }
+      for (const t of tasks) {
+        if (!t.id || !t.title || !t.status || !t.tag) {
+          vscode.window.showErrorMessage('Import failed: one or more tasks are missing required fields (id, title, status, tag).');
+          return;
+        }
+      }
+
+      const taskCount = tasks.length;
+      const sessionCount = sessions.length;
+
+      // Ask user whether to replace or merge
+      const choice = await vscode.window.showQuickPick(
+        [
+          { label: 'Replace', description: `Replace all current data with ${sessionCount} sessions and ${taskCount} tasks from the import` },
+          { label: 'Merge', description: `Add ${sessionCount} sessions and ${taskCount} tasks to your existing data (skips duplicates)` },
+        ],
+        { title: 'How would you like to import?', placeHolder: 'Choose import mode' }
+      );
+
+      if (!choice) return;
+
+      const data = this.storage.getData();
+
+      if (choice.label === 'Replace') {
+        // Full replacement
+        data.sessions = sessions;
+        data.tasks = tasks;
+        data.activeSessionId = null;
+        data.undoStack = [];
+        if (boards && Array.isArray(boards)) {
+          data.boards = boards;
+          data.activeBoardId = boards[0]?.id || 'default';
+        } else {
+          data.boards = [{ id: 'default', name: 'Main Board', createdAt: new Date().toISOString() }];
+          data.activeBoardId = 'default';
+        }
+      } else {
+        // Merge — add non-duplicate sessions and tasks
+        const existingSessionIds = new Set(data.sessions.map((s) => s.id));
+        const existingTaskIds = new Set(data.tasks.map((t) => t.id));
+
+        let addedSessions = 0;
+        let addedTasks = 0;
+
+        for (const s of sessions) {
+          if (!existingSessionIds.has(s.id)) {
+            data.sessions.push(s);
+            addedSessions++;
+          }
+        }
+        for (const t of tasks) {
+          if (!existingTaskIds.has(t.id)) {
+            data.tasks.push(t);
+            addedTasks++;
+          }
+        }
+
+        if (boards && Array.isArray(boards)) {
+          const existingBoardIds = new Set((data.boards || []).map((b) => b.id));
+          for (const b of boards) {
+            if (!existingBoardIds.has(b.id)) {
+              data.boards = data.boards || [];
+              data.boards.push(b);
+            }
+          }
+        }
+
+        vscode.window.showInformationMessage(`Vibe Board: Merged ${addedSessions} sessions and ${addedTasks} tasks (${sessionCount - addedSessions} sessions and ${taskCount - addedTasks} tasks were duplicates).`);
+      }
+
+      this.storage.setData(data);
+      this.sendStateUpdate();
+
+      if (choice.label === 'Replace') {
+        vscode.window.showInformationMessage(`Vibe Board: Imported ${sessionCount} sessions and ${taskCount} tasks.`);
+      }
+    } catch (err: any) {
+      vscode.window.showErrorMessage(`Import failed: ${err.message || err}`);
     }
   }
 

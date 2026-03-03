@@ -501,7 +501,7 @@ function renderNoSessionState(): string {
 
   if (state && state.sessions.length > 0) {
     // Export (always visible at top)
-    html += `<div class="start-section"><div class="start-section-header"><h3>&#128230; Export Data</h3></div>
+    html += `<div class="start-section"><div class="start-section-header"><h3>&#128230; Export / Import</h3></div>
       <div class="start-export-actions">
         <button class="secondary" id="btn-export-json" title="Full data backup — all sessions, tasks, and settings in machine-readable format">JSON</button>
         <button class="secondary" id="btn-export-csv" title="Spreadsheet-ready table — all tasks with session info, plus summary totals">CSV</button>
@@ -511,6 +511,9 @@ function renderNoSessionState(): string {
         <span>JSON: Full backup</span>
         <span>CSV: Spreadsheet</span>
         <span>MD: Report</span>
+      </div>
+      <div class="start-import-actions">
+        <button class="secondary" id="btn-import-data" title="Import data from a Vibe Board JSON export or data.json backup">&#128229; Import JSON</button>
       </div></div>`;
 
     // Session history
@@ -682,10 +685,11 @@ function bindEvents(): void {
   });
   document.getElementById('btn-add-board')?.addEventListener('click', () => showNewBoardDialog());
 
-  // Export
+  // Export & Import
   document.getElementById('btn-export-json')?.addEventListener('click', () => vscode.postMessage({ type: 'exportData', payload: { format: 'json' } }));
   document.getElementById('btn-export-csv')?.addEventListener('click', () => vscode.postMessage({ type: 'exportData', payload: { format: 'csv' } }));
   document.getElementById('btn-export-md')?.addEventListener('click', () => vscode.postMessage({ type: 'exportData', payload: { format: 'markdown' } }));
+  document.getElementById('btn-import-data')?.addEventListener('click', () => vscode.postMessage({ type: 'importData', payload: {} }));
 
   // Templates
   document.querySelectorAll<HTMLElement>('[data-template]').forEach((el) => {
@@ -1328,7 +1332,7 @@ function showHelp(): void {
         <button class="help-tab" data-help-tab="timers" role="tab" aria-selected="false">Timers</button>
         <button class="help-tab" data-help-tab="templates" role="tab" aria-selected="false">Templates</button>
         <button class="help-tab" data-help-tab="ai" role="tab" aria-selected="false">AI Features</button>
-        <button class="help-tab" data-help-tab="export" role="tab" aria-selected="false">Export</button>
+        <button class="help-tab" data-help-tab="export" role="tab" aria-selected="false">Export / Import</button>
         <button class="help-tab" data-help-tab="shortcuts" role="tab" aria-selected="false">Shortcuts</button>
       </nav>
       <div class="help-content" role="tabpanel">
@@ -1582,7 +1586,7 @@ function renderHelpContent(section: string): string {
 
     case 'export':
       return `
-        <h3>Exporting Data</h3>
+        <h3>Exporting &amp; Importing Data</h3>
         <p>Vibe Board supports three export formats. All formats include comprehensive data with summary totals.</p>
         <h4>Export Formats</h4>
         <ul>
@@ -1590,9 +1594,17 @@ function renderHelpContent(section: string): string {
           <li><strong>CSV</strong> &mdash; Spreadsheet-ready table of all tasks with columns: Session, Session Date, Session Duration, Task Title, Description, Tag, Priority, Status, Board, Time Spent, Carried Over, Created, Completed. Includes a summary section at the bottom with totals by status, tag, and priority.</li>
           <li><strong>Markdown</strong> &mdash; Human-readable report with summary statistics table, active session details, session history table (with session name, task counts), and all tasks grouped by status. Includes breakdowns by tag and priority. Ideal for documentation and sharing.</li>
         </ul>
+        <h4>Importing Data</h4>
+        <ul>
+          <li>Click <strong>Import JSON</strong> on the start page to restore data from a Vibe Board JSON export or a raw <code>data.json</code> backup.</li>
+          <li><strong>Replace</strong> &mdash; Overwrites all current data with the imported file. Use for restoring a backup.</li>
+          <li><strong>Merge</strong> &mdash; Adds imported sessions and tasks to your existing data. Duplicates (matching IDs) are skipped. Use for combining data from multiple workspaces.</li>
+          <li>Boards are also imported/merged when present in the file.</li>
+          <li>The file is validated before import &mdash; sessions must have id, startedAt, and status; tasks must have id, title, status, and tag.</li>
+        </ul>
         <h4>How to Export</h4>
         <ul>
-          <li><strong>Start page</strong> &mdash; When no session is active, export buttons appear at the top of the start page with brief descriptions.</li>
+          <li><strong>Start page</strong> &mdash; When no session is active, export and import buttons appear at the top of the start page.</li>
           <li><strong>Command Palette</strong> &mdash; Run <em>Vibe Board: Export Session as Markdown</em> from the command palette at any time.</li>
         </ul>
         <h4>Data Storage</h4>

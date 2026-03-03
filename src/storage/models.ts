@@ -101,6 +101,7 @@ export type WebviewToExtensionMessage =
   | { type: 'endSessions'; payload: { sessionIds: string[] } }
   | { type: 'requestHistory'; payload: Record<string, never> }
   | { type: 'exportData'; payload: { format: 'json' | 'csv' | 'markdown' } }
+  | { type: 'importData'; payload: Record<string, never> }
   | { type: 'undo'; payload: Record<string, never> }
   | { type: 'toggleTimer'; payload: { id: string } }
   | { type: 'addFromTemplate'; payload: { templateIndex: number } }
