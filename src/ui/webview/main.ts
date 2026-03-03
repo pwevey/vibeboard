@@ -551,10 +551,8 @@ function bindEvents(): void {
   // AI Rewrite Title
   document.getElementById('btn-ai-rewrite')?.addEventListener('click', () => {
     const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
-    const tagSelect = document.getElementById('quick-add-tag') as HTMLSelectElement | null;
     const title = input?.value.trim();
-    const tag = tagSelect?.value || 'note';
-    if (title) { vscode.postMessage({ type: 'aiRewriteTitle', payload: { title, tag } }); }
+    if (title) { vscode.postMessage({ type: 'aiRewriteTitle', payload: { title } }); }
   });
 
   // Board switcher — click name to switch, X to close, double-click to rename
@@ -1276,7 +1274,7 @@ function renderHelpContent(section: string): string {
           <li><strong>Board Tabs</strong> &mdash; Below the session bar. Click to switch boards, <strong>&times;</strong> to close, double-click to rename, <strong>+</strong> to create a new board.</li>
           <li><strong>Stats Bar</strong> &mdash; Displays live counts for total tasks, completed, up next, and high-priority items.</li>
           <li><strong>Search &amp; Filter</strong> &mdash; Filter tasks by text, tag, or priority.</li>
-          <li><strong>Quick Add</strong> &mdash; Fast task creation with tag, priority, and column selectors plus template buttons and AI title improvement.</li>
+          <li><strong>Quick Add</strong> &mdash; Fast task creation with tag, priority, and column selectors plus template buttons and AI task improvement.</li>
           <li><strong>Columns</strong> &mdash; Four columns: <em>Up Next</em>, <em>Backlog</em>, <em>Completed</em>, and <em>Notes</em>. Click headers to collapse.</li>
         </ul>
         <h4>AI Features</h4>
@@ -1456,19 +1454,19 @@ function renderHelpContent(section: string): string {
           <li>Right-click a task and choose <strong>AI Breakdown</strong> from the context menu.</li>
           <li>The AI splits the task into 3&ndash;5 actionable subtasks, which are added as new tasks in <em>Up Next</em>.</li>
         </ul>
-        <h4>AI Improve Title</h4>
+        <h4>AI Improve Task</h4>
         <ul>
-          <li>Type a rough task idea in the quick-add input, select the appropriate <strong>tag type</strong> (Feature, Bug, Refactor, or Note), then click the <strong>sparkle icon</strong> (&#10024;) next to the Add button.</li>
-          <li>AI rewrites your text into a clearer, more actionable title.</li>
-          <li>AI also generates a <strong>structured description</strong> based on the selected tag type, using the same format as the built-in templates:
+          <li>Type a rough idea in the quick-add input, then click the <strong>sparkle icon</strong> (&#10024;) next to the Add button.</li>
+          <li>AI automatically <strong>classifies</strong> your input into the right category (Feature, Bug, Refactor, or Note) and sets the tag, priority, and column dropdowns accordingly.</li>
+          <li>AI then <strong>formats</strong> the task using the matching template structure:
             <ul>
-              <li><strong>Bug</strong> &mdash; Steps to reproduce, Expected behavior, Actual behavior</li>
-              <li><strong>Feature</strong> &mdash; Goal, Approach, Questions</li>
-              <li><strong>Refactor</strong> &mdash; Current state, Desired state, Risks</li>
-              <li><strong>Note</strong> &mdash; Clear contextual note</li>
+              <li><strong>Bug</strong> &mdash; Title prefixed with "Bug:", description with Steps to reproduce, Expected, Actual</li>
+              <li><strong>Feature</strong> &mdash; Title prefixed with "Spike:", description with Goal, Approach, Questions</li>
+              <li><strong>Refactor</strong> &mdash; Title prefixed with "Refactor:", description with Current state, Desired state, Risks</li>
+              <li><strong>Note</strong> &mdash; Clear note text</li>
             </ul>
           </li>
-          <li>The improved title replaces your input text. The description is automatically attached when you click <em>Add</em>.</li>
+          <li>The improved title and structured description are ready to go. Click <em>Add</em> to create the task.</li>
         </ul>`;
 
     case 'export':
@@ -1697,15 +1695,22 @@ function handleAIResult(payload: { action: string; result: string | string[]; ta
       try {
         const parsed = JSON.parse(raw);
         const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+        const tagSelect = document.getElementById('quick-add-tag') as HTMLSelectElement | null;
+        const prioSelect = document.getElementById('quick-add-priority') as HTMLSelectElement | null;
+        const colSelect = document.getElementById('quick-add-col') as HTMLSelectElement | null;
+
         if (input && parsed.title) {
           input.value = parsed.title;
           input.focus();
           pendingAIDescription = parsed.description || '';
-          if (pendingAIDescription) {
-            showAIToast('Task improved — title & description ready', false);
-          } else {
-            showAIToast('Title improved by AI', false);
-          }
+
+          // Set tag, priority, and column from AI classification
+          if (tagSelect && parsed.tag) { tagSelect.value = parsed.tag; }
+          if (prioSelect && parsed.priority) { prioSelect.value = parsed.priority; }
+          if (colSelect && parsed.status) { colSelect.value = parsed.status; }
+
+          const tagLabel = parsed.tag ? TAG_LABELS[parsed.tag as TaskTag] || parsed.tag : '';
+          showAIToast(`Classified as ${tagLabel} — title & description ready`, false);
         }
       } catch {
         // Fallback if not JSON

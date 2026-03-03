@@ -11,7 +11,7 @@ import * as vscode from 'vscode';
 export interface IAIService {
   generateSummary(tasks: unknown[]): Promise<string>;
   breakdownTask(title: string, description: string): Promise<string[]>;
-  rewriteTask(title: string, tag: string): Promise<{ title: string; description: string }>;
+  rewriteTask(input: string): Promise<{ title: string; description: string; tag: string; priority: string; status: string }>;
 }
 
 /**
@@ -79,30 +79,79 @@ export class CopilotAIService implements IAIService {
     }
   }
 
-  async rewriteTask(title: string, tag: string): Promise<{ title: string; description: string }> {
+  async rewriteTask(input: string): Promise<{ title: string; description: string; tag: string; priority: string; status: string }> {
+    const fallback = { title: input, description: '', tag: 'note', priority: 'medium', status: 'up-next' };
     const model = await this.getModel();
-    if (!model) { return { title, description: '' }; }
+    if (!model) { return fallback; }
 
-    const templateHints: Record<string, string> = {
-      bug: 'Format the description as a bug report with sections: Steps to reproduce (numbered), Expected behavior, Actual behavior.',
-      feature: 'Format the description as a feature spike with sections: Goal, Approach, Questions.',
-      refactor: 'Format the description as a refactor plan with sections: Current state, Desired state, Risks.',
-      note: 'Format the description as a clear note capturing the key idea or context.',
-    };
+    const prompt = `You are a task classifier and formatter for a Kanban board.
 
-    const hint = templateHints[tag] || templateHints['note'];
+Given the user's raw input, do the following:
 
-    const prompt = `You are improving a task for a Kanban board. The task type is "${tag}".
+1. CLASSIFY the input into exactly one category: bug, feature, refactor, or note.
+2. Based on the category, FORMAT the task using the exact template below.
+3. Write a clear, concise title with the appropriate prefix.
+4. Fill in the template description sections using information from the user's input. Be specific and actionable.
 
-1. Rewrite the title to be clearer, more concise, and actionable. Keep it short (under 10 words if possible).
-2. ${hint}
+Templates by category:
 
-Respond in EXACTLY this format (two lines separated by ===):
-IMPROVED TITLE HERE
+bug:
+  Title prefix: "Bug: "
+  Priority: high
+  Column: up-next
+  Description format:
+    Steps to reproduce:
+    1. [step]
+
+    Expected:
+    [what should happen]
+
+    Actual:
+    [what actually happens]
+
+feature:
+  Title prefix: "Spike: "
+  Priority: medium
+  Column: up-next
+  Description format:
+    Goal:
+    [what we want to achieve]
+
+    Approach:
+    [how to do it]
+
+    Questions:
+    [open questions]
+
+refactor:
+  Title prefix: "Refactor: "
+  Priority: medium
+  Column: backlog
+  Description format:
+    Current state:
+    [how it works now]
+
+    Desired state:
+    [how it should work]
+
+    Risks:
+    [potential issues]
+
+note:
+  Title prefix: ""
+  Priority: low
+  Column: notes
+  Description format:
+    [clear note text]
+
+Respond in EXACTLY this format (sections separated by ===):
+CATEGORY
 ===
-DESCRIPTION HERE
+TITLE WITH PREFIX
+===
+DESCRIPTION
 
-Original input: ${title}`;
+User input: ${input}`;
 
     try {
       const messages = [vscode.LanguageModelChatMessage.User(prompt)];
@@ -113,16 +162,27 @@ Original input: ${title}`;
       }
 
       const parts = result.split('===');
-      if (parts.length >= 2) {
-        const newTitle = parts[0].trim().replace(/^["']|["']$/g, '');
-        const newDesc = parts.slice(1).join('===').trim();
-        return { title: newTitle || title, description: newDesc };
+      if (parts.length >= 3) {
+        const rawTag = parts[0].trim().toLowerCase();
+        const title = parts[1].trim().replace(/^["']|["']$/g, '');
+        const description = parts.slice(2).join('===').trim();
+
+        const validTags = ['bug', 'feature', 'refactor', 'note'];
+        const tag = validTags.includes(rawTag) ? rawTag : 'note';
+
+        const tagDefaults: Record<string, { priority: string; status: string }> = {
+          bug: { priority: 'high', status: 'up-next' },
+          feature: { priority: 'medium', status: 'up-next' },
+          refactor: { priority: 'medium', status: 'backlog' },
+          note: { priority: 'low', status: 'notes' },
+        };
+        const defaults = tagDefaults[tag] || tagDefaults['note'];
+
+        return { title: title || input, description, tag, priority: defaults.priority, status: defaults.status };
       }
-      // Fallback: treat whole response as improved title
-      const cleaned = result.trim().replace(/^["']|["']$/g, '');
-      return { title: cleaned || title, description: '' };
+      return fallback;
     } catch {
-      return { title, description: '' };
+      return fallback;
     }
   }
 }

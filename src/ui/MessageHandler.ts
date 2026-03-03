@@ -238,7 +238,7 @@ export class MessageHandler {
 
       case 'aiRewriteTitle': {
         this.webview?.postMessage({ type: 'aiResult', payload: { action: 'rewriteTitle', result: '...' } });
-        this.aiService.rewriteTask(message.payload.title, message.payload.tag).then((rewritten) => {
+        this.aiService.rewriteTask(message.payload.title).then((rewritten) => {
           this.webview?.postMessage({ type: 'aiResult', payload: { action: 'rewriteTitle', result: JSON.stringify(rewritten) } });
         });
         break;
