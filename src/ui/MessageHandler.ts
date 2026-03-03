@@ -1053,6 +1053,35 @@ export class MessageHandler {
       lines.push('');
     }
 
+    // Summary section (at top)
+    lines.push('SUMMARY');
+    lines.push('');
+    lines.push('Sessions');
+    lines.push(`Total Sessions,${totals.totalSessions}`);
+    lines.push(`Active Sessions,${totals.activeSessions}`);
+    lines.push(`Ended Sessions,${totals.endedSessions}`);
+    lines.push(`Total Session Time,${totals.totalSessionTime}`);
+    lines.push('');
+    lines.push('Tasks');
+    lines.push(`Total Tasks,${totals.totalTasks}`);
+    lines.push(`Completed,${totals.byStatus['completed'] || 0}`);
+    lines.push(`In Progress,${totals.byStatus['in-progress'] || 0}`);
+    lines.push(`Up Next,${totals.byStatus['up-next'] || 0}`);
+    lines.push(`Backlog,${totals.byStatus['backlog'] || 0}`);
+    lines.push(`Notes,${totals.byStatus['notes'] || 0}`);
+    lines.push(`Carried Over,${totals.carriedOverCount}`);
+    lines.push('');
+    lines.push('By Tag');
+    lines.push(`Features,${totals.byTag['feature'] || 0}`);
+    lines.push(`Bugs,${totals.byTag['bug'] || 0}`);
+    lines.push(`Refactors,${totals.byTag['refactor'] || 0}`);
+    lines.push(`Notes,${totals.byTag['note'] || 0}`);
+    lines.push('');
+    lines.push('By Priority');
+    lines.push(`High,${totals.byPriority['high'] || 0}`);
+    lines.push(`Medium,${totals.byPriority['medium'] || 0}`);
+    lines.push(`Low,${totals.byPriority['low'] || 0}`);
+
     // Tasks grouped by tag
     const tagOrder: Array<{ tag: string; label: string }> = [
       { tag: 'feature', label: 'FEATURES' },
@@ -1093,36 +1122,6 @@ export class MessageHandler {
         ].join(','));
       }
     }
-
-    // Blank separator + summary section
-    lines.push('');
-    lines.push('SUMMARY');
-    lines.push('');
-    lines.push('Sessions');
-    lines.push(`Total Sessions,${totals.totalSessions}`);
-    lines.push(`Active Sessions,${totals.activeSessions}`);
-    lines.push(`Ended Sessions,${totals.endedSessions}`);
-    lines.push(`Total Session Time,${totals.totalSessionTime}`);
-    lines.push('');
-    lines.push('Tasks');
-    lines.push(`Total Tasks,${totals.totalTasks}`);
-    lines.push(`Completed,${totals.byStatus['completed'] || 0}`);
-    lines.push(`In Progress,${totals.byStatus['in-progress'] || 0}`);
-    lines.push(`Up Next,${totals.byStatus['up-next'] || 0}`);
-    lines.push(`Backlog,${totals.byStatus['backlog'] || 0}`);
-    lines.push(`Notes,${totals.byStatus['notes'] || 0}`);
-    lines.push(`Carried Over,${totals.carriedOverCount}`);
-    lines.push('');
-    lines.push('By Tag');
-    lines.push(`Features,${totals.byTag['feature'] || 0}`);
-    lines.push(`Bugs,${totals.byTag['bug'] || 0}`);
-    lines.push(`Refactors,${totals.byTag['refactor'] || 0}`);
-    lines.push(`Notes,${totals.byTag['note'] || 0}`);
-    lines.push('');
-    lines.push('By Priority');
-    lines.push(`High,${totals.byPriority['high'] || 0}`);
-    lines.push(`Medium,${totals.byPriority['medium'] || 0}`);
-    lines.push(`Low,${totals.byPriority['low'] || 0}`);
 
     return lines.join('\n');
   }
