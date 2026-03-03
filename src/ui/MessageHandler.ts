@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { WebviewToExtensionMessage, TASK_TEMPLATES, createDefaultWorkspaceData, ExportTimePeriod } from '../storage/models';
+import { WebviewToExtensionMessage, TASK_TEMPLATES, createDefaultWorkspaceData, ExportTimePeriod, VBAttachment } from '../storage/models';
 import { SessionManager } from '../session/SessionManager';
 import { TaskManager } from '../tasks/TaskManager';
 import { StorageProvider } from '../storage/StorageProvider';
@@ -262,6 +262,30 @@ export class MessageHandler {
           prompt += '\n\n' + task.description;
         }
 
+        // If the task has image attachments, save them to temp files so they can
+        // be referenced or auto-attached in Copilot Chat
+        const imageAttachments = (task.attachments || []).filter((a) => a.mimeType.startsWith('image/'));
+        const savedImagePaths: vscode.Uri[] = [];
+        if (imageAttachments.length > 0) {
+          const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+          if (workspaceFolder) {
+            const tempDir = vscode.Uri.joinPath(workspaceFolder.uri, '.vibeboard', 'temp');
+            try { await vscode.workspace.fs.createDirectory(tempDir); } catch { /* exists */ }
+            for (const att of imageAttachments) {
+              try {
+                const base64Data = att.dataUri.replace(/^data:[^;]+;base64,/, '');
+                const bytes = Buffer.from(base64Data, 'base64');
+                const tempFile = vscode.Uri.joinPath(tempDir, att.filename);
+                await vscode.workspace.fs.writeFile(tempFile, bytes);
+                savedImagePaths.push(tempFile);
+              } catch { /* skip failed images */ }
+            }
+          }
+          if (savedImagePaths.length > 0) {
+            prompt += '\n\n[Attached images saved to .vibeboard/temp/: ' + savedImagePaths.map((p) => p.path.split('/').pop()).join(', ') + ']';
+          }
+        }
+
         // Try to open Copilot Chat with the prompt pre-filled
         try {
           await vscode.commands.executeCommand('workbench.action.chat.open', { query: prompt });
@@ -278,6 +302,88 @@ export class MessageHandler {
             vscode.window.showInformationMessage('Vibe Board: Prompt copied to clipboard. Open Copilot Chat and paste.');
           }
         }
+        break;
+      }
+
+      case 'addAttachment': {
+        // Open file dialog and add the selected image(s) to the task
+        const files = await vscode.window.showOpenDialog({
+          canSelectMany: true,
+          filters: {
+            'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'],
+            'All Files': ['*'],
+          },
+          title: 'Attach files to task',
+        });
+        if (!files || files.length === 0) { break; }
+
+        const data = this.storage.getData();
+        const task = data.tasks.find((t) => t.id === message.payload.taskId);
+        if (!task) { break; }
+        if (!task.attachments) { task.attachments = []; }
+
+        for (const fileUri of files) {
+          try {
+            const fileBytes = await vscode.workspace.fs.readFile(fileUri);
+            const filename = fileUri.path.split('/').pop() || 'attachment';
+            const ext = filename.split('.').pop()?.toLowerCase() || '';
+            const mimeMap: Record<string, string> = {
+              png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+              gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
+              svg: 'image/svg+xml',
+            };
+            const mimeType = mimeMap[ext] || 'application/octet-stream';
+            const base64 = Buffer.from(fileBytes).toString('base64');
+            const dataUri = `data:${mimeType};base64,${base64}`;
+
+            const attachment: VBAttachment = {
+              id: generateId(),
+              filename,
+              mimeType,
+              dataUri,
+              addedAt: new Date().toISOString(),
+            };
+            task.attachments!.push(attachment);
+          } catch (err) {
+            vscode.window.showErrorMessage(`Failed to attach ${fileUri.path}: ${err}`);
+          }
+        }
+        this.storage.setData(data);
+        this.sendStateUpdate();
+        break;
+      }
+
+      case 'removeAttachment': {
+        const data = this.storage.getData();
+        const task = data.tasks.find((t) => t.id === message.payload.taskId);
+        if (!task || !task.attachments) { break; }
+        task.attachments = task.attachments.filter((a) => a.id !== message.payload.attachmentId);
+        this.storage.setData(data);
+        this.sendStateUpdate();
+        break;
+      }
+
+      case 'pasteAttachment': {
+        // Handle pasted image data from the webview (base64 data URI)
+        const data = this.storage.getData();
+        const task = data.tasks.find((t) => t.id === message.payload.taskId);
+        if (!task) { break; }
+        if (!task.attachments) { task.attachments = []; }
+
+        const { dataUri, filename } = message.payload as { taskId: string; dataUri: string; filename: string };
+        const mimeMatch = dataUri.match(/^data:([^;]+);/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+
+        const attachment: VBAttachment = {
+          id: generateId(),
+          filename: filename || `paste-${Date.now()}.png`,
+          mimeType,
+          dataUri,
+          addedAt: new Date().toISOString(),
+        };
+        task.attachments.push(attachment);
+        this.storage.setData(data);
+        this.sendStateUpdate();
         break;
       }
 

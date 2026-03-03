@@ -13,6 +13,16 @@ export type TaskPriority = 'high' | 'medium' | 'low';
 
 export type SessionStatus = 'active' | 'ended';
 
+// === Attachments ===
+
+export interface VBAttachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  dataUri: string;         // base64 data URI (data:image/png;base64,...)
+  addedAt: string;         // ISO 8601
+}
+
 // === Core Models ===
 
 export interface VBTask {
@@ -30,6 +40,7 @@ export interface VBTask {
   timeSpentMs: number;     // accumulated time tracking
   timerStartedAt: string | null; // ISO 8601 when timer was last started
   carriedFromSessionId?: string; // set when a task was carried over from another session
+  attachments?: VBAttachment[]; // image/file attachments
 }
 
 export interface VBSession {
@@ -125,6 +136,9 @@ export type WebviewToExtensionMessage =
   | { type: 'aiBreakdown'; payload: { taskId: string } }
   | { type: 'aiRewriteTitle'; payload: { title: string } }
   | { type: 'sendToCopilot'; payload: { taskId: string } }
+  | { type: 'addAttachment'; payload: { taskId: string } }
+  | { type: 'removeAttachment'; payload: { taskId: string; attachmentId: string } }
+  | { type: 'pasteAttachment'; payload: { taskId: string; dataUri: string; filename: string } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =

@@ -1894,3 +1894,216 @@ textarea:focus-visible {
   margin: 0;
   color: var(--vscode-foreground);
 }
+
+/* ============================================================
+   Voice Input
+   ============================================================ */
+
+.quick-add-input-row {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+}
+
+.quick-add-input-row textarea {
+  flex: 1;
+}
+
+.voice-btn {
+  font-size: 16px !important;
+  padding: 4px 6px !important;
+  border-radius: 4px !important;
+  flex-shrink: 0;
+  align-self: center;
+  background: transparent;
+  border: 1px solid var(--vscode-input-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.voice-btn:hover {
+  background: var(--vscode-button-hoverBackground, rgba(255,255,255,0.1));
+}
+
+.voice-btn.recording {
+  color: #F44336 !important;
+  border-color: #F44336 !important;
+  animation: voice-pulse 1s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(244, 67, 54, 0); }
+}
+
+/* ============================================================
+   Attachment Thumbnails on Task Card
+   ============================================================ */
+
+.task-attachments-row {
+  display: flex;
+  gap: 4px;
+  padding-left: 20px;
+  padding-top: 2px;
+  overflow-x: auto;
+}
+
+.task-attachment-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid var(--vscode-widget-border);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.task-attachment-thumb:hover {
+  transform: scale(1.15);
+  border-color: var(--vscode-focusBorder);
+}
+
+.attach-count {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.attach-btn {
+  font-size: 11px !important;
+}
+
+.attach-btn:hover {
+  opacity: 1 !important;
+  color: var(--vscode-textLink-foreground) !important;
+}
+
+/* ============================================================
+   Attachment Management in Edit Form
+   ============================================================ */
+
+.edit-attachments {
+  padding: 4px 0;
+}
+
+.edit-attachments-label {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.edit-attachments-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.edit-attachment-item {
+  position: relative;
+  width: 56px;
+  height: 56px;
+}
+
+.edit-attachment-preview {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-widget-border);
+}
+
+.edit-attachment-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  font-size: 9px;
+  text-align: center;
+  word-break: break-all;
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 4px;
+  padding: 2px;
+}
+
+.edit-attachment-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #F44336;
+  color: #fff;
+  border: none;
+  font-size: 9px;
+  line-height: 16px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+  display: none;
+}
+
+.edit-attachment-item:hover .edit-attachment-remove {
+  display: block;
+}
+
+/* ============================================================
+   Image Preview Modal
+   ============================================================ */
+
+.image-preview-overlay {
+  z-index: 1000;
+}
+
+.image-preview-card {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 6px;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.image-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.image-preview-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-preview-close {
+  background: transparent;
+  border: none;
+  color: var(--vscode-foreground);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.image-preview-close:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(255,255,255,0.1));
+}
+
+.image-preview-img {
+  max-width: 100%;
+  max-height: calc(90vh - 40px);
+  object-fit: contain;
+  margin: 0 auto;
+  display: block;
+}

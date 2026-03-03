@@ -24,6 +24,7 @@ interface VBTask {
   timeSpentMs: number;
   timerStartedAt: string | null;
   carriedFromSessionId?: string;
+  attachments?: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[];
 }
 
 interface VBSession {
@@ -123,6 +124,8 @@ let sessionHistoryData: { sessions: VBSession[]; summaries: VBSessionSummary[] }
 let editingTaskId: string | null = null;
 let contextMenuTaskId: string | null = null;
 let pendingAIDescription: string = '';
+let voiceRecognition: unknown = null;
+let isVoiceRecording = false;
 
 // ============================================================
 // Initialization
@@ -406,7 +409,10 @@ function renderQuickAdd(): string {
   ).join('');
 
   return `<div class="quick-add">
-    <textarea id="quick-add-input" placeholder="Add a task... (Enter to submit)" rows="2" aria-label="New task title"></textarea>
+    <div class="quick-add-input-row">
+      <textarea id="quick-add-input" placeholder="Add a task... (Enter to submit)" rows="2" aria-label="New task title"></textarea>
+      <button class="icon-btn voice-btn ${isVoiceRecording ? 'recording' : ''}" id="btn-voice" title="${isVoiceRecording ? 'Stop recording' : 'Voice input'}" aria-label="${isVoiceRecording ? 'Stop voice recording' : 'Start voice recording'}">&#127908;</button>
+    </div>
     <div class="quick-add-controls">
       <select id="quick-add-tag" aria-label="Task tag">
         <option value="feature">Feature</option><option value="bug">Bug</option>
@@ -461,6 +467,10 @@ function renderTaskCard(task: VBTask): string {
   const timeStr = totalMs > 0 ? formatDurationCompact(totalMs) : '';
   const timerIcon = timerActive ? '&#9209;' : '&#9654;';
   const carriedBadge = task.carriedFromSessionId ? `<span class="carried-badge" title="Carried over from previous session">&#8634;</span>` : '';
+  const attachmentCount = (task.attachments || []).length;
+  const attachBadge = attachmentCount > 0 ? `<span class="attach-count" title="${attachmentCount} attachment${attachmentCount > 1 ? 's' : ''}">&#128206;${attachmentCount}</span>` : '';
+  const attachmentThumbs = (task.attachments || []).filter(a => a.mimeType.startsWith('image/')).slice(0, 3)
+    .map(a => `<img class="task-attachment-thumb" src="${a.dataUri}" alt="${escapeAttr(a.filename)}" title="${escapeAttr(a.filename)}" data-preview-attachment="${a.id}" data-task-id="${task.id}" />`).join('');
 
   return `<div class="task-card ${prioClass}" draggable="true" data-task-id="${task.id}" role="listitem" tabindex="0" aria-label="${escapeAttr(task.title)}${task.priority === 'high' ? ' - High Priority' : ''}${task.carriedFromSessionId ? ' - Carried over' : ''}" oncontextmenu="return false;">
     <div class="task-header">
@@ -469,14 +479,17 @@ function renderTaskCard(task: VBTask): string {
       <div class="task-actions">
         <button class="icon-btn timer-btn ${timerActive ? 'active' : ''}" data-timer="${task.id}" title="${timerActive ? 'Stop timer' : 'Start timer'}" aria-label="Toggle timer">${timerIcon}</button>
         <button class="icon-btn copilot-btn" data-send-copilot="${task.id}" title="Send to Copilot" aria-label="Send to Copilot">&#128640;</button>
+        <button class="icon-btn attach-btn" data-add-attachment="${task.id}" title="Attach file" aria-label="Attach file">&#128206;</button>
         <button class="icon-btn" data-edit="${task.id}" title="Edit" aria-label="Edit task">&#9998;</button>
         <button class="icon-btn" data-context="${task.id}" title="More" aria-label="More actions">&#8943;</button>
       </div>
     </div>
     ${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ''}
+    ${attachmentThumbs ? `<div class="task-attachments-row">${attachmentThumbs}</div>` : ''}
     <div class="task-meta">
       <span class="task-priority-badge ${prioClass}" aria-label="Priority: ${task.priority || 'medium'}">${(task.priority || 'medium')[0].toUpperCase()}</span>
       <span class="task-tag ${task.tag}">${TAG_LABELS[task.tag]}</span>
+      ${attachBadge}
       ${timeStr ? `<span class="task-timer-display ${timerActive ? 'active' : ''}" data-timer-display="${task.id}">${timeStr}</span>` : ''}
       <span class="task-time" title="${new Date(task.createdAt).toLocaleString()}">${timeAgo}</span>
     </div>
@@ -491,13 +504,30 @@ function renderTaskEditCard(task: VBTask): string {
   const tagOpts = TAG_OPTIONS.map((t) => `<option value="${t}" ${task.tag === t ? 'selected' : ''}>${TAG_LABELS[t]}</option>`).join('');
   const prioOpts = PRIORITY_OPTIONS.map((p) => `<option value="${p}" ${task.priority === p ? 'selected' : ''}>${PRIORITY_LABELS[p]}</option>`).join('');
 
+  const attachments = (task.attachments || []);
+  const attachmentHtml = attachments.length > 0
+    ? `<div class="edit-attachments">
+        <div class="edit-attachments-label">Attachments (${attachments.length}):</div>
+        <div class="edit-attachments-grid">
+          ${attachments.map(a => `<div class="edit-attachment-item" data-att-id="${a.id}">
+            ${a.mimeType.startsWith('image/')
+              ? `<img class="edit-attachment-preview" src="${a.dataUri}" alt="${escapeAttr(a.filename)}" />`
+              : `<span class="edit-attachment-file">&#128196; ${escapeHtml(a.filename)}</span>`}
+            <button class="edit-attachment-remove" data-remove-attachment="${a.id}" data-remove-task="${task.id}" title="Remove">&#10005;</button>
+          </div>`).join('')}
+        </div>
+      </div>`
+    : '';
+
   return `<div class="task-card editing" data-task-id="${task.id}" role="listitem">
     <input type="text" class="edit-title-input" data-save-title="${task.id}" value="${escapeAttr(task.title)}" placeholder="Task title" aria-label="Edit title" />
     <textarea class="edit-desc-input" data-save-desc="${task.id}" placeholder="Description (optional)" rows="3" aria-label="Edit description">${escapeHtml(task.description)}</textarea>
+    ${attachmentHtml}
     <div class="edit-controls">
       <select data-save-tag="${task.id}" aria-label="Tag">${tagOpts}</select>
       <select data-save-priority="${task.id}" aria-label="Priority">${prioOpts}</select>
       <div class="edit-buttons">
+        <button class="secondary" data-add-attachment="${task.id}" title="Attach file">&#128206; Attach</button>
         <button class="secondary" data-cancel-edit="${task.id}">Cancel</button>
         <button data-save-edit="${task.id}">Save</button>
       </div>
@@ -822,6 +852,33 @@ function bindEvents(): void {
     });
   });
 
+  // Attach file button (both on task card actions and in edit form)
+  document.querySelectorAll<HTMLElement>('[data-add-attachment]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      vscode.postMessage({ type: 'addAttachment', payload: { taskId: el.dataset.addAttachment! } });
+    });
+  });
+
+  // Remove attachment button (in edit form)
+  document.querySelectorAll<HTMLElement>('[data-remove-attachment]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const taskId = el.dataset.removeTask!;
+      const attachmentId = el.dataset.removeAttachment!;
+      vscode.postMessage({ type: 'removeAttachment', payload: { taskId, attachmentId } });
+    });
+  });
+
+  // Attachment thumbnail preview (click to view full size)
+  document.querySelectorAll<HTMLElement>('[data-preview-attachment]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const img = el as HTMLImageElement;
+      showImagePreview(img.src, img.alt);
+    });
+  });
+
   // Right-click context menu
   document.querySelectorAll<HTMLElement>('.task-card:not(.editing)').forEach((card) => {
     card.addEventListener('contextmenu', (e) => {
@@ -878,6 +935,11 @@ function bindQuickAdd(): void {
   addInput?.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doAdd(); }
   });
+
+  // Voice input button
+  document.getElementById('btn-voice')?.addEventListener('click', () => {
+    toggleVoiceRecording();
+  });
 }
 
 function bindSearchFilter(): void {
@@ -896,6 +958,116 @@ function bindSearchFilter(): void {
 
   filterTagSelect?.addEventListener('change', () => { filterTag = filterTagSelect.value as TaskTag | 'all'; render(); });
   filterPrioSelect?.addEventListener('change', () => { filterPriority = filterPrioSelect.value as TaskPriority | 'all'; render(); });
+}
+
+// ============================================================
+// Voice Input (Speech Recognition)
+// ============================================================
+
+function initVoiceRecognition(): void {
+  const SpeechRecognition = (window as unknown as Record<string, unknown>).SpeechRecognition
+    || (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
+  if (!SpeechRecognition) { return; }
+
+  const recognition = new (SpeechRecognition as new () => SpeechRecognitionInstance)();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = (event: SpeechRecognitionEvent) => {
+    const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+    if (!input) { return; }
+
+    let finalTranscript = '';
+    let interimTranscript = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (result.isFinal) {
+        finalTranscript += result[0].transcript;
+      } else {
+        interimTranscript += result[0].transcript;
+      }
+    }
+
+    if (finalTranscript) {
+      // Append final transcript to existing text
+      const existing = input.value.trim();
+      input.value = existing ? existing + ' ' + finalTranscript.trim() : finalTranscript.trim();
+    } else if (interimTranscript) {
+      // Show interim text as placeholder-like feedback
+      const existing = input.value;
+      const marker = '|INTERIM|';
+      const base = existing.includes(marker) ? existing.split(marker)[0] : existing;
+      input.value = base + marker + interimTranscript;
+    }
+  };
+
+  recognition.onend = () => {
+    isVoiceRecording = false;
+    // Clean up any interim markers
+    const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+    if (input && input.value.includes('|INTERIM|')) {
+      input.value = input.value.split('|INTERIM|')[0];
+    }
+    updateVoiceButton();
+  };
+
+  recognition.onerror = () => {
+    isVoiceRecording = false;
+    updateVoiceButton();
+  };
+
+  voiceRecognition = recognition;
+}
+
+function toggleVoiceRecording(): void {
+  if (!voiceRecognition) { initVoiceRecognition(); }
+  if (!voiceRecognition) {
+    // Speech Recognition not supported in this webview
+    const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+    if (input) { input.placeholder = 'Voice input not supported in this environment'; }
+    return;
+  }
+
+  const recognition = voiceRecognition as SpeechRecognitionInstance;
+  if (isVoiceRecording) {
+    recognition.stop();
+    isVoiceRecording = false;
+  } else {
+    // Clean interim markers from previous session
+    const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+    if (input && input.value.includes('|INTERIM|')) {
+      input.value = input.value.split('|INTERIM|')[0];
+    }
+    recognition.start();
+    isVoiceRecording = true;
+  }
+  updateVoiceButton();
+}
+
+function updateVoiceButton(): void {
+  const btn = document.getElementById('btn-voice');
+  if (!btn) { return; }
+  btn.classList.toggle('recording', isVoiceRecording);
+  btn.title = isVoiceRecording ? 'Stop recording' : 'Voice input';
+  btn.setAttribute('aria-label', isVoiceRecording ? 'Stop voice recording' : 'Start voice recording');
+}
+
+// Minimal type shims for SpeechRecognition (not in all TS libs)
+interface SpeechRecognitionEvent {
+  resultIndex: number;
+  results: { length: number; [index: number]: { isFinal: boolean; 0: { transcript: string } } };
+}
+
+interface SpeechRecognitionInstance {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: unknown) => void) | null;
 }
 
 function bindEditEvents(): void {
@@ -918,6 +1090,32 @@ function bindEditEvents(): void {
     ta.addEventListener('input', () => {
       ta.style.height = 'auto';
       ta.style.height = Math.min(Math.max(ta.scrollHeight, 80), 300) + 'px';
+    });
+    // Paste image support — paste an image from clipboard into the edit form
+    ta.addEventListener('paste', (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) { return; }
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const blob = item.getAsFile();
+          if (!blob) { continue; }
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUri = reader.result as string;
+            const taskId = editingTaskId;
+            if (taskId && dataUri) {
+              vscode.postMessage({
+                type: 'pasteAttachment',
+                payload: { taskId, dataUri, filename: `paste-${Date.now()}.png` },
+              });
+            }
+          };
+          reader.readAsDataURL(blob);
+          break;
+        }
+      }
     });
   });
 }
@@ -1227,6 +1425,28 @@ function showConfirmDialog(title: string, message: string, onConfirm: () => void
   overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
   // Focus the confirm button for keyboard users
   (document.getElementById('modal-cancel') as HTMLElement)?.focus();
+}
+
+// ============================================================
+// Image Preview Modal
+// ============================================================
+
+function showImagePreview(src: string, alt: string): void {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay image-preview-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', `Preview: ${alt}`);
+  overlay.innerHTML = `<div class="image-preview-card">
+    <div class="image-preview-header">
+      <span class="image-preview-title">${escapeHtml(alt)}</span>
+      <button class="image-preview-close" id="preview-close" title="Close" aria-label="Close preview">&#10005;</button>
+    </div>
+    <img class="image-preview-img" src="${src}" alt="${escapeAttr(alt)}" />
+  </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('preview-close')!.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 }
 
 // ============================================================
@@ -1559,6 +1779,8 @@ const helpTabLabels: Record<string, string> = {
   'timers': 'Timers',
   'templates': 'Templates',
   'ai': 'AI Features',
+  'voice': 'Voice Input',
+  'attachments': 'Attachments',
   'export': 'Export / Import',
   'shortcuts': 'Shortcuts'
 };
@@ -1711,6 +1933,8 @@ function showHelp(): void {
         <button class="help-tab" data-help-tab="timers" role="tab" aria-selected="false">Timers</button>
         <button class="help-tab" data-help-tab="templates" role="tab" aria-selected="false">Templates</button>
         <button class="help-tab" data-help-tab="ai" role="tab" aria-selected="false">AI Features</button>
+        <button class="help-tab" data-help-tab="voice" role="tab" aria-selected="false">Voice Input</button>
+        <button class="help-tab" data-help-tab="attachments" role="tab" aria-selected="false">Attachments</button>
         <button class="help-tab" data-help-tab="export" role="tab" aria-selected="false">Export / Import</button>
         <button class="help-tab" data-help-tab="shortcuts" role="tab" aria-selected="false">Shortcuts</button>
       </nav>
@@ -2054,6 +2278,62 @@ function renderHelpContent(section: string): string {
           <li>Click <em>Add</em> to create the task. The first line becomes the title; remaining lines become the description.</li>
         </ul>`;
 
+    case 'voice':
+      return `
+        <h3>Voice Input</h3>
+        <p>Use your microphone to create tasks hands-free using speech recognition.</p>
+        <h4>How to Use</h4>
+        <ol>
+          <li>Click the <strong>microphone icon</strong> (&#127908;) next to the quick-add text area.</li>
+          <li>Speak your task title or description. The text appears in the input field in real time.</li>
+          <li>Click the microphone again (or it auto-stops after silence) to finish recording.</li>
+          <li>Review the transcribed text, then click <strong>Add</strong> to create the task.</li>
+        </ol>
+        <h4>Voice + AI Workflow</h4>
+        <ul>
+          <li>After speaking your idea, click the <strong>sparkle icon</strong> (&#10024;) to use <strong>AI Improve</strong> &mdash; AI will classify, format, and structure your rough spoken input.</li>
+          <li>Then click <strong>Add</strong> to create the polished task.</li>
+        </ul>
+        <h4>Voice + Send to Copilot</h4>
+        <ul>
+          <li>Speak your idea, add it as a task, then click the <strong>rocket icon</strong> (&#128640;) to send it to Copilot Chat.</li>
+          <li>This creates a fluid voice &rarr; task &rarr; Copilot workflow.</li>
+        </ul>
+        <h4>Tips</h4>
+        <ul>
+          <li>The recording indicator pulses red while the microphone is active.</li>
+          <li>Interim (partial) recognition results are shown as you speak.</li>
+          <li>Speech recognition requires a microphone and works best in quiet environments.</li>
+          <li>If speech recognition is not available in your environment, a message will appear.</li>
+        </ul>`;
+
+    case 'attachments':
+      return `
+        <h3>Attachments</h3>
+        <p>Attach images and files to any task. Great for screenshots, mockups, and reference materials.</p>
+        <h4>Adding Attachments</h4>
+        <ul>
+          <li>Click the <strong>paperclip icon</strong> (&#128206;) on a task card or in the edit form to open a file picker.</li>
+          <li>Select one or more images (PNG, JPG, GIF, WebP, SVG, BMP) or any file.</li>
+          <li><strong>Paste images</strong> directly into the description field when editing &mdash; paste from clipboard (Ctrl+V) and images are attached automatically.</li>
+        </ul>
+        <h4>Viewing Attachments</h4>
+        <ul>
+          <li>Image thumbnails appear on the task card below the description.</li>
+          <li>Up to 3 thumbnail previews are shown; the attachment count badge (&#128206;) shows the total.</li>
+          <li>Click any thumbnail to open a <strong>full-size preview</strong> in a modal.</li>
+        </ul>
+        <h4>Managing Attachments</h4>
+        <ul>
+          <li>Open the task edit form to see all attachments with remove buttons.</li>
+          <li>Hover over an attachment and click the <strong>&#10005;</strong> button to remove it.</li>
+        </ul>
+        <h4>Attachments + Copilot</h4>
+        <ul>
+          <li>When you <strong>Send to Copilot</strong> a task with image attachments, the images are saved to <code>.vibeboard/temp/</code> and referenced in the prompt.</li>
+          <li>You can then drag those images into Copilot Chat to include them in your conversation.</li>
+        </ul>`;
+
     case 'export':
       return `
         <h3>Exporting &amp; Importing Data</h3>
@@ -2132,6 +2412,12 @@ function renderHelpContent(section: string): string {
           <li><strong>AI Breakdown</strong> &mdash; Use AI to split a task into subtasks (requires Copilot Chat).</li>
           <li><strong>Send to Copilot</strong> &mdash; Send task content to Copilot Chat as a prompt.</li>
           <li><strong>Delete</strong> &mdash; Remove task (with confirmation).</li>
+        </ul>
+        <h4>Task Card Actions</h4>
+        <ul>
+          <li><strong>&#128206; (Paperclip)</strong> &mdash; Attach a file or image to the task.</li>
+          <li><strong>&#128640; (Rocket)</strong> &mdash; Send task to Copilot Chat.</li>
+          <li><strong>&#127908; (Microphone)</strong> &mdash; Voice input for quick-add (in the quick-add bar).</li>
         </ul>
         <h4>VS Code Commands</h4>
         <ul>
