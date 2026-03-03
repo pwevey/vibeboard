@@ -330,6 +330,12 @@ export class MessageHandler {
             } catch { /* user can press Enter manually */ }
           }
         }
+
+        // Auto-move task to In Progress when sent to Copilot
+        if (task.status !== 'completed' && task.status !== 'in-progress') {
+          this.taskManager.moveTask(task.id, 'in-progress', 0);
+          this.sendStateUpdate();
+        }
         break;
       }
 
@@ -911,7 +917,7 @@ export class MessageHandler {
     const endedSessions = data.sessions.filter((s) => s.status === 'ended').length;
 
     const totalTasks = allTasks.length;
-    const byStatus: Record<string, number> = { 'up-next': 0, backlog: 0, completed: 0, notes: 0 };
+    const byStatus: Record<string, number> = { 'in-progress': 0, 'up-next': 0, backlog: 0, completed: 0, notes: 0 };
     const byTag: Record<string, number> = { feature: 0, bug: 0, refactor: 0, note: 0 };
     const byPriority: Record<string, number> = { low: 0, medium: 0, high: 0 };
     let totalTimeMs = 0;
@@ -994,6 +1000,7 @@ export class MessageHandler {
     lines.push(`Ended Sessions,${totals.endedSessions}`);
     lines.push(`Total Tasks,${totals.totalTasks}`);
     lines.push(`Completed,${totals.byStatus['completed'] || 0}`);
+    lines.push(`In Progress,${totals.byStatus['in-progress'] || 0}`);
     lines.push(`Up Next,${totals.byStatus['up-next'] || 0}`);
     lines.push(`Backlog,${totals.byStatus['backlog'] || 0}`);
     lines.push(`Notes,${totals.byStatus['notes'] || 0}`);
@@ -1039,6 +1046,7 @@ export class MessageHandler {
     lines.push(`| Ended Sessions | ${totals.endedSessions} |`);
     lines.push(`| Total Tasks | ${totals.totalTasks} |`);
     lines.push(`| Completed | ${totals.byStatus['completed'] || 0} |`);
+    lines.push(`| In Progress | ${totals.byStatus['in-progress'] || 0} |`);
     lines.push(`| Up Next | ${totals.byStatus['up-next'] || 0} |`);
     lines.push(`| Backlog | ${totals.byStatus['backlog'] || 0} |`);
     lines.push(`| Notes | ${totals.byStatus['notes'] || 0} |`);
@@ -1061,12 +1069,12 @@ export class MessageHandler {
         lines.push(`**${session.name}** — Started: ${new Date(session.startedAt).toLocaleString()}`);
         lines.push('');
 
-        for (const col of ['up-next', 'backlog', 'completed', 'notes'] as const) {
+        for (const col of ['in-progress', 'up-next', 'backlog', 'completed', 'notes'] as const) {
           const colTasks = data.tasks
             .filter((t) => t.sessionId === data.activeSessionId && t.status === col)
             .sort((a, b) => a.order - b.order);
           if (colTasks.length > 0) {
-            const label = col === 'up-next' ? 'Up Next' : col === 'backlog' ? 'Backlog' : col === 'completed' ? 'Completed' : 'Notes';
+            const label = col === 'in-progress' ? 'In Progress' : col === 'up-next' ? 'Up Next' : col === 'backlog' ? 'Backlog' : col === 'completed' ? 'Completed' : 'Notes';
             lines.push(`### ${label}`);
             lines.push('');
             for (const t of colTasks) {
@@ -1106,7 +1114,7 @@ export class MessageHandler {
     }
 
     // All tasks grouped by status
-    for (const status of ['completed', 'up-next', 'backlog', 'notes'] as const) {
+    for (const status of ['in-progress', 'completed', 'up-next', 'backlog', 'notes'] as const) {
       const tasks = data.tasks
         .filter((t) => t.status === status)
         .sort((a, b) => {
@@ -1117,7 +1125,7 @@ export class MessageHandler {
         });
 
       if (tasks.length > 0) {
-        const label = status === 'up-next' ? 'Up Next' : status === 'backlog' ? 'Backlog' : status === 'completed' ? 'All Completed Tasks' : 'Notes';
+        const label = status === 'in-progress' ? 'In Progress' : status === 'up-next' ? 'Up Next' : status === 'backlog' ? 'Backlog' : status === 'completed' ? 'All Completed Tasks' : 'Notes';
         lines.push(`## ${label} (${tasks.length})`);
         lines.push('');
         for (const t of tasks) {

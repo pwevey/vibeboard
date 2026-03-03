@@ -15,7 +15,7 @@ interface VBTask {
   description: string;
   tag: 'feature' | 'bug' | 'refactor' | 'note';
   priority: 'high' | 'medium' | 'low';
-  status: 'up-next' | 'backlog' | 'completed' | 'notes';
+  status: 'in-progress' | 'up-next' | 'backlog' | 'completed' | 'notes';
   createdAt: string;
   completedAt: string | null;
   order: number;
@@ -86,6 +86,7 @@ const vscode = acquireVsCodeApi();
 // ============================================================
 
 const COLUMNS: { id: TaskStatus; label: string }[] = [
+  { id: 'in-progress', label: 'In Progress' },
   { id: 'up-next', label: 'Up Next' },
   { id: 'backlog', label: 'Backlog' },
   { id: 'completed', label: 'Completed' },
@@ -394,6 +395,7 @@ function renderStatsBar(): string {
   const tasks = getActiveSessionTasks();
   const total = tasks.length;
   const completed = tasks.filter((t) => t.status === 'completed').length;
+  const inProgress = tasks.filter((t) => t.status === 'in-progress').length;
   const upNext = tasks.filter((t) => t.status === 'up-next').length;
   const highPrio = tasks.filter((t) => t.priority === 'high' && t.status !== 'completed').length;
   const carriedOver = tasks.filter((t) => t.carriedFromSessionId).length;
@@ -401,6 +403,7 @@ function renderStatsBar(): string {
   return `<div class="stats-bar" role="status" aria-label="Task statistics">
     <span class="stat-pill" title="Total tasks">&#128203; ${total}</span>
     <span class="stat-pill completed" title="Completed">&#10003; ${completed}</span>
+    ${inProgress > 0 ? `<span class="stat-pill in-progress" title="In Progress">&#9881; ${inProgress}</span>` : ''}
     <span class="stat-pill" title="Up Next">&#9654; ${upNext}</span>
     ${highPrio > 0 ? `<span class="stat-pill high-prio" title="High priority">&#9888; ${highPrio}</span>` : ''}
     ${carriedOver > 0 ? `<span class="stat-pill carried-over" title="Carried over from previous session">&#8634; ${carriedOver}</span>` : ''}
@@ -456,7 +459,7 @@ function renderQuickAdd(): string {
         <option value="medium">Medium</option><option value="high">High</option><option value="low">Low</option>
       </select>
       <select id="quick-add-col" aria-label="Target column">
-        <option value="up-next">Up Next</option><option value="backlog">Backlog</option><option value="notes">Notes</option>
+        <option value="in-progress">In Progress</option><option value="up-next">Up Next</option><option value="backlog">Backlog</option><option value="notes">Notes</option>
       </select>
       <button class="icon-btn ai-suggest-btn" id="btn-ai-rewrite" title="AI improve task" aria-label="AI improve task">&#10024;</button>
       <button class="icon-btn voice-btn ${isVoiceRecording ? 'recording' : ''}" id="btn-voice" title="${isVoiceRecording ? 'Stop recording' : 'Voice input'}" aria-label="${isVoiceRecording ? 'Stop voice recording' : 'Start voice recording'}">${micSvg}</button>
@@ -2144,10 +2147,10 @@ function renderHelpContent(section: string): string {
         <ul>
           <li><strong>Session Bar</strong> &mdash; Top bar showing session timer, pause/resume button, and action buttons (undo, redo, AI summary, help, history, end session).</li>
           <li><strong>Board Tabs</strong> &mdash; Below the session bar. Click to switch boards, <strong>&times;</strong> to close, double-click to rename, <strong>+</strong> to create a new board.</li>
-          <li><strong>Stats Bar</strong> &mdash; Displays live counts for total tasks, completed, up next, and high-priority items.</li>
+          <li><strong>Stats Bar</strong> &mdash; Displays live counts for total tasks, completed, in progress, up next, and high-priority items.</li>
           <li><strong>Search &amp; Filter</strong> &mdash; Filter tasks by text, tag, or priority.</li>
           <li><strong>Quick Add</strong> &mdash; Fast task creation with tag, priority, and column selectors plus template buttons and AI task improvement.</li>
-          <li><strong>Columns</strong> &mdash; Four columns: <em>Up Next</em>, <em>Backlog</em>, <em>Completed</em>, and <em>Notes</em>. Click headers to collapse.</li>
+          <li><strong>Columns</strong> &mdash; Five columns: <em>In Progress</em>, <em>Up Next</em>, <em>Backlog</em>, <em>Completed</em>, and <em>Notes</em>. Click headers to collapse.</li>
         </ul>
         <h4>AI Features</h4>
         <p>Vibe Board integrates with <strong>GitHub Copilot Chat</strong> for AI-powered summaries, task breakdowns, and tag suggestions. See the <em>AI Features</em> tab for setup details.</p>`;
@@ -2208,8 +2211,9 @@ function renderHelpContent(section: string): string {
           <li><strong>Rename a board</strong> &mdash; <strong>Double-click</strong> a board tab name to edit it inline. Press <kbd>Enter</kbd> to save or <kbd>Escape</kbd> to cancel.</li>
         </ul>
         <h4>Columns</h4>
-        <p>Each board has four columns, each representing a stage:</p>
+        <p>Each board has five columns, each representing a stage:</p>
         <ul>
+          <li><strong>In Progress</strong> &mdash; Tasks you are actively working on. Tasks sent to Copilot are automatically moved here.</li>
           <li><strong>Up Next</strong> &mdash; Tasks you plan to work on now or soon.</li>
           <li><strong>Backlog</strong> &mdash; Tasks to do later, parked for future sessions.</li>
           <li><strong>Completed</strong> &mdash; Done tasks. Checked off automatically or via drag.</li>

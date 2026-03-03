@@ -7,7 +7,7 @@
 
 export type TaskTag = 'feature' | 'bug' | 'refactor' | 'note';
 
-export type TaskStatus = 'up-next' | 'backlog' | 'completed' | 'notes';
+export type TaskStatus = 'in-progress' | 'up-next' | 'backlog' | 'completed' | 'notes';
 
 export type TaskPriority = 'high' | 'medium' | 'low';
 
