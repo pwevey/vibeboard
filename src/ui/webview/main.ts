@@ -1334,7 +1334,7 @@ function renderHelpContent(section: string): string {
           <li><strong>Start a Session</strong> &mdash; Click the <em>Start Session</em> button to begin tracking your work. Sessions time your overall workflow.</li>
           <li><strong>Add Tasks</strong> &mdash; Use the text area at the top to type a task title, pick a tag, priority, and target column, then press <kbd>Enter</kbd> or click <em>Add</em>.</li>
           <li><strong>Organize</strong> &mdash; Drag tasks between columns, edit inline, set priorities, and use timers to track time on each task.</li>
-          <li><strong>End Session</strong> &mdash; When you're done, click <em>End Session</em> to see your summary. Unfinished tasks automatically carry over to the next session.</li>
+          <li><strong>End Session</strong> &mdash; When you're done, click <em>End Session</em> to see your summary. Unfinished tasks from all previous sessions automatically carry over to the next one.</li>
         </ol>
         <h4>Interface Overview</h4>
         <ul>
@@ -1442,7 +1442,7 @@ function renderHelpContent(section: string): string {
           <li>Click <em>Start Session</em> on the start page or session bar.</li>
           <li>You'll be prompted to name your session. A default board is created automatically.</li>
           <li>A live timer appears in the top-left showing elapsed time.</li>
-          <li>If the <em>Carry Over Tasks</em> setting is enabled, unfinished tasks from your last session automatically transfer to the new one.</li>
+          <li>If the <em>Carry Over Tasks</em> setting is enabled, unfinished tasks from <strong>all previous sessions</strong> automatically transfer to the new one.</li>
           <li>Carried-over tasks show a <strong>&#8634; badge</strong> on the task card and an orange banner at the top of the board. Click the banner to expand and see all carried items.</li>
           <li>The stats bar shows a <strong>&#8634; count</strong> when there are carried-over tasks.</li>
         </ul>
@@ -1537,7 +1537,8 @@ function renderHelpContent(section: string): string {
               <li><strong>Note</strong> &mdash; Clear note text</li>
             </ul>
           </li>
-          <li>The improved title and structured description are ready to go. Click <em>Add</em> to create the task.</li>
+          <li>The full result (title on the first line, structured description below) appears in the <strong>quick-add textarea</strong> for you to review and edit. The tag, priority, and column dropdowns are set automatically.</li>
+          <li>Click <em>Add</em> to create the task. The first line becomes the title; remaining lines become the description.</li>
         </ul>`;
 
     case 'export':
@@ -1547,7 +1548,7 @@ function renderHelpContent(section: string): string {
         <h4>Export Formats</h4>
         <ul>
           <li><strong>JSON</strong> &mdash; Full data export including all sessions, tasks, and metadata. Useful for backups or programmatic processing.</li>
-          <li><strong>CSV</strong> &mdash; Spreadsheet-compatible format with columns: Title, Tag, Priority, Status, Time Spent, Created, Completed. Great for reporting.</li>
+          <li><strong>CSV</strong> &mdash; Spreadsheet-compatible format with columns: Session Date, Session Duration, Task Title, Description, Tag, Priority, Status, Time Spent, Created, Completed. Great for reporting.</li>
           <li><strong>Markdown</strong> &mdash; Formatted document with tasks grouped by column, session history table, and completed tasks list. Ideal for documentation and sharing.</li>
         </ul>
         <h4>How to Export</h4>
