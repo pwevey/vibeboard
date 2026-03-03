@@ -1044,7 +1044,7 @@ export class MessageHandler {
     totals: ReturnType<MessageHandler['computeExportTotals']>,
     periodLabel?: string
   ): string {
-    const csvEsc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    const csvEsc = (s: string) => `"${s.replace(/"/g, '""').replace(/[\r\n]+/g, ' ')}"`;
     const lines: string[] = [];
 
     // Period header
@@ -1053,34 +1053,45 @@ export class MessageHandler {
       lines.push('');
     }
 
-    // Task data
-    lines.push('Session,Session Date,Session Duration,Task Title,Description,Tag,Priority,Status,Board,Time Spent,Carried Over,Created,Completed');
-    for (const task of data.tasks) {
-      const session = data.sessions.find((s) => s.id === task.sessionId);
-      const sessionName = session?.name || '';
-      const sessionDate = session ? new Date(session.startedAt).toLocaleDateString() : '';
-      const sessionDur = session ? this.formatDuration(
-        Math.max(0, ((session.endedAt ? new Date(session.endedAt).getTime() : Date.now()) - new Date(session.startedAt).getTime()) - (session.totalPausedMs || 0))
-      ) : '';
-      const timeSpent = this.formatDuration(task.timeSpentMs || 0);
-      const board = data.boards?.find((b) => b.id === task.boardId);
-      const boardName = board?.name || task.boardId;
-      const carriedOver = task.carriedFromSessionId ? 'Yes' : 'No';
-      lines.push([
-        csvEsc(sessionName),
-        sessionDate,
-        sessionDur,
-        csvEsc(task.title),
-        csvEsc(task.description),
-        task.tag,
-        task.priority || 'medium',
-        task.status,
-        csvEsc(boardName),
-        timeSpent,
-        carriedOver,
-        new Date(task.createdAt).toLocaleString(),
-        task.completedAt ? new Date(task.completedAt).toLocaleString() : '',
-      ].join(','));
+    // Tasks grouped by tag
+    const tagOrder: Array<{ tag: string; label: string }> = [
+      { tag: 'feature', label: 'FEATURES' },
+      { tag: 'bug', label: 'BUGS' },
+      { tag: 'refactor', label: 'REFACTORS' },
+      { tag: 'note', label: 'NOTES' },
+    ];
+
+    for (const { tag, label } of tagOrder) {
+      const tagTasks = data.tasks.filter((t) => t.tag === tag);
+      if (tagTasks.length === 0) { continue; }
+
+      lines.push('');
+      lines.push(label);
+      lines.push('Session,Session Date,Session Duration,Task Title,Description,Priority,Status,Board,Carried Over,Created,Completed');
+      for (const task of tagTasks) {
+        const session = data.sessions.find((s) => s.id === task.sessionId);
+        const sessionName = session?.name || '';
+        const sessionDate = session ? new Date(session.startedAt).toLocaleDateString() : '';
+        const sessionDur = session ? this.formatDuration(
+          Math.max(0, ((session.endedAt ? new Date(session.endedAt).getTime() : Date.now()) - new Date(session.startedAt).getTime()) - (session.totalPausedMs || 0))
+        ) : '';
+        const board = data.boards?.find((b) => b.id === task.boardId);
+        const boardName = board?.name || task.boardId;
+        const carriedOver = task.carriedFromSessionId ? 'Yes' : 'No';
+        lines.push([
+          csvEsc(sessionName),
+          sessionDate,
+          sessionDur,
+          csvEsc(task.title),
+          csvEsc(task.description),
+          task.priority || 'medium',
+          task.status,
+          csvEsc(boardName),
+          carriedOver,
+          new Date(task.createdAt).toLocaleString(),
+          task.completedAt ? new Date(task.completedAt).toLocaleString() : '',
+        ].join(','));
+      }
     }
 
     // Blank separator + summary section
@@ -1204,39 +1215,49 @@ export class MessageHandler {
       lines.push('');
     }
 
-    // All tasks grouped by status
-    for (const status of ['in-progress', 'completed', 'up-next', 'backlog', 'notes'] as const) {
+    // All tasks grouped by tag
+    const tagGroups: Array<{ tag: string; label: string }> = [
+      { tag: 'feature', label: 'Features' },
+      { tag: 'bug', label: 'Bugs' },
+      { tag: 'refactor', label: 'Refactors' },
+      { tag: 'note', label: 'Notes' },
+    ];
+
+    for (const { tag, label } of tagGroups) {
       const tasks = data.tasks
-        .filter((t) => t.status === status)
+        .filter((t) => t.tag === tag)
         .sort((a, b) => {
-          if (status === 'completed') {
+          // Completed first, then by date
+          if (a.status === 'completed' && b.status !== 'completed') { return -1; }
+          if (a.status !== 'completed' && b.status === 'completed') { return 1; }
+          if (a.status === 'completed' && b.status === 'completed') {
             return new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime();
           }
           return a.order - b.order;
         });
 
-      if (tasks.length > 0) {
-        const label = status === 'in-progress' ? 'In Progress' : status === 'up-next' ? 'Up Next' : status === 'backlog' ? 'Backlog' : status === 'completed' ? 'All Completed Tasks' : 'Notes';
-        lines.push(`## ${label} (${tasks.length})`);
-        lines.push('');
-        for (const t of tasks) {
-          const check = status === 'completed' ? '[x]' : '[ ]';
-          const prio = t.priority ? ` \`${t.priority}\`` : '';
-          const tag = ` \`${t.tag}\``;
-          const time = t.timeSpentMs ? ` (${this.formatDuration(t.timeSpentMs)})` : '';
-          const when = t.completedAt ? ` — ${new Date(t.completedAt).toLocaleDateString()}` : '';
-          const carried = t.carriedFromSessionId ? ' ↺' : '';
-          const session = data.sessions.find((s) => s.id === t.sessionId);
-          const sessionInfo = session ? ` [${session.name}]` : '';
-          lines.push(`- ${check} **${t.title}**${prio}${tag}${time}${carried}${when}${sessionInfo}`);
-          if (t.description) {
-            for (const descLine of t.description.split('\n')) {
-              lines.push(`  ${descLine}`);
-            }
+      if (tasks.length === 0) { continue; }
+
+      const completedCount = tasks.filter((t) => t.status === 'completed').length;
+      lines.push(`## ${label} (${tasks.length} total, ${completedCount} completed)`);
+      lines.push('');
+      for (const t of tasks) {
+        const check = t.status === 'completed' ? '[x]' : '[ ]';
+        const prio = t.priority ? ` \`${t.priority}\`` : '';
+        const statusLabel = t.status === 'completed' ? '' : ` \`${t.status}\``;
+        const time = t.timeSpentMs ? ` (${this.formatDuration(t.timeSpentMs)})` : '';
+        const when = t.completedAt ? ` — ${new Date(t.completedAt).toLocaleDateString()}` : '';
+        const carried = t.carriedFromSessionId ? ' ↺' : '';
+        const session = data.sessions.find((s) => s.id === t.sessionId);
+        const sessionInfo = session ? ` [${session.name}]` : '';
+        lines.push(`- ${check} **${t.title}**${prio}${statusLabel}${time}${carried}${when}${sessionInfo}`);
+        if (t.description) {
+          for (const descLine of t.description.split('\n')) {
+            lines.push(`  ${descLine}`);
           }
         }
-        lines.push('');
       }
+      lines.push('');
     }
 
     return lines.join('\n');
