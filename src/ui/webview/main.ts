@@ -505,6 +505,14 @@ function showAutomationTaskPicker(): void {
     <div class="auto-pick-list" style="max-height:250px;overflow-y:auto;margin-bottom:12px;">
       ${taskCheckboxes}
     </div>
+    <div class="auto-threshold" style="margin-bottom:12px;padding:8px;background:var(--vscode-editor-background);border-radius:4px;">
+      <label style="font-size:12px;display:flex;align-items:center;gap:8px;">
+        <span>Auto-approve threshold:</span>
+        <input type="range" id="auto-threshold-slider" min="0" max="100" value="85" step="5" style="flex:1;" />
+        <span id="auto-threshold-value" style="font-weight:600;min-width:36px;text-align:right;">85%</span>
+      </label>
+      <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:4px 0 0;">Tasks verified with confidence &ge; this value are auto-completed. Set to 100% to always review manually.</p>
+    </div>
     <div class="modal-actions">
       <button class="secondary" id="auto-pick-cancel">Cancel</button>
       <button class="primary" id="auto-pick-start">&#9654; Start Automation</button>
@@ -512,6 +520,13 @@ function showAutomationTaskPicker(): void {
   </div>`;
 
   document.body.appendChild(overlay);
+
+  // Threshold slider
+  const slider = document.getElementById('auto-threshold-slider') as HTMLInputElement;
+  const valueLabel = document.getElementById('auto-threshold-value');
+  slider?.addEventListener('input', () => {
+    if (valueLabel) { valueLabel.textContent = slider.value + '%'; }
+  });
 
   // Select all / none
   document.getElementById('auto-pick-all')?.addEventListener('click', () => {
@@ -531,9 +546,11 @@ function showAutomationTaskPicker(): void {
     overlay.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked').forEach((cb) => {
       selected.push(cb.value);
     });
+    const thresholdSlider = document.getElementById('auto-threshold-slider') as HTMLInputElement;
+    const threshold = thresholdSlider ? parseInt(thresholdSlider.value, 10) : 85;
     overlay.remove();
     if (selected.length === 0) { return; }
-    vscode.postMessage({ type: 'startAutomation', payload: { taskIds: selected } });
+    vscode.postMessage({ type: 'startAutomation', payload: { taskIds: selected, threshold } });
   });
 
   // Focus start button

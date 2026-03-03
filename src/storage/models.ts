@@ -174,7 +174,7 @@ export type WebviewToExtensionMessage =
   | { type: 'sendFollowUp'; payload: { taskId: string; prompt: string; attachments?: VBAttachment[] } }
   | { type: 'pickFilesForFollowUp'; payload: { taskId: string } }
   | { type: 'copilotDismiss'; payload: { taskId: string } }
-  | { type: 'startAutomation'; payload: { taskIds: string[] } }
+  | { type: 'startAutomation'; payload: { taskIds: string[]; threshold?: number } }
   | { type: 'pauseAutomation'; payload: Record<string, never> }
   | { type: 'resumeAutomation'; payload: Record<string, never> }
   | { type: 'cancelAutomation'; payload: Record<string, never> }

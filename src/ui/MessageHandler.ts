@@ -386,7 +386,10 @@ export class MessageHandler {
       }
 
       case 'startAutomation': {
-        const { taskIds } = message.payload as { taskIds: string[] };
+        const { taskIds, threshold } = message.payload as { taskIds: string[]; threshold?: number };
+        if (threshold !== undefined) {
+          await vscode.workspace.getConfiguration('vibeboard').update('automationAutoApproveThreshold', threshold, vscode.ConfigurationTarget.Global);
+        }
         await this.automationService.start(taskIds);
         break;
       }
