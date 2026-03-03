@@ -445,7 +445,14 @@ function renderAutomationBar(): string {
       : i === currentIndex ? '&#9654;'
       : '&#9675;';
     const cls = item.status === 'done' ? 'done' : item.status === 'failed' ? 'failed' : item.status === 'skipped' ? 'skipped' : i === currentIndex ? 'current' : '';
-    return `<div class="auto-queue-item ${cls}"><span class="auto-queue-dot">${statusDot}</span> ${name}</div>`;
+    const retryCount = (item as any).retryCount || 0;
+    const maxRetries = 3;
+    const retryBtn = item.status === 'failed' && retryCount < maxRetries
+      ? ` <button class="auto-retry-btn" data-retry-index="${i}" title="Retry (${retryCount}/${maxRetries})">&circlearrowright; Retry</button>`
+      : item.status === 'failed' && retryCount >= maxRetries
+      ? ' <span class="auto-retry-exhausted" title="Max retries reached">(max retries)</span>'
+      : '';
+    return `<div class="auto-queue-item ${cls}"><span class="auto-queue-dot">${statusDot}</span> ${name}${retryBtn}</div>`;
   }).join('');
 
   return `<div class="automation-bar" role="region" aria-label="Automation progress">
@@ -1040,6 +1047,17 @@ function bindEvents(): void {
   });
   document.getElementById('btn-auto-reject')?.addEventListener('click', () => {
     vscode.postMessage({ type: 'rejectAutomationTask', payload: {} });
+  });
+
+  // Retry buttons in automation queue
+  document.querySelectorAll<HTMLElement>('.auto-retry-btn').forEach((btn) => {
+    const idx = parseInt(btn.dataset.retryIndex || '-1', 10);
+    if (idx >= 0) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        vscode.postMessage({ type: 'retryAutomationTask', payload: { queueIndex: idx } });
+      });
+    }
   });
 
   // AI Rewrite Title

@@ -2527,6 +2527,31 @@ textarea:focus-visible {
   text-decoration: line-through;
 }
 
+.auto-retry-btn {
+  background: none;
+  border: 1px solid var(--vscode-button-background);
+  color: var(--vscode-button-background);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-left: 4px;
+  text-decoration: none;
+  display: inline;
+}
+
+.auto-retry-btn:hover {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.auto-retry-exhausted {
+  font-size: 10px;
+  color: var(--vscode-disabledForeground, #888);
+  font-style: italic;
+  margin-left: 4px;
+}
+
 .auto-queue-item.skipped {
   color: var(--vscode-disabledForeground, #888);
   text-decoration: line-through;

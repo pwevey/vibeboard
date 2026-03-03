@@ -421,6 +421,12 @@ export class MessageHandler {
         break;
       }
 
+      case 'retryAutomationTask': {
+        const { queueIndex } = (msg as { type: 'retryAutomationTask'; payload: { queueIndex: number } }).payload;
+        await this.automationService.retryTask(queueIndex);
+        break;
+      }
+
       case 'addAttachment': {
         // Open file dialog and add the selected image(s) to the task
         const files = await vscode.window.showOpenDialog({

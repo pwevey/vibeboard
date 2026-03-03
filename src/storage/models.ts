@@ -122,7 +122,11 @@ export interface AutomationQueueItem {
   changedFiles?: string[];   // files modified during this step
   startedAt?: string;        // ISO 8601
   completedAt?: string;      // ISO 8601
+  retryCount?: number;       // how many times this task has been retried (max 3)
 }
+
+/** Maximum number of retry attempts per task. */
+export const MAX_RETRY_COUNT = 3;
 
 export interface AutomationProgress {
   state: AutomationState;
@@ -177,6 +181,7 @@ export type WebviewToExtensionMessage =
   | { type: 'skipAutomationTask'; payload: Record<string, never> }
   | { type: 'approveAutomationTask'; payload: Record<string, never> }
   | { type: 'rejectAutomationTask'; payload: Record<string, never> }
+  | { type: 'retryAutomationTask'; payload: { queueIndex: number } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =

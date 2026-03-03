@@ -21,6 +21,7 @@ import { StorageProvider } from '../storage/StorageProvider';
 import { TaskManager } from '../tasks/TaskManager';
 import { CopilotAIService } from './index';
 import { getGitDiff, getChangedFiles, getDiffStat } from '../utils/git';
+import { MAX_RETRY_COUNT } from '../storage/models';
 
 /** How long to wait after the last file change before capturing (ms). */
 const CHANGE_DEBOUNCE_MS = 8000;
@@ -184,6 +185,44 @@ export class AutomationService {
     vscode.window.showInformationMessage('Vibe Board: Task rejected. Automation paused — resume to continue with next task.');
   }
 
+  /** Retry a failed task by re-queuing it with an enhanced prompt. */
+  async retryTask(queueIndex: number): Promise<void> {
+    if (queueIndex < 0 || queueIndex >= this.queue.length) { return; }
+    const item = this.queue[queueIndex];
+    if (item.status !== 'failed') { return; }
+
+    const retries = item.retryCount || 0;
+    if (retries >= MAX_RETRY_COUNT) {
+      vscode.window.showWarningMessage(`Vibe Board: Maximum retries (${MAX_RETRY_COUNT}) reached for this task.`);
+      return;
+    }
+
+    // Reset the item for retry
+    item.status = 'pending';
+    item.retryCount = retries + 1;
+    item.result = undefined;
+    item.diffSummary = undefined;
+    item.changedFiles = undefined;
+    item.completedAt = undefined;
+    item.startedAt = undefined;
+
+    // Move it to just after the current position so it runs next
+    this.queue.splice(queueIndex, 1);
+    const insertAt = Math.min(this.currentIndex, this.queue.length);
+    this.queue.splice(insertAt, 0, item);
+
+    // If automation is paused or idle-ish from finishing, restart it
+    if (this.state === 'paused' || this.state === 'idle') {
+      // Adjust currentIndex to point to the retried item
+      this.currentIndex = insertAt;
+      this.state = 'running';
+      this.broadcastProgress();
+      await this.processNext();
+    } else {
+      this.broadcastProgress();
+    }
+  }
+
   /** Called when a task is completed outside of automation (e.g. via checkbox).
    *  If the task is the current automation target, auto-advance. */
   async notifyTaskCompleted(taskId: string): Promise<void> {
@@ -284,10 +323,13 @@ export class AutomationService {
     item.startedAt = new Date().toISOString();
     this.broadcastProgress();
 
-    // Build prompt
+    // Build prompt — include retry context if this is a retry
     let prompt = task.title;
     if (task.description) {
       prompt += '\n\n' + task.description;
+    }
+    if (item.retryCount && item.retryCount > 0) {
+      prompt += `\n\n[RETRY ${item.retryCount}/${MAX_RETRY_COUNT}] The previous attempt was rejected. Please try a different approach or fix the issues from the last attempt.`;
     }
 
     // Move task to in-progress
