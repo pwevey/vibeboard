@@ -208,18 +208,26 @@ export class AutomationService {
     item.completedAt = undefined;
     item.startedAt = undefined;
 
-    // Move it to just after the current position so it runs next
+    // Remove it from its current position
     this.queue.splice(queueIndex, 1);
-    const insertAt = Math.min(this.currentIndex, this.queue.length);
-    this.queue.splice(insertAt, 0, item);
 
-    // If automation is paused or idle-ish from finishing, restart it
+    // Adjust currentIndex if the removed item was before it
+    if (queueIndex < this.currentIndex) {
+      this.currentIndex--;
+    }
+
+    // Insert right at currentIndex so it's the next task to process
+    this.queue.splice(this.currentIndex, 0, item);
+
+    // If automation is paused or idle from finishing, restart processing
     if (this.state === 'paused' || this.state === 'idle') {
-      // Adjust currentIndex to point to the retried item
-      this.currentIndex = insertAt;
       this.state = 'running';
       this.broadcastProgress();
       await this.processNext();
+    } else if (this.state === 'reviewing') {
+      // If at a checkpoint for another task, just update the queue — this retry
+      // will be picked up when the user approves/rejects the current checkpoint
+      this.broadcastProgress();
     } else {
       this.broadcastProgress();
     }
