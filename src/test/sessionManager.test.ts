@@ -171,4 +171,89 @@ test('TASK_TEMPLATES has expected entries', () => {
   assert.strictEqual(TASK_TEMPLATES[4].name, 'AI Prompt Idea');
 });
 
+// ── pauseSession / resumeSession ──
+
+test('pauseSession sets pausedAt on active session', () => {
+  const { sm, storage } = createSessionManager();
+  sm.startSession('/test');
+  const result = sm.pauseSession();
+  assert.strictEqual(result, true);
+  const session = sm.getActiveSession();
+  assert.ok(session?.pausedAt);
+});
+
+test('pauseSession returns false when no active session', () => {
+  const { sm } = createSessionManager();
+  assert.strictEqual(sm.pauseSession(), false);
+});
+
+test('pauseSession returns false when already paused', () => {
+  const { sm } = createSessionManager();
+  sm.startSession('/test');
+  sm.pauseSession();
+  assert.strictEqual(sm.pauseSession(), false);
+});
+
+test('resumeSession accumulates paused time and clears pausedAt', () => {
+  const { sm, storage } = createSessionManager();
+  sm.startSession('/test');
+
+  // Manually set pausedAt to 500ms ago
+  const data = storage.getData();
+  const session = data.sessions.find((s: any) => s.id === data.activeSessionId)!;
+  session.pausedAt = new Date(Date.now() - 500).toISOString();
+  storage.setData(data);
+
+  const result = sm.resumeSession();
+  assert.strictEqual(result, true);
+
+  const updated = sm.getActiveSession();
+  assert.strictEqual(updated?.pausedAt, null);
+  assert.ok((updated?.totalPausedMs || 0) >= 400); // at least ~400ms
+});
+
+test('resumeSession returns false when not paused', () => {
+  const { sm } = createSessionManager();
+  sm.startSession('/test');
+  assert.strictEqual(sm.resumeSession(), false);
+});
+
+test('endSession while paused excludes paused time from duration', () => {
+  const { sm, storage } = createSessionManager();
+  sm.startSession('/test');
+
+  // Set startedAt to 10s ago, pause 5s ago
+  const data = storage.getData();
+  const session = data.sessions.find((s: any) => s.id === data.activeSessionId)!;
+  const now = Date.now();
+  session.startedAt = new Date(now - 10000).toISOString();
+  session.pausedAt = new Date(now - 5000).toISOString();
+  session.totalPausedMs = 0;
+  storage.setData(data);
+
+  const summary = sm.endSession();
+  assert.ok(summary);
+  // Duration should be ~5s (10s total minus ~5s paused), not 10s
+  assert.ok(summary!.duration < 7000, `Duration ${summary!.duration}ms should be less than 7000ms`);
+  assert.ok(summary!.duration >= 3000, `Duration ${summary!.duration}ms should be at least 3000ms`);
+});
+
+test('computeSummary subtracts totalPausedMs from duration', () => {
+  const { sm, storage } = createSessionManager();
+  const session = sm.startSession('/test');
+
+  // Set startedAt to 20s ago with 8s of paused time
+  const data = storage.getData();
+  const s = data.sessions.find((s: any) => s.id === session.id)!;
+  const now = Date.now();
+  s.startedAt = new Date(now - 20000).toISOString();
+  s.totalPausedMs = 8000;
+  storage.setData(data);
+
+  const summary = sm.computeSummary(storage.getData(), session.id);
+  // Duration should be ~12s (20s - 8s paused), not 20s
+  assert.ok(summary.duration < 14000, `Duration ${summary.duration}ms should be less than 14000ms`);
+  assert.ok(summary.duration >= 10000, `Duration ${summary.duration}ms should be at least 10000ms`);
+});
+
 console.log('\nDone.\n');

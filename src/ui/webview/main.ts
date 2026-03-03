@@ -33,6 +33,8 @@ interface VBSession {
   startedAt: string;
   endedAt: string | null;
   status: 'active' | 'ended';
+  pausedAt?: string | null;
+  totalPausedMs?: number;
 }
 
 interface VBBoard {
@@ -280,11 +282,17 @@ function renderSessionBar(session: VBSession | null): string {
   }
 
   const activeBoardName = state?.boards?.find((b) => b.id === state?.activeBoardId)?.name || 'Session';
+  const isPaused = !!session.pausedAt;
+  const pausePlayBtn = isPaused
+    ? `<button class="icon-btn session-play-btn" id="btn-resume-session" title="Resume Session" aria-label="Resume session">&#9654;</button>`
+    : `<button class="icon-btn session-pause-btn" id="btn-pause-session" title="Pause Session" aria-label="Pause session">&#9208;</button>`;
+  const timerClass = isPaused ? 'session-timer paused' : 'session-timer';
 
   return `<div class="session-bar" role="toolbar" aria-label="Session controls">
     <div class="session-info">
       <span class="session-name">${escapeHtml(activeBoardName)}</span>
-      <span class="session-timer" id="session-timer" aria-live="polite">00:00:00</span>
+      <span class="${timerClass}" id="session-timer" aria-live="polite">00:00:00</span>
+      ${pausePlayBtn}
     </div>
     <div class="session-actions">${aiBtn}${undoBtn}${redoBtn}${helpBtn}${viewToggle}<button class="secondary" id="btn-end-session">End Session</button></div>
   </div>
@@ -537,7 +545,8 @@ function renderNoSessionState(): string {
         const date = new Date(s.startedAt).toLocaleDateString();
         const time = new Date(s.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const endMs = s.endedAt ? new Date(s.endedAt).getTime() : Date.now();
-        const dur = formatDuration(endMs - new Date(s.startedAt).getTime());
+        const totalPaused = s.totalPausedMs || 0;
+        const dur = formatDuration(Math.max(0, endMs - new Date(s.startedAt).getTime() - totalPaused));
         const sessionTasks = state!.tasks.filter((t) => t.sessionId === s.id);
         const completed = sessionTasks.filter((t) => t.status === 'completed').length;
         const carried = sessionTasks.filter((t) => t.carriedFromSessionId).length;
@@ -609,6 +618,16 @@ function bindEvents(): void {
   // End session — show session picker
   document.getElementById('btn-end-session')?.addEventListener('click', () => {
     showEndSessionPicker();
+  });
+
+  // Pause session
+  document.getElementById('btn-pause-session')?.addEventListener('click', () => {
+    vscode.postMessage({ type: 'pauseSession', payload: {} });
+  });
+
+  // Resume session
+  document.getElementById('btn-resume-session')?.addEventListener('click', () => {
+    vscode.postMessage({ type: 'resumeSession', payload: {} });
   });
 
   // Undo
@@ -1374,22 +1393,38 @@ function renderHistory(): void {
     el.addEventListener('click', () => { showStartSessionDialog(); activeView = 'board'; });
   });
   document.getElementById('btn-end-session')?.addEventListener('click', () => vscode.postMessage({ type: 'endSession', payload: {} }));
+  document.getElementById('btn-pause-session')?.addEventListener('click', () => vscode.postMessage({ type: 'pauseSession', payload: {} }));
+  document.getElementById('btn-resume-session')?.addEventListener('click', () => vscode.postMessage({ type: 'resumeSession', payload: {} }));
 }
 
 // ============================================================
 // Timers
 // ============================================================
 
+function getSessionElapsedMs(session: VBSession): number {
+  const startTime = new Date(session.startedAt).getTime();
+  const totalPaused = session.totalPausedMs || 0;
+  if (session.pausedAt) {
+    // Paused: freeze at the moment of pause minus accumulated pauses
+    return new Date(session.pausedAt).getTime() - startTime - totalPaused;
+  }
+  return Date.now() - startTime - totalPaused;
+}
+
 function startTimer(session: VBSession | null): void {
   if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
   if (!session || session.status !== 'active') { return; }
-  const startTime = new Date(session.startedAt).getTime();
+
   const update = () => {
     const el = document.getElementById('session-timer');
-    if (el) { el.textContent = formatDuration(Date.now() - startTime); }
+    if (el) { el.textContent = formatDuration(Math.max(0, getSessionElapsedMs(session))); }
   };
   update();
-  timerInterval = setInterval(update, 1000);
+
+  // Don't tick when paused
+  if (!session.pausedAt) {
+    timerInterval = setInterval(update, 1000);
+  }
 }
 
 function startTaskTimers(): void {
@@ -1778,7 +1813,7 @@ function renderHelpContent(section: string): string {
         </ol>
         <h4>Interface Overview</h4>
         <ul>
-          <li><strong>Session Bar</strong> &mdash; Top bar showing session timer and action buttons (undo, redo, AI summary, help, history, end session).</li>
+          <li><strong>Session Bar</strong> &mdash; Top bar showing session timer, pause/resume button, and action buttons (undo, redo, AI summary, help, history, end session).</li>
           <li><strong>Board Tabs</strong> &mdash; Below the session bar. Click to switch boards, <strong>&times;</strong> to close, double-click to rename, <strong>+</strong> to create a new board.</li>
           <li><strong>Stats Bar</strong> &mdash; Displays live counts for total tasks, completed, up next, and high-priority items.</li>
           <li><strong>Search &amp; Filter</strong> &mdash; Filter tasks by text, tag, or priority.</li>
@@ -1893,6 +1928,13 @@ function renderHelpContent(section: string): string {
           <li>If you keep some boards open, the session continues with the remaining boards.</li>
           <li>Tasks are preserved for history and carry-over — closing a board does not delete tasks.</li>
         </ul>
+        <h4>Pausing &amp; Resuming</h4>
+        <ul>
+          <li>Click the <strong>pause button</strong> (&#9208;) next to the session timer to pause. The timer freezes and blinks.</li>
+          <li>Click the <strong>play button</strong> (&#9654;) to resume. Paused time is excluded from total session duration.</li>
+          <li>You can pause and resume as many times as needed throughout a session.</li>
+          <li>If you end a session while it&rsquo;s paused, the paused time is automatically excluded from the duration summary.</li>
+        </ul>
         <h4>Session History</h4>
         <ul>
           <li>Click the <strong>book icon</strong> (&#128218;) or press <kbd>Ctrl+H</kbd> to toggle the history view.</li>
@@ -1913,6 +1955,11 @@ function renderHelpContent(section: string): string {
         <h3>Time Tracking</h3>
         <h4>Session Timer</h4>
         <p>The timer in the top-left of the session bar tracks total session duration. It starts automatically when you begin a session.</p>
+        <ul>
+          <li>Click the <strong>pause button</strong> (&#9208;) next to the timer to pause the session. The timer freezes and blinks to indicate it&rsquo;s paused.</li>
+          <li>Click the <strong>play button</strong> (&#9654;) to resume. Paused time is <em>not</em> counted toward session duration.</li>
+          <li>Each session tracks its own elapsed time independently, excluding any paused intervals.</li>
+        </ul>
         <h4>Per-Task Timers</h4>
         <ul>
           <li>Each task has its own timer. Click the <strong>play button</strong> (&#9654;) on a task card to start tracking time on it.</li>

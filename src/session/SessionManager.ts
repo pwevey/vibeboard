@@ -66,11 +66,47 @@ export class SessionManager {
       return null;
     }
 
+    // If session is paused, resume it first so totalPausedMs is accurate
+    const session = data.sessions.find((s) => s.id === data.activeSessionId);
+    if (session?.pausedAt) {
+      const pauseDuration = Date.now() - new Date(session.pausedAt).getTime();
+      session.totalPausedMs = (session.totalPausedMs || 0) + pauseDuration;
+      session.pausedAt = null;
+    }
+
     const summary = this.computeSummary(data, data.activeSessionId);
     this.endSessionInternal(data);
     this.storage.setData(data);
 
     return summary;
+  }
+
+  /**
+   * Pause the active session. Sets pausedAt timestamp.
+   */
+  pauseSession(): boolean {
+    const data = this.storage.getData();
+    if (!data.activeSessionId) { return false; }
+    const session = data.sessions.find((s) => s.id === data.activeSessionId);
+    if (!session || session.pausedAt) { return false; } // already paused or no session
+    session.pausedAt = new Date().toISOString();
+    this.storage.setData(data);
+    return true;
+  }
+
+  /**
+   * Resume a paused session. Accumulates pause duration.
+   */
+  resumeSession(): boolean {
+    const data = this.storage.getData();
+    if (!data.activeSessionId) { return false; }
+    const session = data.sessions.find((s) => s.id === data.activeSessionId);
+    if (!session || !session.pausedAt) { return false; } // not paused
+    const pauseDuration = Date.now() - new Date(session.pausedAt).getTime();
+    session.totalPausedMs = (session.totalPausedMs || 0) + pauseDuration;
+    session.pausedAt = null;
+    this.storage.setData(data);
+    return true;
   }
 
   /**
@@ -94,7 +130,13 @@ export class SessionManager {
 
     const startTime = session ? new Date(session.startedAt).getTime() : Date.now();
     const endTime = session?.endedAt ? new Date(session.endedAt).getTime() : Date.now();
-    const duration = endTime - startTime;
+    const totalPaused = session?.totalPausedMs || 0;
+    // If currently paused, include the current pause duration
+    let currentPause = 0;
+    if (session?.pausedAt) {
+      currentPause = endTime - new Date(session.pausedAt).getTime();
+    }
+    const duration = Math.max(0, endTime - startTime - totalPaused - currentPause);
 
     const completedTasks = tasks.filter((t) => t.status === 'completed');
     const carriedOver = tasks.filter((t) => t.status !== 'completed');

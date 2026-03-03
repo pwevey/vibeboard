@@ -64,6 +64,27 @@ body {
   font-size: 13px;
 }
 
+.session-bar .session-timer.paused {
+  opacity: 0.5;
+  animation: session-timer-blink 1.5s ease-in-out infinite;
+}
+
+@keyframes session-timer-blink {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.2; }
+}
+
+.session-pause-btn,
+.session-play-btn {
+  font-size: 12px !important;
+  padding: 0 4px !important;
+  line-height: 1;
+}
+
+.session-play-btn {
+  color: var(--vscode-charts-green, #4ec9b0) !important;
+}
+
 .session-bar .session-actions {
   display: flex;
   gap: 4px;

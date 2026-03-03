@@ -39,6 +39,8 @@ export interface VBSession {
   startedAt: string;       // ISO 8601
   endedAt: string | null;
   status: SessionStatus;
+  pausedAt?: string | null;      // ISO 8601 when session was paused
+  totalPausedMs?: number;        // accumulated paused milliseconds
 }
 
 export interface VBSessionSummary {
@@ -101,6 +103,8 @@ export type WebviewToExtensionMessage =
   | { type: 'completeTask'; payload: { id: string } }
   | { type: 'startSession'; payload: { name?: string } }
   | { type: 'endSession'; payload: Record<string, never> }
+  | { type: 'pauseSession'; payload: Record<string, never> }
+  | { type: 'resumeSession'; payload: Record<string, never> }
   | { type: 'endSessions'; payload: { sessionIds: string[] } }
   | { type: 'requestHistory'; payload: Record<string, never> }
   | { type: 'exportData'; payload: { format: 'json' | 'csv' | 'markdown'; timePeriod?: ExportTimePeriod; customStart?: string; customEnd?: string } }

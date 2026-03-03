@@ -303,6 +303,24 @@ export class MessageHandler {
         break;
       }
 
+      case 'pauseSession': {
+        const paused = this.sessionManager.pauseSession();
+        if (paused) {
+          vscode.window.showInformationMessage('Vibe Board: Session paused.');
+        }
+        this.sendStateUpdate();
+        break;
+      }
+
+      case 'resumeSession': {
+        const resumed = this.sessionManager.resumeSession();
+        if (resumed) {
+          vscode.window.showInformationMessage('Vibe Board: Session resumed.');
+        }
+        this.sendStateUpdate();
+        break;
+      }
+
       case 'endSessions': {
         const { sessionIds } = message.payload as { sessionIds: string[] };
         let activeSummary: import('../storage/models').VBSessionSummary | null = null;
