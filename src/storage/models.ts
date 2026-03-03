@@ -78,6 +78,8 @@ export interface VBBoard {
   id: string;
   name: string;
   createdAt: string;
+  pausedAt?: string | null;
+  totalPausedMs?: number;
 }
 
 // === Task Templates ===
@@ -141,7 +143,7 @@ export function createDefaultWorkspaceData(): VBWorkspaceData {
     undoStack: [],
     redoStack: [],
     activeBoardId: 'default',
-    boards: [{ id: 'default', name: 'Main Board', createdAt: new Date().toISOString() }],
+    boards: [{ id: 'default', name: 'Main Board', createdAt: new Date().toISOString(), pausedAt: null, totalPausedMs: 0 }],
   };
 }
 

@@ -131,7 +131,7 @@ export class MessageHandler {
       case 'createBoard': {
         const data = this.storage.getData();
         if (!data.boards) { data.boards = []; }
-        const board = { id: generateId(), name: message.payload.name, createdAt: new Date().toISOString() };
+        const board = { id: generateId(), name: message.payload.name, createdAt: new Date().toISOString(), pausedAt: null, totalPausedMs: 0 };
         data.boards.push(board);
         data.activeBoardId = board.id;
         this.storage.setData(data);
@@ -265,7 +265,7 @@ export class MessageHandler {
           const updatedData = this.storage.getData();
           if (!updatedData.boards || updatedData.boards.length === 0) {
             const boardName = sessionName || 'Main Board';
-            updatedData.boards = [{ id: 'default', name: boardName, createdAt: new Date().toISOString() }];
+            updatedData.boards = [{ id: 'default', name: boardName, createdAt: new Date().toISOString(), pausedAt: null, totalPausedMs: 0 }];
             updatedData.activeBoardId = 'default';
             this.storage.setData(updatedData);
           }
@@ -304,18 +304,26 @@ export class MessageHandler {
       }
 
       case 'pauseSession': {
-        const paused = this.sessionManager.pauseSession();
-        if (paused) {
-          vscode.window.showInformationMessage('Vibe Board: Session paused.');
+        const data = this.storage.getData();
+        const board = data.boards?.find((b) => b.id === data.activeBoardId);
+        if (board && !board.pausedAt) {
+          board.pausedAt = new Date().toISOString();
+          this.storage.setData(data);
+          vscode.window.showInformationMessage('Vibe Board: Board timer paused.');
         }
         this.sendStateUpdate();
         break;
       }
 
       case 'resumeSession': {
-        const resumed = this.sessionManager.resumeSession();
-        if (resumed) {
-          vscode.window.showInformationMessage('Vibe Board: Session resumed.');
+        const data = this.storage.getData();
+        const board = data.boards?.find((b) => b.id === data.activeBoardId);
+        if (board && board.pausedAt) {
+          const pauseDuration = Date.now() - new Date(board.pausedAt).getTime();
+          board.totalPausedMs = (board.totalPausedMs || 0) + pauseDuration;
+          board.pausedAt = null;
+          this.storage.setData(data);
+          vscode.window.showInformationMessage('Vibe Board: Board timer resumed.');
         }
         this.sendStateUpdate();
         break;

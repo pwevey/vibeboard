@@ -41,6 +41,8 @@ interface VBBoard {
   id: string;
   name: string;
   createdAt: string;
+  pausedAt?: string | null;
+  totalPausedMs?: number;
 }
 
 interface VBWorkspaceData {
@@ -282,10 +284,11 @@ function renderSessionBar(session: VBSession | null): string {
   }
 
   const activeBoardName = state?.boards?.find((b) => b.id === state?.activeBoardId)?.name || 'Session';
-  const isPaused = !!session.pausedAt;
+  const activeBoard = state?.boards?.find((b) => b.id === state?.activeBoardId);
+  const isPaused = !!activeBoard?.pausedAt;
   const pausePlayBtn = isPaused
-    ? `<button class="icon-btn session-play-btn" id="btn-resume-session" title="Resume Session" aria-label="Resume session">&#9654;</button>`
-    : `<button class="icon-btn session-pause-btn" id="btn-pause-session" title="Pause Session" aria-label="Pause session">&#9208;</button>`;
+    ? `<button class="icon-btn session-play-btn" id="btn-resume-session" title="Resume Board Timer" aria-label="Resume board timer">&#9654;</button>`
+    : `<button class="icon-btn session-pause-btn" id="btn-pause-session" title="Pause Board Timer" aria-label="Pause board timer">&#9208;</button>`;
   const timerClass = isPaused ? 'session-timer paused' : 'session-timer';
 
   return `<div class="session-bar" role="toolbar" aria-label="Session controls">
@@ -1401,12 +1404,12 @@ function renderHistory(): void {
 // Timers
 // ============================================================
 
-function getSessionElapsedMs(session: VBSession): number {
-  const startTime = new Date(session.startedAt).getTime();
-  const totalPaused = session.totalPausedMs || 0;
-  if (session.pausedAt) {
+function getBoardElapsedMs(board: VBBoard): number {
+  const startTime = new Date(board.createdAt).getTime();
+  const totalPaused = board.totalPausedMs || 0;
+  if (board.pausedAt) {
     // Paused: freeze at the moment of pause minus accumulated pauses
-    return new Date(session.pausedAt).getTime() - startTime - totalPaused;
+    return new Date(board.pausedAt).getTime() - startTime - totalPaused;
   }
   return Date.now() - startTime - totalPaused;
 }
@@ -1415,14 +1418,17 @@ function startTimer(session: VBSession | null): void {
   if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
   if (!session || session.status !== 'active') { return; }
 
+  const activeBoard = state?.boards?.find((b) => b.id === state?.activeBoardId);
+  if (!activeBoard) { return; }
+
   const update = () => {
     const el = document.getElementById('session-timer');
-    if (el) { el.textContent = formatDuration(Math.max(0, getSessionElapsedMs(session))); }
+    if (el) { el.textContent = formatDuration(Math.max(0, getBoardElapsedMs(activeBoard))); }
   };
   update();
 
   // Don't tick when paused
-  if (!session.pausedAt) {
+  if (!activeBoard.pausedAt) {
     timerInterval = setInterval(update, 1000);
   }
 }
