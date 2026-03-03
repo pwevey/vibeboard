@@ -468,6 +468,7 @@ function renderTaskCard(task: VBTask): string {
       ${carriedBadge}<span class="${titleClass}" data-edit-title="${task.id}" title="Double-click to edit">${escapeHtml(task.title)}</span>
       <div class="task-actions">
         <button class="icon-btn timer-btn ${timerActive ? 'active' : ''}" data-timer="${task.id}" title="${timerActive ? 'Stop timer' : 'Start timer'}" aria-label="Toggle timer">${timerIcon}</button>
+        <button class="icon-btn copilot-btn" data-send-copilot="${task.id}" title="Send to Copilot" aria-label="Send to Copilot">&#128640;</button>
         <button class="icon-btn" data-edit="${task.id}" title="Edit" aria-label="Edit task">&#9998;</button>
         <button class="icon-btn" data-context="${task.id}" title="More" aria-label="More actions">&#8943;</button>
       </div>
@@ -813,6 +814,14 @@ function bindEvents(): void {
     el.addEventListener('click', (e) => { e.stopPropagation(); showContextMenu(el.dataset.context!, e); });
   });
 
+  // Send to Copilot button
+  document.querySelectorAll<HTMLElement>('[data-send-copilot]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      vscode.postMessage({ type: 'sendToCopilot', payload: { taskId: el.dataset.sendCopilot! } });
+    });
+  });
+
   // Right-click context menu
   document.querySelectorAll<HTMLElement>('.task-card:not(.editing)').forEach((card) => {
     card.addEventListener('contextmenu', (e) => {
@@ -1031,6 +1040,7 @@ function showContextMenu(taskId: string, event: Event): void {
     <div class="ctx-item" data-ctx-timer role="menuitem">${task.timerStartedAt ? '&#9209; Stop Timer' : '&#9654; Start Timer'}</div>
     <div class="ctx-separator" role="separator"></div>
     <div class="ctx-item" data-ctx-ai-breakdown role="menuitem">&#10024; AI Breakdown</div>
+    <div class="ctx-item" data-ctx-send-copilot role="menuitem">&#128640; Send to Copilot</div>
     <div class="ctx-separator" role="separator"></div>
     <div class="ctx-item danger" data-ctx-delete role="menuitem">&#128465; Delete</div>`;
 
@@ -1050,6 +1060,7 @@ function showContextMenu(taskId: string, event: Event): void {
     }
     else if (target.hasAttribute('data-ctx-timer')) { vscode.postMessage({ type: 'toggleTimer', payload: { id: taskId } }); }
     else if (target.hasAttribute('data-ctx-ai-breakdown')) { vscode.postMessage({ type: 'aiBreakdown', payload: { taskId } }); }
+    else if (target.hasAttribute('data-ctx-send-copilot')) { vscode.postMessage({ type: 'sendToCopilot', payload: { taskId } }); }
     else if (target.hasAttribute('data-ctx-delete')) { showDeleteConfirm(taskId, task.title); }
     else if (target.dataset.ctxMove) { vscode.postMessage({ type: 'moveTask', payload: { id: taskId, newStatus: target.dataset.ctxMove as TaskStatus, newOrder: 0 } }); }
     menu.remove();
@@ -2020,6 +2031,13 @@ function renderHelpContent(section: string): string {
           <li>Right-click a task and choose <strong>AI Breakdown</strong> from the context menu.</li>
           <li>The AI splits the task into 3&ndash;5 actionable subtasks, which are added as new tasks in <em>Up Next</em>.</li>
         </ul>
+        <h4>Send to Copilot</h4>
+        <ul>
+          <li>Click the <strong>rocket icon</strong> (&#x1F680;) on any task card to send it directly to <strong>Copilot Chat</strong>.</li>
+          <li>You can also right-click a task and choose <strong>Send to Copilot</strong> from the context menu.</li>
+          <li>The task title and description are placed into the Copilot Chat input so you can start prompting immediately.</li>
+          <li>If Copilot Chat is not available, the prompt is copied to your clipboard instead.</li>
+        </ul>
         <h4>AI Improve Task</h4>
         <ul>
           <li>Type a rough idea in the quick-add input, then click the <strong>sparkle icon</strong> (&#10024;) next to the Add button.</li>
@@ -2112,6 +2130,7 @@ function renderHelpContent(section: string): string {
           <li><strong>Complete / Reopen</strong> &mdash; Toggle completion status.</li>
           <li><strong>Start / Stop Timer</strong> &mdash; Toggle per-task time tracking.</li>
           <li><strong>AI Breakdown</strong> &mdash; Use AI to split a task into subtasks (requires Copilot Chat).</li>
+          <li><strong>Send to Copilot</strong> &mdash; Send task content to Copilot Chat as a prompt.</li>
           <li><strong>Delete</strong> &mdash; Remove task (with confirmation).</li>
         </ul>
         <h4>VS Code Commands</h4>

@@ -124,6 +124,7 @@ export type WebviewToExtensionMessage =
   | { type: 'aiSummarize'; payload: Record<string, never> }
   | { type: 'aiBreakdown'; payload: { taskId: string } }
   | { type: 'aiRewriteTitle'; payload: { title: string } }
+  | { type: 'sendToCopilot'; payload: { taskId: string } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =

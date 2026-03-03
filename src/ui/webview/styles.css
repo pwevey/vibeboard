@@ -609,6 +609,15 @@ body.is-dragging .task-card:not(.dragging) {
   opacity: 1 !important;
 }
 
+.copilot-btn {
+  font-size: 11px !important;
+}
+
+.copilot-btn:hover {
+  opacity: 1 !important;
+  color: var(--vscode-textLink-foreground) !important;
+}
+
 /* ============================================================
    Template Bar
    ============================================================ */

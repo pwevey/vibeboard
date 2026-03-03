@@ -32,7 +32,7 @@ export class MessageHandler {
   /**
    * Handle an incoming message from the webview.
    */
-  handleMessage(message: WebviewToExtensionMessage): void {
+  async handleMessage(message: WebviewToExtensionMessage): Promise<void> {
     switch (message.type) {
       case 'ready':
         this.sendStateUpdate();
@@ -248,6 +248,36 @@ export class MessageHandler {
         this.aiService.rewriteTask(message.payload.title).then((rewritten) => {
           this.webview?.postMessage({ type: 'aiResult', payload: { action: 'rewriteTitle', result: JSON.stringify(rewritten) } });
         });
+        break;
+      }
+
+      case 'sendToCopilot': {
+        const data = this.storage.getData();
+        const task = data.tasks.find((t) => t.id === message.payload.taskId);
+        if (!task) { break; }
+
+        // Build the prompt from task content
+        let prompt = task.title;
+        if (task.description) {
+          prompt += '\n\n' + task.description;
+        }
+
+        // Try to open Copilot Chat with the prompt pre-filled
+        try {
+          await vscode.commands.executeCommand('workbench.action.chat.open', { query: prompt });
+        } catch {
+          // Fallback: try GitHub Copilot Chat panel
+          try {
+            await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
+            // Copy to clipboard so user can paste
+            await vscode.env.clipboard.writeText(prompt);
+            vscode.window.showInformationMessage('Vibe Board: Prompt copied to clipboard. Paste it in the chat.');
+          } catch {
+            // Last fallback: just copy to clipboard
+            await vscode.env.clipboard.writeText(prompt);
+            vscode.window.showInformationMessage('Vibe Board: Prompt copied to clipboard. Open Copilot Chat and paste.');
+          }
+        }
         break;
       }
 
