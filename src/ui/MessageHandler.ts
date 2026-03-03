@@ -52,6 +52,18 @@ export class MessageHandler {
           description: message.payload.description,
           sessionId: session.id,
         });
+
+        // If quick-add included pending attachments, apply them to the newly created task
+        const quickAddAttachments = (message.payload as { attachments?: VBAttachment[] }).attachments;
+        if (quickAddAttachments && quickAddAttachments.length > 0) {
+          const data = this.storage.getData();
+          const newTask = data.tasks[data.tasks.length - 1]; // just added
+          if (newTask) {
+            newTask.attachments = quickAddAttachments;
+            this.storage.setData(data);
+          }
+        }
+
         this.sendStateUpdate();
         break;
       }
@@ -384,6 +396,48 @@ export class MessageHandler {
         task.attachments.push(attachment);
         this.storage.setData(data);
         this.sendStateUpdate();
+        break;
+      }
+
+      case 'pickFilesForQuickAdd': {
+        // Open file dialog for quick-add attachments (before task exists)
+        const files = await vscode.window.showOpenDialog({
+          canSelectMany: true,
+          filters: {
+            'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'],
+            'All Files': ['*'],
+          },
+          title: 'Attach files to new task',
+        });
+        if (!files || files.length === 0) { break; }
+
+        const pickedFiles: VBAttachment[] = [];
+        for (const fileUri of files) {
+          try {
+            const fileBytes = await vscode.workspace.fs.readFile(fileUri);
+            const filename = fileUri.path.split('/').pop() || 'attachment';
+            const ext = filename.split('.').pop()?.toLowerCase() || '';
+            const mimeMap: Record<string, string> = {
+              png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+              gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
+              svg: 'image/svg+xml',
+            };
+            const mimeType = mimeMap[ext] || 'application/octet-stream';
+            const base64 = Buffer.from(fileBytes).toString('base64');
+            const dataUri = `data:${mimeType};base64,${base64}`;
+
+            pickedFiles.push({
+              id: generateId(),
+              filename,
+              mimeType,
+              dataUri,
+              addedAt: new Date().toISOString(),
+            });
+          } catch { /* skip failed reads */ }
+        }
+        if (pickedFiles.length > 0) {
+          this.webview?.postMessage({ type: 'quickAddFiles', payload: { files: pickedFiles } });
+        }
         break;
       }
 

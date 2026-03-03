@@ -1899,26 +1899,23 @@ textarea:focus-visible {
    Voice Input
    ============================================================ */
 
-.quick-add-input-row {
-  display: flex;
-  gap: 4px;
-  align-items: stretch;
-}
-
-.quick-add-input-row textarea {
-  flex: 1;
-}
-
 .voice-btn {
-  font-size: 16px !important;
   padding: 4px 6px !important;
   border-radius: 4px !important;
   flex-shrink: 0;
-  align-self: center;
   background: transparent;
   border: 1px solid var(--vscode-input-border);
   cursor: pointer;
   transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: var(--vscode-foreground);
 }
 
 .voice-btn:hover {
@@ -1926,14 +1923,89 @@ textarea:focus-visible {
 }
 
 .voice-btn.recording {
-  color: #F44336 !important;
   border-color: #F44336 !important;
   animation: voice-pulse 1s ease-in-out infinite;
+}
+
+.voice-btn.recording svg {
+  fill: #F44336;
 }
 
 @keyframes voice-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.4); }
   50% { box-shadow: 0 0 0 6px rgba(244, 67, 54, 0); }
+}
+
+/* ============================================================
+   Quick Add Attachments Preview
+   ============================================================ */
+
+.attach-qa-btn {
+  font-size: 13px !important;
+  padding: 4px 6px !important;
+  border-radius: 4px !important;
+  border: 1px solid var(--vscode-input-border);
+  background: transparent;
+  cursor: pointer;
+}
+
+.attach-qa-btn:hover {
+  background: var(--vscode-button-hoverBackground, rgba(255,255,255,0.1));
+}
+
+.quick-add-attachments {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 2px 0;
+}
+
+.quick-add-att-item {
+  position: relative;
+  width: 36px;
+  height: 36px;
+}
+
+.quick-add-att-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid var(--vscode-widget-border);
+}
+
+.quick-add-att-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 3px;
+}
+
+.quick-add-att-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #F44336;
+  color: #fff;
+  border: none;
+  font-size: 8px;
+  line-height: 14px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+  display: none;
+}
+
+.quick-add-att-item:hover .quick-add-att-remove {
+  display: block;
 }
 
 /* ============================================================

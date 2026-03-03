@@ -109,7 +109,7 @@ export type ExportTimePeriod = 'all' | 'day' | 'week' | 'month' | 'year' | 'curr
 // === Webview Message Types ===
 
 export type WebviewToExtensionMessage =
-  | { type: 'addTask'; payload: { title: string; tag: TaskTag; status: TaskStatus; priority?: TaskPriority; description?: string } }
+  | { type: 'addTask'; payload: { title: string; tag: TaskTag; status: TaskStatus; priority?: TaskPriority; description?: string; attachments?: VBAttachment[] } }
   | { type: 'updateTask'; payload: { id: string; changes: Partial<Pick<VBTask, 'title' | 'description' | 'tag' | 'priority'>> } }
   | { type: 'moveTask'; payload: { id: string; newStatus: TaskStatus; newOrder: number } }
   | { type: 'deleteTask'; payload: { id: string } }
@@ -139,13 +139,15 @@ export type WebviewToExtensionMessage =
   | { type: 'addAttachment'; payload: { taskId: string } }
   | { type: 'removeAttachment'; payload: { taskId: string; attachmentId: string } }
   | { type: 'pasteAttachment'; payload: { taskId: string; dataUri: string; filename: string } }
+  | { type: 'pickFilesForQuickAdd'; payload: Record<string, never> }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
   | { type: 'stateUpdate'; payload: VBWorkspaceData }
   | { type: 'sessionSummary'; payload: VBSessionSummary }
   | { type: 'sessionHistory'; payload: { sessions: VBSession[]; summaries: VBSessionSummary[] } }
-  | { type: 'aiResult'; payload: { action: string; result: string | string[]; taskId?: string } };
+  | { type: 'aiResult'; payload: { action: string; result: string | string[]; taskId?: string } }
+  | { type: 'quickAddFiles'; payload: { files: VBAttachment[] } };
 
 // === Factory Functions ===
 

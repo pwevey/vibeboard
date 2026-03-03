@@ -126,6 +126,7 @@ let contextMenuTaskId: string | null = null;
 let pendingAIDescription: string = '';
 let voiceRecognition: unknown = null;
 let isVoiceRecording = false;
+let pendingQuickAddAttachments: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[] = [];
 
 // ============================================================
 // Initialization
@@ -149,6 +150,11 @@ window.addEventListener('message', (event) => {
       break;
     case 'aiResult':
       handleAIResult(message.payload);
+      break;
+    case 'quickAddFiles':
+      // Files picked for quick-add — store as pending attachments
+      pendingQuickAddAttachments = pendingQuickAddAttachments.concat(message.payload.files);
+      render();
       break;
   }
 });
@@ -408,11 +414,22 @@ function renderQuickAdd(): string {
     `<button class="icon-btn template-btn" data-template="${i}" title="${t.name}" aria-label="Template: ${t.name}">${t.icon}</button>`
   ).join('');
 
+  const pendingThumbs = pendingQuickAddAttachments.length > 0
+    ? `<div class="quick-add-attachments">
+        ${pendingQuickAddAttachments.map(a => `<div class="quick-add-att-item">
+          ${a.mimeType.startsWith('image/')
+            ? `<img class="quick-add-att-thumb" src="${a.dataUri}" alt="${escapeAttr(a.filename)}" title="${escapeAttr(a.filename)}" />`
+            : `<span class="quick-add-att-file" title="${escapeAttr(a.filename)}">&#128196;</span>`}
+          <button class="quick-add-att-remove" data-remove-pending="${a.id}" title="Remove">&#10005;</button>
+        </div>`).join('')}
+      </div>`
+    : '';
+
+  const micSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>`;
+
   return `<div class="quick-add">
-    <div class="quick-add-input-row">
-      <textarea id="quick-add-input" placeholder="Add a task... (Enter to submit)" rows="2" aria-label="New task title"></textarea>
-      <button class="icon-btn voice-btn ${isVoiceRecording ? 'recording' : ''}" id="btn-voice" title="${isVoiceRecording ? 'Stop recording' : 'Voice input'}" aria-label="${isVoiceRecording ? 'Stop voice recording' : 'Start voice recording'}">&#127908;</button>
-    </div>
+    <textarea id="quick-add-input" placeholder="Add a task... (Enter to submit)" rows="2" aria-label="New task title"></textarea>
+    ${pendingThumbs}
     <div class="quick-add-controls">
       <select id="quick-add-tag" aria-label="Task tag">
         <option value="feature">Feature</option><option value="bug">Bug</option>
@@ -425,6 +442,8 @@ function renderQuickAdd(): string {
         <option value="up-next">Up Next</option><option value="backlog">Backlog</option><option value="notes">Notes</option>
       </select>
       <button class="icon-btn ai-suggest-btn" id="btn-ai-rewrite" title="AI improve task" aria-label="AI improve task">&#10024;</button>
+      <button class="icon-btn voice-btn ${isVoiceRecording ? 'recording' : ''}" id="btn-voice" title="${isVoiceRecording ? 'Stop recording' : 'Voice input'}" aria-label="${isVoiceRecording ? 'Stop voice recording' : 'Start voice recording'}">${micSvg}</button>
+      <button class="icon-btn attach-qa-btn" id="btn-quick-attach" title="Attach file" aria-label="Attach file to new task">&#128206;</button>
       <button id="btn-quick-add">Add</button>
     </div>
     <div class="template-bar">${templateBtns}</div>
@@ -916,18 +935,23 @@ function bindQuickAdd(): void {
     const title = lines[0].trim();
     const description = lines.slice(1).join('\n').trim() || pendingAIDescription || undefined;
 
-    vscode.postMessage({
-      type: 'addTask',
-      payload: {
-        title,
-        tag: addTag.value as TaskTag,
-        priority: (addPriority?.value ?? 'medium') as TaskPriority,
-        status: addCol.value as TaskStatus,
-        description,
-      },
-    });
+    const payload: Record<string, unknown> = {
+      title,
+      tag: addTag.value as TaskTag,
+      priority: (addPriority?.value ?? 'medium') as TaskPriority,
+      status: addCol.value as TaskStatus,
+      description,
+    };
+
+    // Include pending attachments if any
+    if (pendingQuickAddAttachments.length > 0) {
+      payload.attachments = pendingQuickAddAttachments;
+    }
+
+    vscode.postMessage({ type: 'addTask', payload });
     addInput.value = '';
     pendingAIDescription = '';
+    pendingQuickAddAttachments = [];
     addInput.focus();
   };
 
@@ -939,6 +963,21 @@ function bindQuickAdd(): void {
   // Voice input button
   document.getElementById('btn-voice')?.addEventListener('click', () => {
     toggleVoiceRecording();
+  });
+
+  // Attach file to quick-add
+  document.getElementById('btn-quick-attach')?.addEventListener('click', () => {
+    vscode.postMessage({ type: 'pickFilesForQuickAdd', payload: {} });
+  });
+
+  // Remove pending attachment
+  document.querySelectorAll<HTMLElement>('[data-remove-pending]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const removeId = el.dataset.removePending!;
+      pendingQuickAddAttachments = pendingQuickAddAttachments.filter(a => a.id !== removeId);
+      render();
+    });
   });
 }
 
