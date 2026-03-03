@@ -27,19 +27,43 @@ export class TaskManager {
   }
 
   /**
-   * Undo the last action (restore task snapshot).
+   * Undo the last action (restore task snapshot or reverse add).
    */
   undo(): string | null {
     const data = this.storage.getData();
     if (!data.undoStack || data.undoStack.length === 0) { return null; }
     const entry = data.undoStack.pop()!;
-    const idx = data.tasks.findIndex((t) => t.id === entry.taskSnapshot.id);
-    if (idx >= 0) {
-      data.tasks[idx] = { ...entry.taskSnapshot };
+
+    if (entry.action === 'add') {
+      // Reverse of adding a task — remove it
+      const idx = data.tasks.findIndex((t) => t.id === entry.taskSnapshot.id);
+      if (idx >= 0) {
+        data.tasks.splice(idx, 1);
+      }
     } else {
-      // Task was deleted — re-add it
-      data.tasks.push({ ...entry.taskSnapshot });
+      const idx = data.tasks.findIndex((t) => t.id === entry.taskSnapshot.id);
+      if (idx >= 0) {
+        const currentTask = data.tasks[idx];
+
+        // If the task was moved to a different column, fix sibling orders in that column
+        if (entry.action === 'move' && currentTask.status !== entry.taskSnapshot.status) {
+          const movedToColumn = currentTask.status;
+          const movedToOrder = currentTask.order;
+          // Decrement siblings that were shifted up when the task was inserted
+          for (const t of data.tasks) {
+            if (t.status === movedToColumn && t.id !== currentTask.id && t.order > movedToOrder) {
+              t.order -= 1;
+            }
+          }
+        }
+
+        data.tasks[idx] = { ...entry.taskSnapshot };
+      } else {
+        // Task was deleted — re-add it
+        data.tasks.push({ ...entry.taskSnapshot });
+      }
     }
+
     this.storage.setData(data);
     return entry.action;
   }
@@ -80,6 +104,18 @@ export class TaskManager {
     };
 
     data.tasks.push(task);
+
+    // Push undo so the user can undo task creation (removes the task)
+    if (!data.undoStack) { data.undoStack = []; }
+    data.undoStack.push({
+      action: 'add',
+      taskSnapshot: { ...task },
+      timestamp: new Date().toISOString(),
+    });
+    if (data.undoStack.length > MAX_UNDO) {
+      data.undoStack.shift();
+    }
+
     this.storage.setData(data);
 
     return task;
@@ -217,6 +253,8 @@ export class TaskManager {
     const data = this.storage.getData();
     const task = data.tasks.find((t) => t.id === taskId);
     if (!task) { return null; }
+
+    this.pushUndo('timer', task);
 
     if (task.timerStartedAt) {
       // Stop timer — accumulate elapsed

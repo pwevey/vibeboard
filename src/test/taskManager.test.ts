@@ -86,6 +86,7 @@ test('updateTask with invalid id returns null', () => {
 test('updateTask pushes undo entry', () => {
   const { tm, storage } = createTaskManager();
   const task = tm.addTask({ title: 'T', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  storage.getData().undoStack = []; // clear addTask undo
   tm.updateTask(task.id, { title: 'Changed' });
   assert.strictEqual(storage.getData().undoStack!.length, 1);
   assert.strictEqual(storage.getData().undoStack![0].action, 'edit');
@@ -153,6 +154,7 @@ test('deleteTask with invalid id returns false', () => {
 test('deleteTask pushes undo entry', () => {
   const { tm, storage } = createTaskManager();
   const task = tm.addTask({ title: 'T', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  storage.getData().undoStack = []; // clear addTask undo
   tm.deleteTask(task.id);
   assert.strictEqual(storage.getData().undoStack!.length, 1);
   assert.strictEqual(storage.getData().undoStack![0].action, 'delete');
@@ -219,6 +221,91 @@ test('undo stack max size is enforced', () => {
     tm.updateTask(task.id, { title: `Title ${i}` });
   }
   assert.ok(storage.getData().undoStack!.length <= 20);
+});
+
+test('undo removes added task', () => {
+  const { tm, storage } = createTaskManager();
+  const task = tm.addTask({ title: 'New Task', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  assert.strictEqual(storage.getData().tasks.length, 1);
+  const action = tm.undo();
+  assert.strictEqual(action, 'add');
+  assert.strictEqual(storage.getData().tasks.length, 0);
+});
+
+test('addTask pushes undo entry', () => {
+  const { tm, storage } = createTaskManager();
+  tm.addTask({ title: 'T', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  assert.strictEqual(storage.getData().undoStack!.length, 1);
+  assert.strictEqual(storage.getData().undoStack![0].action, 'add');
+});
+
+test('undo restores timer state', () => {
+  const { tm, storage } = createTaskManager();
+  const task = tm.addTask({ title: 'T', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  // Clear the addTask undo entry
+  storage.getData().undoStack = [];
+  assert.strictEqual(task.timerStartedAt, null);
+  tm.toggleTimer(task.id); // start timer
+  const started = storage.getData().tasks.find((t) => t.id === task.id)!;
+  assert.ok(started.timerStartedAt);
+  const action = tm.undo();
+  assert.strictEqual(action, 'timer');
+  const restored = storage.getData().tasks.find((t) => t.id === task.id)!;
+  assert.strictEqual(restored.timerStartedAt, null);
+});
+
+test('toggleTimer pushes undo entry', () => {
+  const { tm, storage } = createTaskManager();
+  const task = tm.addTask({ title: 'T', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  // Clear the addTask undo entry
+  storage.getData().undoStack = [];
+  tm.toggleTimer(task.id);
+  assert.strictEqual(storage.getData().undoStack!.length, 1);
+  assert.strictEqual(storage.getData().undoStack![0].action, 'timer');
+});
+
+test('undo of moveTask restores task and fixes sibling orders', () => {
+  const { tm, storage } = createTaskManager();
+  // Clear undo stack after setup
+  const t1 = tm.addTask({ title: 'Existing', tag: 'feature', status: 'backlog', sessionId: 's1' });
+  storage.getData().undoStack = [];
+  // Set t1 order to 0
+  const data = storage.getData();
+  data.tasks.find((t) => t.id === t1.id)!.order = 0;
+  storage.setData(data);
+
+  // Add and move a second task to backlog at order 0 (shifts t1 to order 1)
+  const t2 = tm.addTask({ title: 'Mover', tag: 'bug', status: 'up-next', sessionId: 's1' });
+  storage.getData().undoStack = [];
+  tm.moveTask(t2.id, 'backlog', 0);
+
+  // t1 should have been shifted to order 1
+  assert.strictEqual(storage.getData().tasks.find((t) => t.id === t1.id)!.order, 1);
+
+  // Undo the move
+  const action = tm.undo();
+  assert.strictEqual(action, 'move');
+
+  // t2 should be back in up-next
+  const restoredT2 = storage.getData().tasks.find((t) => t.id === t2.id)!;
+  assert.strictEqual(restoredT2.status, 'up-next');
+
+  // t1 should have its order decremented back to 0
+  const restoredT1 = storage.getData().tasks.find((t) => t.id === t1.id)!;
+  assert.strictEqual(restoredT1.order, 0);
+});
+
+test('undo of completeTask restores original status', () => {
+  const { tm, storage } = createTaskManager();
+  const task = tm.addTask({ title: 'T', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  storage.getData().undoStack = [];
+  tm.completeTask(task.id);
+  assert.strictEqual(storage.getData().tasks.find((t) => t.id === task.id)!.status, 'completed');
+  const action = tm.undo();
+  assert.strictEqual(action, 'complete');
+  const restored = storage.getData().tasks.find((t) => t.id === task.id)!;
+  assert.strictEqual(restored.status, 'up-next');
+  assert.strictEqual(restored.completedAt, null);
 });
 
 // ── carryOverTasks ──
