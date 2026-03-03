@@ -31,9 +31,10 @@ export class MessageHandler {
       this.sendStateUpdate();
     });
 
-    // Wire automation's send-to-copilot to our helper (with agent mode)
-    this.automationService.setSendToCopilotHandler(async (prompt, attachments) => {
-      await this.sendPromptToCopilot(prompt, attachments, true);
+    // Wire automation's send-to-copilot to our helper (agent mode, or plan mode for plan tasks)
+    this.automationService.setSendToCopilotHandler(async (prompt, attachments, tag) => {
+      const usePlanMode = tag === 'plan';
+      await this.sendPromptToCopilot(prompt, attachments, !usePlanMode, usePlanMode);
     });
   }
 

@@ -2528,6 +2528,11 @@ textarea:focus-visible {
   text-decoration: line-through;
 }
 
+.auto-queue-item.failed .auto-retry-btn {
+  text-decoration: none;
+  display: inline-block;
+}
+
 .auto-retry-btn {
   background: none;
   border: 1px solid var(--vscode-button-background);

@@ -49,7 +49,7 @@ export class AutomationService {
   private onProgress: ((progress: AutomationProgress) => void) | undefined;
 
   /** Callback to send a prompt to Copilot Chat. */
-  private sendToCopilot: ((prompt: string, attachments: never[]) => Promise<void>) | undefined;
+  private sendToCopilot: ((prompt: string, attachments: never[], tag?: string) => Promise<void>) | undefined;
 
   constructor(
     private storage: StorageProvider,
@@ -65,7 +65,7 @@ export class AutomationService {
   }
 
   /** Register the send-to-copilot callback (from MessageHandler). */
-  setSendToCopilotHandler(handler: (prompt: string, attachments: never[]) => Promise<void>): void {
+  setSendToCopilotHandler(handler: (prompt: string, attachments: never[], tag?: string) => Promise<void>): void {
     this.sendToCopilot = handler;
   }
 
@@ -346,7 +346,7 @@ export class AutomationService {
 
     // Send to Copilot
     if (this.sendToCopilot) {
-      await this.sendToCopilot(prompt, []);
+      await this.sendToCopilot(prompt, [], task.tag);
     }
 
     // Step 2: Watch for file changes
