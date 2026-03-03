@@ -1013,12 +1013,54 @@ export class MessageHandler {
 
     // Sum all session durations (subtracting paused time)
     let totalSessionMs = 0;
+    let longestSessionMs = 0;
+    let longestSessionName = '';
+    let mostProductiveCount = 0;
+    let mostProductiveName = '';
+
     for (const s of data.sessions) {
       const end = s.endedAt ? new Date(s.endedAt).getTime() : Date.now();
       const raw = end - new Date(s.startedAt).getTime();
       const paused = s.totalPausedMs || 0;
-      totalSessionMs += Math.max(0, raw - paused);
+      const dur = Math.max(0, raw - paused);
+      totalSessionMs += dur;
+      if (dur > longestSessionMs) {
+        longestSessionMs = dur;
+        longestSessionName = s.name;
+      }
+      const completed = allTasks.filter((t) => t.sessionId === s.id && t.status === 'completed').length;
+      if (completed > mostProductiveCount) {
+        mostProductiveCount = completed;
+        mostProductiveName = s.name;
+      }
     }
+
+    // Completion rate
+    const completedCount = byStatus['completed'] || 0;
+    const completionRate = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
+
+    // Carry-over rate
+    const carryOverRate = totalTasks > 0 ? Math.round((carriedOverCount / totalTasks) * 100) : 0;
+
+    // Average session duration
+    const avgSessionMs = endedSessions > 0 ? Math.round(totalSessionMs / endedSessions) : 0;
+
+    // Tasks completed per session
+    const tasksPerSession = endedSessions > 0 ? (completedCount / endedSessions).toFixed(1) : '0';
+
+    // Average turnaround (creation to completion)
+    let totalTurnaroundMs = 0;
+    let turnaroundCount = 0;
+    for (const t of allTasks) {
+      if (t.status === 'completed' && t.completedAt) {
+        const turnaround = new Date(t.completedAt).getTime() - new Date(t.createdAt).getTime();
+        if (turnaround > 0) {
+          totalTurnaroundMs += turnaround;
+          turnaroundCount++;
+        }
+      }
+    }
+    const avgTurnaroundMs = turnaroundCount > 0 ? Math.round(totalTurnaroundMs / turnaroundCount) : 0;
 
     return {
       totalSessions,
@@ -1033,6 +1075,13 @@ export class MessageHandler {
       totalSessionTime: this.formatDuration(totalSessionMs),
       totalSessionMs,
       carriedOverCount,
+      completionRate,
+      carryOverRate,
+      avgSessionDuration: this.formatDuration(avgSessionMs),
+      tasksPerSession,
+      avgTurnaround: this.formatDuration(avgTurnaroundMs),
+      longestSession: longestSessionName ? `${longestSessionName} (${this.formatDuration(longestSessionMs)})` : 'N/A',
+      mostProductive: mostProductiveName ? `${mostProductiveName} (${mostProductiveCount} completed)` : 'N/A',
     };
   }
 
@@ -1081,6 +1130,15 @@ export class MessageHandler {
     lines.push(`High,${totals.byPriority['high'] || 0}`);
     lines.push(`Medium,${totals.byPriority['medium'] || 0}`);
     lines.push(`Low,${totals.byPriority['low'] || 0}`);
+    lines.push('');
+    lines.push('Performance');
+    lines.push(`Completion Rate,${totals.completionRate}%`);
+    lines.push(`Carry-over Rate,${totals.carryOverRate}%`);
+    lines.push(`Avg Session Duration,${totals.avgSessionDuration}`);
+    lines.push(`Tasks Completed per Session,${totals.tasksPerSession}`);
+    lines.push(`Avg Task Turnaround,${totals.avgTurnaround}`);
+    lines.push(`Longest Session,${totals.longestSession}`);
+    lines.push(`Most Productive Session,${totals.mostProductive}`);
 
     // Tasks grouped by tag
     const tagOrder: Array<{ tag: string; label: string }> = [
@@ -1167,6 +1225,18 @@ export class MessageHandler {
     lines.push('');
     lines.push('**By Priority:** ');
     lines.push(`High: ${totals.byPriority['high'] || 0} · Medium: ${totals.byPriority['medium'] || 0} · Low: ${totals.byPriority['low'] || 0}`);
+    lines.push('');
+    lines.push('## Performance');
+    lines.push('');
+    lines.push('| Metric | Value |');
+    lines.push('|--------|-------|');
+    lines.push(`| Completion Rate | ${totals.completionRate}% |`);
+    lines.push(`| Carry-over Rate | ${totals.carryOverRate}% |`);
+    lines.push(`| Avg Session Duration | ${totals.avgSessionDuration} |`);
+    lines.push(`| Tasks Completed per Session | ${totals.tasksPerSession} |`);
+    lines.push(`| Avg Task Turnaround | ${totals.avgTurnaround} |`);
+    lines.push(`| Longest Session | ${totals.longestSession} |`);
+    lines.push(`| Most Productive Session | ${totals.mostProductive} |`);
     lines.push('');
 
     // Active session
