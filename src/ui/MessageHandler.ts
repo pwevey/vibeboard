@@ -91,6 +91,17 @@ export class MessageHandler {
         break;
       }
 
+      case 'redo': {
+        const redoAction = this.taskManager.redo();
+        if (redoAction) {
+          vscode.window.showInformationMessage(`Vibe Board: Redid "${redoAction}"`);
+        } else {
+          vscode.window.showInformationMessage('Vibe Board: Nothing to redo');
+        }
+        this.sendStateUpdate();
+        break;
+      }
+
       case 'toggleTimer': {
         this.taskManager.toggleTimer(message.payload.id);
         this.sendStateUpdate();

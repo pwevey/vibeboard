@@ -47,6 +47,7 @@ interface VBWorkspaceData {
   sessions: VBSession[];
   tasks: VBTask[];
   undoStack?: unknown[];
+  redoStack?: unknown[];
   activeBoardId?: string;
   boards?: VBBoard[];
 }
@@ -167,6 +168,11 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     vscode.postMessage({ type: 'undo', payload: {} });
     return;
   }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+    e.preventDefault();
+    vscode.postMessage({ type: 'redo', payload: {} });
+    return;
+  }
   if (e.key === 'F1') {
     e.preventDefault();
     showHelp();
@@ -260,6 +266,7 @@ function findTask(id: string): VBTask | undefined {
 function renderSessionBar(session: VBSession | null): string {
   const viewToggle = `<button class="icon-btn view-toggle ${activeView === 'history' ? 'active' : ''}" id="btn-toggle-view" title="Session History (Ctrl+H)" aria-label="Toggle session history">&#128218;</button>`;
   const undoBtn = `<button class="icon-btn" id="btn-undo" title="Undo (Ctrl+Z)" aria-label="Undo last action">&#8630;</button>`;
+  const redoBtn = `<button class="icon-btn" id="btn-redo" title="Redo (Ctrl+Y)" aria-label="Redo last action">&#8631;</button>`;
   const helpBtn = `<button class="icon-btn help-btn" id="btn-help" title="Help (F1)" aria-label="Open help">&#63;</button>`;
   const aiBtn = session ? `<button class="icon-btn ai-btn" id="btn-ai-summarize" title="AI Summarize Session" aria-label="AI summarize session">&#10024;</button>` : '';
 
@@ -279,7 +286,7 @@ function renderSessionBar(session: VBSession | null): string {
       <span class="session-name">${escapeHtml(activeBoardName)}</span>
       <span class="session-timer" id="session-timer" aria-live="polite">00:00:00</span>
     </div>
-    <div class="session-actions">${aiBtn}${undoBtn}${helpBtn}${viewToggle}<button class="secondary" id="btn-end-session">End Session</button></div>
+    <div class="session-actions">${aiBtn}${undoBtn}${redoBtn}${helpBtn}${viewToggle}<button class="secondary" id="btn-end-session">End Session</button></div>
   </div>
   ${boardSwitcher}`;
 }
@@ -607,6 +614,11 @@ function bindEvents(): void {
   // Undo
   document.getElementById('btn-undo')?.addEventListener('click', () => {
     vscode.postMessage({ type: 'undo', payload: {} });
+  });
+
+  // Redo
+  document.getElementById('btn-redo')?.addEventListener('click', () => {
+    vscode.postMessage({ type: 'redo', payload: {} });
   });
 
   // View toggle
@@ -1392,7 +1404,7 @@ function renderHelpContent(section: string): string {
         </ol>
         <h4>Interface Overview</h4>
         <ul>
-          <li><strong>Session Bar</strong> &mdash; Top bar showing session timer and action buttons (undo, AI summary, help, history, end session).</li>
+          <li><strong>Session Bar</strong> &mdash; Top bar showing session timer and action buttons (undo, redo, AI summary, help, history, end session).</li>
           <li><strong>Board Tabs</strong> &mdash; Below the session bar. Click to switch boards, <strong>&times;</strong> to close, double-click to rename, <strong>+</strong> to create a new board.</li>
           <li><strong>Stats Bar</strong> &mdash; Displays live counts for total tasks, completed, up next, and high-priority items.</li>
           <li><strong>Search &amp; Filter</strong> &mdash; Filter tasks by text, tag, or priority.</li>
@@ -1513,11 +1525,13 @@ function renderHelpContent(section: string): string {
           <li>History shows all past sessions with duration, completion count, and tag breakdown.</li>
           <li>The start page also shows recent session history and completed tasks.</li>
         </ul>
-        <h4>Undo</h4>
+        <h4>Undo / Redo</h4>
         <ul>
           <li>Press <kbd>Ctrl+Z</kbd> or click the <strong>undo button</strong> (&#8630;) to undo the last action.</li>
-          <li>Supports undoing edits, moves, completions, and deletions.</li>
+          <li>Press <kbd>Ctrl+Y</kbd> or click the <strong>redo button</strong> (&#8631;) to redo the last undone action.</li>
+          <li>Supports undoing/redoing edits, moves, completions, deletions, task creation, and timer toggles.</li>
           <li>Up to <strong>20 actions</strong> are stored in the undo stack per session.</li>
+          <li>Performing a new action clears the redo history.</li>
         </ul>`;
 
     case 'timers':

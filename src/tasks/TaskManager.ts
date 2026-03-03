@@ -12,6 +12,7 @@ export class TaskManager {
 
   /**
    * Push a snapshot onto the undo stack before mutating.
+   * Clears the redo stack since new actions invalidate the redo history.
    */
   private pushUndo(action: string, task: VBTask): void {
     const data = this.storage.getData();
@@ -24,26 +25,43 @@ export class TaskManager {
     if (data.undoStack.length > MAX_UNDO) {
       data.undoStack.shift();
     }
+    // New action invalidates redo history
+    data.redoStack = [];
   }
 
   /**
    * Undo the last action (restore task snapshot or reverse add).
+   * Pushes the current state onto the redo stack so it can be re-applied.
    */
   undo(): string | null {
     const data = this.storage.getData();
     if (!data.undoStack || data.undoStack.length === 0) { return null; }
     const entry = data.undoStack.pop()!;
+    if (!data.redoStack) { data.redoStack = []; }
 
     if (entry.action === 'add') {
       // Reverse of adding a task — remove it
       const idx = data.tasks.findIndex((t) => t.id === entry.taskSnapshot.id);
       if (idx >= 0) {
+        // Save current state to redo before removing
+        data.redoStack.push({
+          action: 'add',
+          taskSnapshot: { ...data.tasks[idx] },
+          timestamp: new Date().toISOString(),
+        });
         data.tasks.splice(idx, 1);
       }
     } else {
       const idx = data.tasks.findIndex((t) => t.id === entry.taskSnapshot.id);
       if (idx >= 0) {
         const currentTask = data.tasks[idx];
+
+        // Save current state to redo before restoring
+        data.redoStack.push({
+          action: entry.action,
+          taskSnapshot: { ...currentTask },
+          timestamp: new Date().toISOString(),
+        });
 
         // If the task was moved to a different column, fix sibling orders in that column
         if (entry.action === 'move' && currentTask.status !== entry.taskSnapshot.status) {
@@ -59,9 +77,80 @@ export class TaskManager {
 
         data.tasks[idx] = { ...entry.taskSnapshot };
       } else {
-        // Task was deleted — re-add it
+        // Task was deleted — re-add it; save a 'delete' redo entry so redo removes it again
+        data.redoStack.push({
+          action: 'delete',
+          taskSnapshot: { ...entry.taskSnapshot },
+          timestamp: new Date().toISOString(),
+        });
         data.tasks.push({ ...entry.taskSnapshot });
       }
+    }
+
+    if (data.redoStack.length > MAX_UNDO) {
+      data.redoStack.shift();
+    }
+
+    this.storage.setData(data);
+    return entry.action;
+  }
+
+  /**
+   * Redo the last undone action.
+   */
+  redo(): string | null {
+    const data = this.storage.getData();
+    if (!data.redoStack || data.redoStack.length === 0) { return null; }
+    const entry = data.redoStack.pop()!;
+    if (!data.undoStack) { data.undoStack = []; }
+
+    if (entry.action === 'add') {
+      // Re-add the task that was removed by undo
+      data.undoStack.push({
+        action: 'add',
+        taskSnapshot: { ...entry.taskSnapshot },
+        timestamp: new Date().toISOString(),
+      });
+      data.tasks.push({ ...entry.taskSnapshot });
+    } else if (entry.action === 'delete') {
+      // Re-delete the task that was restored by undo
+      const idx = data.tasks.findIndex((t) => t.id === entry.taskSnapshot.id);
+      if (idx >= 0) {
+        data.undoStack.push({
+          action: 'delete',
+          taskSnapshot: { ...data.tasks[idx] },
+          timestamp: new Date().toISOString(),
+        });
+        data.tasks.splice(idx, 1);
+      }
+    } else {
+      // For edit, move, complete, timer — restore the post-action snapshot
+      const idx = data.tasks.findIndex((t) => t.id === entry.taskSnapshot.id);
+      if (idx >= 0) {
+        const currentTask = data.tasks[idx];
+        data.undoStack.push({
+          action: entry.action,
+          taskSnapshot: { ...currentTask },
+          timestamp: new Date().toISOString(),
+        });
+
+        // If redoing a move to a different column, shift siblings in the target column
+        if (entry.action === 'move' && currentTask.status !== entry.taskSnapshot.status) {
+          const targetColumn = entry.taskSnapshot.status;
+          const targetOrder = entry.taskSnapshot.order;
+          for (const t of data.tasks) {
+            if (t.status === targetColumn && t.id !== currentTask.id && t.order >= targetOrder) {
+              t.order += 1;
+            }
+          }
+        }
+
+        data.tasks[idx] = { ...entry.taskSnapshot };
+      }
+    }
+
+    if (data.undoStack.length > MAX_UNDO) {
+      data.undoStack.shift();
     }
 
     this.storage.setData(data);
@@ -115,6 +204,8 @@ export class TaskManager {
     if (data.undoStack.length > MAX_UNDO) {
       data.undoStack.shift();
     }
+    // New action invalidates redo history
+    data.redoStack = [];
 
     this.storage.setData(data);
 

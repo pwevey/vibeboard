@@ -65,6 +65,7 @@ export interface VBWorkspaceData {
   sessions: VBSession[];
   tasks: VBTask[];
   undoStack?: UndoEntry[];
+  redoStack?: UndoEntry[];
   activeBoardId?: string;
   boards?: VBBoard[];
 }
@@ -104,6 +105,7 @@ export type WebviewToExtensionMessage =
   | { type: 'importData'; payload: Record<string, never> }
   | { type: 'clearAllData'; payload: Record<string, never> }
   | { type: 'undo'; payload: Record<string, never> }
+  | { type: 'redo'; payload: Record<string, never> }
   | { type: 'toggleTimer'; payload: { id: string } }
   | { type: 'addFromTemplate'; payload: { templateIndex: number } }
   | { type: 'createBoard'; payload: { name: string } }
@@ -131,6 +133,7 @@ export function createDefaultWorkspaceData(): VBWorkspaceData {
     sessions: [],
     tasks: [],
     undoStack: [],
+    redoStack: [],
     activeBoardId: 'default',
     boards: [{ id: 'default', name: 'Main Board', createdAt: new Date().toISOString() }],
   };

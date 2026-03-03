@@ -308,6 +308,101 @@ test('undo of completeTask restores original status', () => {
   assert.strictEqual(restored.completedAt, null);
 });
 
+// ── redo ──
+
+test('redo returns null when stack is empty', () => {
+  const { tm } = createTaskManager();
+  assert.strictEqual(tm.redo(), null);
+});
+
+test('redo re-applies undone edit', () => {
+  const { tm, storage } = createTaskManager();
+  const task = tm.addTask({ title: 'Original', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  tm.updateTask(task.id, { title: 'Changed' });
+  tm.undo(); // undoes edit → title back to 'Original'
+  assert.strictEqual(storage.getData().tasks.find((t) => t.id === task.id)!.title, 'Original');
+  const action = tm.redo();
+  assert.strictEqual(action, 'edit');
+  assert.strictEqual(storage.getData().tasks.find((t) => t.id === task.id)!.title, 'Changed');
+});
+
+test('redo re-adds undone add', () => {
+  const { tm, storage } = createTaskManager();
+  const task = tm.addTask({ title: 'New Task', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  tm.undo(); // undoes add → task removed
+  assert.strictEqual(storage.getData().tasks.length, 0);
+  const action = tm.redo();
+  assert.strictEqual(action, 'add');
+  assert.strictEqual(storage.getData().tasks.length, 1);
+  assert.strictEqual(storage.getData().tasks[0].title, 'New Task');
+});
+
+test('redo re-deletes undone delete', () => {
+  const { tm, storage } = createTaskManager();
+  const task = tm.addTask({ title: 'ToDelete', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  tm.deleteTask(task.id);
+  assert.strictEqual(storage.getData().tasks.length, 0);
+  tm.undo(); // undoes delete → task restored
+  assert.strictEqual(storage.getData().tasks.length, 1);
+  const action = tm.redo();
+  assert.strictEqual(action, 'delete');
+  assert.strictEqual(storage.getData().tasks.length, 0);
+});
+
+test('redo re-applies undone complete', () => {
+  const { tm, storage } = createTaskManager();
+  const task = tm.addTask({ title: 'T', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  storage.getData().undoStack = [];
+  tm.completeTask(task.id);
+  tm.undo(); // undoes complete
+  assert.strictEqual(storage.getData().tasks.find((t) => t.id === task.id)!.status, 'up-next');
+  const action = tm.redo();
+  assert.strictEqual(action, 'complete');
+  assert.strictEqual(storage.getData().tasks.find((t) => t.id === task.id)!.status, 'completed');
+  assert.ok(storage.getData().tasks.find((t) => t.id === task.id)!.completedAt);
+});
+
+test('redo re-applies undone timer toggle', () => {
+  const { tm, storage } = createTaskManager();
+  const task = tm.addTask({ title: 'T', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  storage.getData().undoStack = [];
+  tm.toggleTimer(task.id); // start timer
+  assert.ok(storage.getData().tasks.find((t) => t.id === task.id)!.timerStartedAt);
+  tm.undo(); // undo timer start
+  assert.strictEqual(storage.getData().tasks.find((t) => t.id === task.id)!.timerStartedAt, null);
+  const action = tm.redo();
+  assert.strictEqual(action, 'timer');
+  assert.ok(storage.getData().tasks.find((t) => t.id === task.id)!.timerStartedAt);
+});
+
+test('new action clears redo stack', () => {
+  const { tm, storage } = createTaskManager();
+  const task = tm.addTask({ title: 'T', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  tm.updateTask(task.id, { title: 'Changed' });
+  tm.undo();
+  assert.ok((storage.getData().redoStack?.length ?? 0) > 0);
+  // Performing a new action should clear redo
+  tm.updateTask(task.id, { title: 'New Change' });
+  assert.strictEqual(storage.getData().redoStack?.length ?? 0, 0);
+});
+
+test('undo then redo cycles correctly', () => {
+  const { tm, storage } = createTaskManager();
+  const task = tm.addTask({ title: 'A', tag: 'feature', status: 'up-next', sessionId: 's1' });
+  tm.updateTask(task.id, { title: 'B' });
+  tm.updateTask(task.id, { title: 'C' });
+  // Undo twice
+  tm.undo(); // C → B
+  assert.strictEqual(storage.getData().tasks.find((t) => t.id === task.id)!.title, 'B');
+  tm.undo(); // B → A
+  assert.strictEqual(storage.getData().tasks.find((t) => t.id === task.id)!.title, 'A');
+  // Redo twice
+  tm.redo(); // A → B
+  assert.strictEqual(storage.getData().tasks.find((t) => t.id === task.id)!.title, 'B');
+  tm.redo(); // B → C
+  assert.strictEqual(storage.getData().tasks.find((t) => t.id === task.id)!.title, 'C');
+});
+
 // ── carryOverTasks ──
 
 test('carryOverTasks moves non-completed tasks to new session', () => {
