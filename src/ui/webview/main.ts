@@ -503,8 +503,7 @@ function renderNoSessionState(): string {
     // Session history
     const endedSessions = state.sessions
       .filter((s) => s.status === 'ended')
-      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
-      .slice(0, 10);
+      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
 
     if (endedSessions.length > 0) {
       html += `<div class="start-section"><div class="start-section-header"><h3>&#128218; Session History</h3></div><div class="start-section-list">`;
@@ -528,8 +527,7 @@ function renderNoSessionState(): string {
     // Completed tasks
     const completedTasks = state.tasks
       .filter((t) => t.status === 'completed')
-      .sort((a, b) => new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime())
-      .slice(0, 20);
+      .sort((a, b) => new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime());
 
     if (completedTasks.length > 0) {
       html += `<div class="start-section"><div class="start-section-header"><h3>&#10003; Completed Tasks</h3></div><div class="start-section-list">`;
