@@ -29,6 +29,7 @@ export interface VBTask {
   boardId: string;         // which board this task belongs to
   timeSpentMs: number;     // accumulated time tracking
   timerStartedAt: string | null; // ISO 8601 when timer was last started
+  carriedFromSessionId?: string; // set when a task was carried over from another session
 }
 
 export interface VBSession {

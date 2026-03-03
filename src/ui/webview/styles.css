@@ -158,6 +158,76 @@ button.icon-btn.view-toggle.active {
   color: #F44336;
 }
 
+.stat-pill.carried-over {
+  background: #FF980033;
+  color: #FF9800;
+}
+
+/* ============================================================
+   Carried Over Banner
+   ============================================================ */
+
+.carried-over-banner {
+  border-bottom: 1px solid var(--vscode-widget-border);
+  background: #FF980010;
+}
+
+.carried-over-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #FF9800;
+  cursor: pointer;
+  user-select: none;
+}
+
+.carried-over-header:hover {
+  background: #FF980015;
+}
+
+.carried-over-expand {
+  font-size: 10px;
+  color: #FF9800;
+}
+
+.carried-over-details {
+  padding: 0 12px 8px;
+}
+
+.carried-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 11px;
+  color: var(--vscode-foreground);
+  opacity: 0.85;
+}
+
+.carried-item-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.carried-item-status {
+  font-size: 10px;
+  opacity: 0.6;
+  text-transform: uppercase;
+}
+
+/* Carried badge on task cards */
+.carried-badge {
+  font-size: 12px;
+  color: #FF9800;
+  margin-right: 4px;
+  title: "Carried over";
+  flex-shrink: 0;
+}
+
 /* ============================================================
    Search & Filter Bar
    ============================================================ */

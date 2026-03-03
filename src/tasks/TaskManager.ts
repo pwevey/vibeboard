@@ -233,9 +233,11 @@ export class TaskManager {
 
   /**
    * Carry over unfinished tasks to a new session.
+   * Updates sessionId and boardId so tasks appear on the new session's active board.
    */
   carryOverTasks(oldSessionId: string, newSessionId: string): number {
     const data = this.storage.getData();
+    const newBoardId = data.activeBoardId || 'default';
     let carried = 0;
 
     for (const task of data.tasks) {
@@ -243,7 +245,9 @@ export class TaskManager {
         task.sessionId === oldSessionId &&
         task.status !== 'completed'
       ) {
+        task.carriedFromSessionId = task.sessionId;
         task.sessionId = newSessionId;
+        task.boardId = newBoardId;
         carried++;
       }
     }

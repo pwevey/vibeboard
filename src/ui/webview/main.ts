@@ -23,6 +23,7 @@ interface VBTask {
   boardId: string;
   timeSpentMs: number;
   timerStartedAt: string | null;
+  carriedFromSessionId?: string;
 }
 
 interface VBSession {
@@ -198,6 +199,7 @@ function render(): void {
   html += renderSessionBar(activeSession);
 
   if (activeSession) {
+    html += renderCarriedOverBanner();
     html += renderStatsBar();
     html += renderSearchBar();
     html += renderQuickAdd();
@@ -306,6 +308,41 @@ function renderBoardSwitcher(): string {
 }
 
 // ============================================================
+// Carried Over Banner
+// ============================================================
+
+function renderCarriedOverBanner(): string {
+  if (!state) { return ''; }
+  const tasks = getActiveSessionTasks();
+  const carriedTasks = tasks.filter((t) => t.carriedFromSessionId);
+  if (carriedTasks.length === 0) { return ''; }
+
+  // Find the session name they came from
+  const fromSessionId = carriedTasks[0].carriedFromSessionId;
+  const fromSession = state.sessions.find((s) => s.id === fromSessionId);
+  const fromName = fromSession ? fromSession.name : 'previous session';
+
+  const taskList = carriedTasks.map((t) => {
+    const prio = t.priority === 'high' ? '&#9888; ' : '';
+    return `<div class="carried-item">
+      <span class="task-tag ${t.tag}">${TAG_LABELS[t.tag]}</span>
+      <span class="carried-item-title">${prio}${escapeHtml(t.title)}</span>
+      <span class="carried-item-status">${t.status}</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="carried-over-banner" role="region" aria-label="Carried over tasks">
+    <div class="carried-over-header" id="carried-over-toggle">
+      <span>&#8634; ${carriedTasks.length} task${carriedTasks.length === 1 ? '' : 's'} carried over from <strong>${escapeHtml(fromName)}</strong></span>
+      <button class="icon-btn carried-over-expand" title="Toggle details" aria-label="Toggle carried over details">&#9660;</button>
+    </div>
+    <div class="carried-over-details" id="carried-over-details" style="display:none;">
+      ${taskList}
+    </div>
+  </div>`;
+}
+
+// ============================================================
 // Live Stats Bar
 // ============================================================
 
@@ -315,12 +352,14 @@ function renderStatsBar(): string {
   const completed = tasks.filter((t) => t.status === 'completed').length;
   const upNext = tasks.filter((t) => t.status === 'up-next').length;
   const highPrio = tasks.filter((t) => t.priority === 'high' && t.status !== 'completed').length;
+  const carriedOver = tasks.filter((t) => t.carriedFromSessionId).length;
 
   return `<div class="stats-bar" role="status" aria-label="Task statistics">
     <span class="stat-pill" title="Total tasks">&#128203; ${total}</span>
     <span class="stat-pill completed" title="Completed">&#10003; ${completed}</span>
     <span class="stat-pill" title="Up Next">&#9654; ${upNext}</span>
     ${highPrio > 0 ? `<span class="stat-pill high-prio" title="High priority">&#9888; ${highPrio}</span>` : ''}
+    ${carriedOver > 0 ? `<span class="stat-pill carried-over" title="Carried over from previous session">&#8634; ${carriedOver}</span>` : ''}
   </div>`;
 }
 
@@ -403,11 +442,12 @@ function renderTaskCard(task: VBTask): string {
   const totalMs = getTaskTotalMs(task);
   const timeStr = totalMs > 0 ? formatDurationCompact(totalMs) : '';
   const timerIcon = timerActive ? '&#9209;' : '&#9654;';
+  const carriedBadge = task.carriedFromSessionId ? `<span class="carried-badge" title="Carried over from previous session">&#8634;</span>` : '';
 
-  return `<div class="task-card ${prioClass}" draggable="true" data-task-id="${task.id}" role="listitem" tabindex="0" aria-label="${escapeAttr(task.title)}${task.priority === 'high' ? ' - High Priority' : ''}" oncontextmenu="return false;">
+  return `<div class="task-card ${prioClass}" draggable="true" data-task-id="${task.id}" role="listitem" tabindex="0" aria-label="${escapeAttr(task.title)}${task.priority === 'high' ? ' - High Priority' : ''}${task.carriedFromSessionId ? ' - Carried over' : ''}" oncontextmenu="return false;">
     <div class="task-header">
       <input type="checkbox" class="task-checkbox" data-complete="${task.id}" ${isCompleted ? 'checked' : ''} title="Mark complete" aria-label="Mark ${escapeAttr(task.title)} complete" />
-      <span class="${titleClass}" data-edit-title="${task.id}" title="Double-click to edit">${escapeHtml(task.title)}</span>
+      ${carriedBadge}<span class="${titleClass}" data-edit-title="${task.id}" title="Double-click to edit">${escapeHtml(task.title)}</span>
       <div class="task-actions">
         <button class="icon-btn timer-btn ${timerActive ? 'active' : ''}" data-timer="${task.id}" title="${timerActive ? 'Stop timer' : 'Start timer'}" aria-label="Toggle timer">${timerIcon}</button>
         <button class="icon-btn" data-edit="${task.id}" title="Edit" aria-label="Edit task">&#9998;</button>
@@ -475,9 +515,11 @@ function renderNoSessionState(): string {
         const dur = formatDuration(endMs - new Date(s.startedAt).getTime());
         const sessionTasks = state!.tasks.filter((t) => t.sessionId === s.id);
         const completed = sessionTasks.filter((t) => t.status === 'completed').length;
+        const carried = sessionTasks.filter((t) => t.carriedFromSessionId).length;
+        const carriedStr = carried > 0 ? `<span>&#8634; ${carried} carried over</span>` : '';
         html += `<div class="start-history-item">
           <div class="start-history-row"><span class="start-history-date">${date} ${time}</span><span class="start-history-dur">${dur}</span></div>
-          <div class="start-history-stats"><span>&#10003; ${completed}/${sessionTasks.length} tasks</span></div>
+          <div class="start-history-stats"><span>&#10003; ${completed}/${sessionTasks.length} tasks</span>${carriedStr}</div>
         </div>`;
       }
       html += '</div></div>';
@@ -542,6 +584,17 @@ function bindEvents(): void {
 
   // Help
   document.getElementById('btn-help')?.addEventListener('click', () => showHelp());
+
+  // Carried-over banner toggle
+  document.getElementById('carried-over-toggle')?.addEventListener('click', () => {
+    const details = document.getElementById('carried-over-details');
+    const expandBtn = document.querySelector('.carried-over-expand');
+    if (details) {
+      const isHidden = details.style.display === 'none';
+      details.style.display = isHidden ? 'block' : 'none';
+      if (expandBtn) { expandBtn.innerHTML = isHidden ? '&#9650;' : '&#9660;'; }
+    }
+  });
 
   // AI Summarize
   document.getElementById('btn-ai-summarize')?.addEventListener('click', () => {
@@ -1390,12 +1443,15 @@ function renderHelpContent(section: string): string {
           <li>You'll be prompted to name your session. A default board is created automatically.</li>
           <li>A live timer appears in the top-left showing elapsed time.</li>
           <li>If the <em>Carry Over Tasks</em> setting is enabled, unfinished tasks from your last session automatically transfer to the new one.</li>
+          <li>Carried-over tasks show a <strong>&#8634; badge</strong> on the task card and an orange banner at the top of the board. Click the banner to expand and see all carried items.</li>
+          <li>The stats bar shows a <strong>&#8634; count</strong> when there are carried-over tasks.</li>
         </ul>
         <h4>Ending a Session</h4>
         <ul>
           <li>Click <em>End Session</em> in the session bar. You can choose which boards to close.</li>
           <li>Closing all boards ends the session and shows a <strong>Session Summary</strong> with duration, tasks completed, breakdown by tag, and tasks carried over.</li>
           <li>If you keep some boards open, the session continues with the remaining boards.</li>
+          <li>Tasks are preserved for history and carry-over — closing a board does not delete tasks.</li>
         </ul>
         <h4>Session History</h4>
         <ul>

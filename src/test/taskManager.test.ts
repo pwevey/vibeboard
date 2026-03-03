@@ -232,6 +232,8 @@ test('carryOverTasks moves non-completed tasks to new session', () => {
   assert.strictEqual(carried, 1);
   const active = storage.getData().tasks.find((t) => t.title === 'Active');
   assert.strictEqual(active?.sessionId, 'new');
+  assert.strictEqual(active?.carriedFromSessionId, 'old');
+  assert.strictEqual(active?.boardId, 'default'); // should update to new session's board
 });
 
 console.log('\nDone.\n');

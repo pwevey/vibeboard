@@ -163,20 +163,16 @@ export class MessageHandler {
         const { boardIds } = message.payload as { boardIds: string[] };
         const data = this.storage.getData();
 
-        // Remove selected boards and their tasks
+        // Remove selected boards (but keep tasks for history & carry-over)
         for (const boardId of boardIds) {
           if (data.boards) {
             data.boards = data.boards.filter((b) => b.id !== boardId);
           }
-          // Remove tasks belonging to this board (treat missing boardId as 'default')
-          data.tasks = data.tasks.filter((t) => {
-            const taskBoard = t.boardId || 'default';
-            return taskBoard !== boardId;
-          });
         }
 
         // If no boards remain, end the session entirely
         if (!data.boards || data.boards.length === 0) {
+          this.storage.setData(data);
           const summary = data.activeSessionId
             ? this.sessionManager.endSession()
             : null;
@@ -184,7 +180,7 @@ export class MessageHandler {
           if (summary) {
             const duration = this.formatDuration(summary.duration);
             vscode.window.showInformationMessage(
-              `Session ended! Duration: ${duration} | Tasks completed: ${summary.tasksCompleted}`
+              `Session ended! Duration: ${duration} | Tasks completed: ${summary.tasksCompleted} | Carried over: ${summary.tasksCarriedOver}`
             );
             this.webview?.postMessage({ type: 'sessionSummary', payload: summary });
           }
