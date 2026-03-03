@@ -212,8 +212,8 @@ button.icon-btn.view-toggle.active {
 
 .quick-add textarea {
   width: 100%;
-  min-height: 44px;
-  max-height: 120px;
+  min-height: 80px;
+  max-height: 200px;
   font-family: var(--vscode-font-family);
   font-size: 12px;
   padding: 6px 8px;
