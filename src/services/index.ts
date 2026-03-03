@@ -93,6 +93,12 @@ Given the user's raw input, do the following:
 3. Write a clear, concise title with the appropriate prefix.
 4. Fill in the template description sections using information from the user's input. Be specific and actionable.
 
+Classification guidance:
+- "feature" = any actionable work: building, testing, validating, implementing, investigating, spiking, researching, writing, creating, setting up, configuring, adding, integrating, or exploring something. When in doubt between feature and note, choose feature.
+- "bug" = something is broken, wrong, or not working as expected.
+- "refactor" = restructuring, cleaning up, or improving existing code without changing behavior.
+- "note" = ONLY for passive information, reminders, ideas with no immediate action, or reference material. Do NOT classify actionable tasks as notes.
+
 Templates by category:
 
 bug:
