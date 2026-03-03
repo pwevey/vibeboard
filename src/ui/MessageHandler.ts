@@ -300,8 +300,17 @@ export class MessageHandler {
           const chatOptions: Record<string, unknown> = { query: prompt };
           if (savedImagePaths.length > 0) {
             chatOptions.attachFiles = savedImagePaths;
+            // Use isPartialQuery to prevent auto-submit (image loading is async
+            // and would be missed if query fires immediately). After a delay we
+            // programmatically accept the input so both text + image are sent.
+            chatOptions.isPartialQuery = true;
           }
           await vscode.commands.executeCommand('workbench.action.chat.open', chatOptions);
+          if (savedImagePaths.length > 0) {
+            // Give the image attachment time to load, then submit
+            await new Promise((r) => setTimeout(r, 800));
+            await vscode.commands.executeCommand('workbench.action.chat.acceptInput');
+          }
         } catch {
           // Fallback: try GitHub Copilot Chat panel
           try {
