@@ -26,6 +26,7 @@ interface VBTask {
   carriedFromSessionId?: string;
   attachments?: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[];
   copilotLog?: { prompt: string; timestamp: string }[];
+  sentToCopilot?: boolean;
 }
 
 interface VBSession {
@@ -552,6 +553,7 @@ function renderTaskCard(task: VBTask): string {
       <span class="task-time" title="${new Date(task.createdAt).toLocaleString()}">${timeAgo}</span>
     </div>
     ${renderCopilotLog(task)}
+    ${task.sentToCopilot && task.status !== 'completed' ? renderCopilotActions(task.id) : ''}
     ${followUpTaskId === task.id ? renderFollowUpSection(task.id) : ''}
   </div>`;
 }
@@ -570,6 +572,15 @@ function renderCopilotLog(task: VBTask): string {
       <span class="copilot-log-text">${escapeHtml(entry.prompt.length > 80 ? entry.prompt.slice(0, 80) + '…' : entry.prompt)}</span>
       <span class="copilot-log-time">${getTimeAgo(entry.timestamp)}</span>
     </div>`).join('')}
+  </div>`;
+}
+
+function renderCopilotActions(taskId: string): string {
+  return `<div class="copilot-actions">
+    <span class="copilot-actions-label">&#128640; Sent to Copilot —</span>
+    <button class="btn-copilot-complete" data-copilot-complete="${taskId}">&#10003; Mark Complete</button>
+    <button class="btn-copilot-followup" data-copilot-followup="${taskId}">&#128172; Follow Up</button>
+    <button class="btn-copilot-dismiss" data-copilot-dismiss="${taskId}" title="Dismiss">&times;</button>
   </div>`;
 }
 
@@ -986,6 +997,9 @@ function bindEvents(): void {
 
   // Follow-up section bindings
   bindFollowUpEvents();
+
+  // Copilot action buttons (persistent on cards)
+  bindCopilotActionButtons();
 
   // Right-click context menu
   document.querySelectorAll<HTMLElement>('.task-card:not(.editing)').forEach((card) => {
@@ -1405,6 +1419,41 @@ function bindFollowUpEvents(): void {
 
   // Auto-focus the follow-up textarea
   followUpInput?.focus();
+}
+
+function bindCopilotActionButtons(): void {
+  // Mark Complete from persistent copilot action bar
+  document.querySelectorAll<HTMLElement>('[data-copilot-complete]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const taskId = el.dataset.copilotComplete!;
+      followUpTaskId = null;
+      pendingFollowUpAttachments = [];
+      vscode.postMessage({ type: 'completeTask', payload: { id: taskId } });
+    });
+  });
+
+  // Follow Up from persistent copilot action bar
+  document.querySelectorAll<HTMLElement>('[data-copilot-followup]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const taskId = el.dataset.copilotFollowup!;
+      followUpTaskId = taskId;
+      pendingFollowUpAttachments = [];
+      render();
+    });
+  });
+
+  // Dismiss copilot pending state
+  document.querySelectorAll<HTMLElement>('[data-copilot-dismiss]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const taskId = el.dataset.copilotDismiss!;
+      followUpTaskId = null;
+      pendingFollowUpAttachments = [];
+      vscode.postMessage({ type: 'copilotDismiss', payload: { taskId } });
+    });
+  });
 }
 
 // ============================================================

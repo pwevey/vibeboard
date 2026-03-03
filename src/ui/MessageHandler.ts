@@ -82,10 +82,15 @@ export class MessageHandler {
         this.sendStateUpdate();
         break;
 
-      case 'completeTask':
+      case 'completeTask': {
+        // Clear sentToCopilot flag when completing
+        const cData = this.storage.getData();
+        const cTask = cData.tasks.find((t) => t.id === message.payload.id);
+        if (cTask) { cTask.sentToCopilot = false; this.storage.setData(cData); }
         this.taskManager.completeTask(message.payload.id);
         this.sendStateUpdate();
         break;
+      }
 
       case 'deleteTask':
         this.taskManager.deleteTask(message.payload.id);
@@ -280,11 +285,12 @@ export class MessageHandler {
         // Auto-move task to In Progress when sent to Copilot
         if (task.status !== 'completed' && task.status !== 'in-progress') {
           this.taskManager.moveTask(task.id, 'in-progress', 0);
-          this.sendStateUpdate();
         }
 
-        // Prompt user to mark complete or follow up (non-blocking)
-        this.promptCopilotCompletion(message.payload.taskId);
+        // Mark task as sent to Copilot (persistent — buttons stay on card until user acts)
+        task.sentToCopilot = true;
+        this.storage.setData(data);
+        this.sendStateUpdate();
         break;
       }
 
@@ -312,9 +318,7 @@ export class MessageHandler {
 
         // Send the follow-up to Copilot Chat
         await this.sendPromptToCopilot(followUpPrompt, followUpAttachments);
-
-        // Prompt again
-        this.promptCopilotCompletion(followUpTaskId);
+        // Buttons remain on the card (sentToCopilot is still true)
         break;
       }
 
@@ -342,6 +346,18 @@ export class MessageHandler {
           if (pickedFiles.length > 0) {
             this.webview?.postMessage({ type: 'followUpFiles', payload: { taskId: fuTaskId, files: pickedFiles } });
           }
+        }
+        break;
+      }
+
+      case 'copilotDismiss': {
+        // Clear the Copilot pending state without completing
+        const dData = this.storage.getData();
+        const dTask = dData.tasks.find((t) => t.id === message.payload.taskId);
+        if (dTask) {
+          dTask.sentToCopilot = false;
+          this.storage.setData(dData);
+          this.sendStateUpdate();
         }
         break;
       }
@@ -601,27 +617,6 @@ export class MessageHandler {
     }
     const data = this.storage.getData();
     this.webview.postMessage({ type: 'stateUpdate', payload: data });
-  }
-
-  /**
-   * Prompt the user to mark a task complete or send a follow-up to Copilot.
-   * Non-blocking — uses .then() so the message loop continues processing.
-   */
-  private promptCopilotCompletion(taskId: string): void {
-    vscode.window.showInformationMessage(
-      'Vibe Board: Did Copilot finish this task?',
-      'Mark Complete ✅',
-      'Send Follow-up 💬'
-    ).then((choice) => {
-      if (choice === 'Mark Complete ✅') {
-        this.taskManager.completeTask(taskId);
-        this.sendStateUpdate();
-      } else if (choice === 'Send Follow-up 💬') {
-        // Tell webview to show follow-up UI on this task
-        this.webview?.postMessage({ type: 'showFollowUp', payload: { taskId } });
-      }
-      // If dismissed (no choice), do nothing — task stays in progress
-    });
   }
 
   /**

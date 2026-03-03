@@ -42,6 +42,7 @@ export interface VBTask {
   carriedFromSessionId?: string; // set when a task was carried over from another session
   attachments?: VBAttachment[]; // image/file attachments
   copilotLog?: { prompt: string; timestamp: string }[]; // log of follow-up prompts sent to Copilot
+  sentToCopilot?: boolean; // true while awaiting Copilot completion
 }
 
 export interface VBSession {
@@ -143,6 +144,7 @@ export type WebviewToExtensionMessage =
   | { type: 'pickFilesForQuickAdd'; payload: Record<string, never> }
   | { type: 'sendFollowUp'; payload: { taskId: string; prompt: string; attachments?: VBAttachment[] } }
   | { type: 'pickFilesForFollowUp'; payload: { taskId: string } }
+  | { type: 'copilotDismiss'; payload: { taskId: string } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
