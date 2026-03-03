@@ -1104,7 +1104,6 @@ export class MessageHandler {
     lines.push(`Medium Priority,${totals.byPriority['medium'] || 0}`);
     lines.push(`Low Priority,${totals.byPriority['low'] || 0}`);
     lines.push(`Total Session Time,${totals.totalSessionTime}`);
-    lines.push(`Total Task Timer Time,${totals.totalTimeSpent}`);
 
     return lines.join('\n');
   }
@@ -1144,7 +1143,6 @@ export class MessageHandler {
     lines.push(`| Notes | ${totals.byStatus['notes'] || 0} |`);
     lines.push(`| Carried Over | ${totals.carriedOverCount} |`);
     lines.push(`| Total Session Time | ${totals.totalSessionTime} |`);
-    lines.push(`| Total Task Timer Time | ${totals.totalTimeSpent} |`);
     lines.push('');
     lines.push('**By Tag:** ');
     lines.push(`Feature: ${totals.byTag['feature'] || 0} · Bug: ${totals.byTag['bug'] || 0} · Refactor: ${totals.byTag['refactor'] || 0} · Note: ${totals.byTag['note'] || 0}`);
