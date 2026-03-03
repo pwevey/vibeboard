@@ -303,7 +303,9 @@ export class MessageHandler {
         }
 
         // Send to Copilot using the shared helper
-        await this.sendPromptToCopilot(prompt, task.attachments || []);
+        // Plan tasks open in plan mode so Copilot creates an implementation plan
+        const usePlanMode = task.tag === 'plan';
+        await this.sendPromptToCopilot(prompt, task.attachments || [], false, usePlanMode);
 
         // Auto-move task to In Progress when sent to Copilot
         if (task.status !== 'completed' && task.status !== 'in-progress') {
@@ -692,7 +694,7 @@ export class MessageHandler {
    * Extracted so it can be reused for initial send and follow-ups.
    * @param useAgentMode If true, opens chat in Agent mode (for automation).
    */
-  private async sendPromptToCopilot(prompt: string, attachments: VBAttachment[] = [], useAgentMode = false): Promise<void> {
+  private async sendPromptToCopilot(prompt: string, attachments: VBAttachment[] = [], useAgentMode = false, usePlanMode = false): Promise<void> {
     const imageAttachments = attachments.filter((a) => a.mimeType.startsWith('image/'));
     const savedImagePaths: vscode.Uri[] = [];
 
@@ -718,6 +720,8 @@ export class MessageHandler {
       const chatOptions: Record<string, unknown> = { query: prompt };
       if (useAgentMode) {
         chatOptions.mode = 'agent';
+      } else if (usePlanMode) {
+        chatOptions.mode = 'plan';
       }
       if (savedImagePaths.length > 0) {
         chatOptions.attachFiles = savedImagePaths;

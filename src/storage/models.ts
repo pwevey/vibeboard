@@ -5,7 +5,7 @@
 
 // === Tag & Status Types ===
 
-export type TaskTag = 'feature' | 'bug' | 'refactor' | 'note';
+export type TaskTag = 'feature' | 'bug' | 'refactor' | 'note' | 'plan';
 
 export type TaskStatus = 'in-progress' | 'up-next' | 'backlog' | 'completed' | 'notes';
 
@@ -217,4 +217,5 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
   { name: 'Refactor Plan', title: 'Refactor: ', description: 'Current state:\n\nDesired state:\n\nRisks:', tag: 'refactor', priority: 'medium', status: 'backlog' },
   { name: 'Quick Note', title: '', description: '', tag: 'note', priority: 'low', status: 'notes' },
   { name: 'AI Prompt Idea', title: 'Prompt: ', description: 'Context:\n\nPrompt:\n\nExpected output:', tag: 'note', priority: 'medium', status: 'notes' },
+  { name: 'Plan', title: 'Plan: ', description: 'Objective:\n\nSteps:\n1. \n2. \n3. \n\nSuccess criteria:', tag: 'plan', priority: 'medium', status: 'up-next' },
 ];

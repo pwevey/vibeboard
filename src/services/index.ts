@@ -89,7 +89,7 @@ export class CopilotAIService implements IAIService {
 
 Given the user's raw input, do the following:
 
-1. CLASSIFY the input into exactly one category: bug, feature, refactor, or note.
+1. CLASSIFY the input into exactly one category: bug, feature, refactor, note, or plan.
 2. Based on the category, FORMAT the task using the exact template below.
 3. Write a clear, concise title with the appropriate prefix.
 4. Fill in the template description sections using information from the user's input. Be specific and actionable.
@@ -98,6 +98,7 @@ Classification guidance:
 - "feature" = any actionable work: building, testing, validating, implementing, investigating, spiking, researching, writing, creating, setting up, configuring, adding, integrating, or exploring something. When in doubt between feature and note, choose feature.
 - "bug" = something is broken, wrong, or not working as expected.
 - "refactor" = restructuring, cleaning up, or improving existing code without changing behavior.
+- "plan" = strategic planning, multi-step implementation plans, architecture decisions, or workflows meant to be handed to Copilot for execution. Use when the user describes a goal that needs a step-by-step plan.
 - "note" = ONLY for passive information, reminders, ideas with no immediate action, or reference material. Do NOT classify actionable tasks as notes.
 
 Templates by category:
@@ -144,6 +145,22 @@ refactor:
     Risks:
     [potential issues]
 
+plan:
+  Title prefix: "Plan: "
+  Priority: medium
+  Column: up-next
+  Description format:
+    Objective:
+    [what we want to achieve]
+
+    Steps:
+    1. [first step]
+    2. [second step]
+    3. [third step]
+
+    Success criteria:
+    [how we know it's done]
+
 note:
   Title prefix: ""
   Priority: low
@@ -182,10 +199,11 @@ User input: ${input}`;
         if (lowerTitle.startsWith('bug:')) { tag = 'bug'; }
         else if (lowerTitle.startsWith('spike:')) { tag = 'feature'; }
         else if (lowerTitle.startsWith('refactor:')) { tag = 'refactor'; }
+        else if (lowerTitle.startsWith('plan:')) { tag = 'plan'; }
 
         // Fall back to the model's explicit category if title prefix didn't match
         if (!tag) {
-          const validTags = ['bug', 'feature', 'refactor', 'note'];
+          const validTags = ['bug', 'feature', 'refactor', 'note', 'plan'];
           tag = validTags.includes(rawTag) ? rawTag : '';
           if (!tag) {
             for (const vt of validTags) {
@@ -200,6 +218,7 @@ User input: ${input}`;
           if (lowerDesc.includes('steps to reproduce') || lowerDesc.includes('expected:') || lowerDesc.includes('actual:')) { tag = 'bug'; }
           else if (lowerDesc.includes('goal:') || lowerDesc.includes('approach:')) { tag = 'feature'; }
           else if (lowerDesc.includes('current state:') || lowerDesc.includes('desired state:')) { tag = 'refactor'; }
+          else if (lowerDesc.includes('objective:') || lowerDesc.includes('success criteria:')) { tag = 'plan'; }
           else { tag = 'note'; }
         }
         if (!tag) { tag = 'note'; }
@@ -209,6 +228,7 @@ User input: ${input}`;
           feature: { priority: 'medium', status: 'up-next' },
           refactor: { priority: 'medium', status: 'backlog' },
           note: { priority: 'low', status: 'notes' },
+          plan: { priority: 'medium', status: 'up-next' },
         };
         const defaults = tagDefaults[tag] || tagDefaults['note'];
 
