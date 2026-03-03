@@ -1569,6 +1569,69 @@ function searchHelpSections(query: string): HelpSearchResult[] {
   return results;
 }
 
+function highlightAndScrollToMatch(overlay: HTMLElement, query: string): void {
+  const contentEl = overlay.querySelector('.help-content') as HTMLElement;
+  if (!contentEl) { return; }
+
+  // Walk text nodes and find matches
+  const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT, null);
+  const lowerQuery = query.toLowerCase();
+  const words = lowerQuery.split(/\s+/).filter(Boolean);
+  let firstHighlight: HTMLElement | null = null;
+
+  // Collect all text nodes first to avoid mutation during iteration
+  const textNodes: Text[] = [];
+  let node: Text | null;
+  while ((node = walker.nextNode() as Text | null)) {
+    textNodes.push(node);
+  }
+
+  for (const textNode of textNodes) {
+    const text = textNode.textContent || '';
+    const lowerText = text.toLowerCase();
+
+    // Try exact query match first, then individual words
+    let matchIdx = lowerText.indexOf(lowerQuery);
+    let matchLen = lowerQuery.length;
+
+    if (matchIdx === -1 && words.length > 1) {
+      // Try matching any individual word
+      for (const word of words) {
+        matchIdx = lowerText.indexOf(word);
+        if (matchIdx !== -1) { matchLen = word.length; break; }
+      }
+    }
+
+    if (matchIdx === -1) { continue; }
+
+    // Split text node and wrap the match in a <mark>
+    const before = text.substring(0, matchIdx);
+    const match = text.substring(matchIdx, matchIdx + matchLen);
+    const after = text.substring(matchIdx + matchLen);
+
+    const mark = document.createElement('mark');
+    mark.className = 'help-search-highlight';
+    mark.textContent = match;
+
+    const parent = textNode.parentNode;
+    if (!parent) { continue; }
+
+    if (before) { parent.insertBefore(document.createTextNode(before), textNode); }
+    parent.insertBefore(mark, textNode);
+    if (after) { parent.insertBefore(document.createTextNode(after), textNode); }
+    parent.removeChild(textNode);
+
+    if (!firstHighlight) { firstHighlight = mark; }
+  }
+
+  // Scroll to first highlight
+  if (firstHighlight) {
+    setTimeout(() => {
+      firstHighlight!.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  }
+}
+
 function showHelp(): void {
   // Close if already open
   const existing = document.querySelector('.help-overlay');
@@ -1659,19 +1722,33 @@ function showHelp(): void {
         content.innerHTML = `<div class="help-search-empty"><p>No results found for "<strong>${escapeHtml(query)}</strong>"</p><p style="font-size:11px;color:var(--vscode-descriptionForeground);">Try different keywords or shorter search terms.</p></div>`;
       } else {
         content.innerHTML = results.map((r) => `<div class="help-search-result">
-          <div class="help-search-result-header" data-help-section="${r.section}">${r.tabLabel}</div>
+          <div class="help-search-result-header" data-help-section="${r.section}" data-help-query="${escapeHtml(query)}">${r.tabLabel}</div>
           <div class="help-search-result-snippet">${r.snippetHtml}</div>
         </div>`).join('');
 
-        // Click result header to open that tab
+        // Click result to open that tab, scroll to match, highlight
         content.querySelectorAll<HTMLElement>('.help-search-result-header').forEach((header) => {
           header.addEventListener('click', () => {
             const section = header.dataset.helpSection!;
+            const searchQuery = header.dataset.helpQuery || '';
             searchInput.value = '';
             nav.style.display = '';
             const tab = overlay.querySelector(`[data-help-tab="${section}"]`) as HTMLElement;
-            if (tab) { switchToTab(tab); }
+            if (tab) {
+              switchToTab(tab);
+              if (searchQuery) { highlightAndScrollToMatch(overlay, searchQuery); }
+            }
           });
+        });
+
+        // Also allow clicking the snippet
+        content.querySelectorAll<HTMLElement>('.help-search-result').forEach((result) => {
+          const snippet = result.querySelector('.help-search-result-snippet') as HTMLElement;
+          const header = result.querySelector('.help-search-result-header') as HTMLElement;
+          if (snippet && header) {
+            snippet.style.cursor = 'pointer';
+            snippet.addEventListener('click', () => header.click());
+          }
         });
       }
     }, 150);

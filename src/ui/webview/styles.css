@@ -1288,6 +1288,22 @@ body.is-dragging .task-card:not(.dragging) {
   padding: 0 1px;
 }
 
+mark.help-search-highlight {
+  background: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.33));
+  color: inherit;
+  border-radius: 2px;
+  padding: 1px 2px;
+  outline: 2px solid var(--vscode-editor-findMatchBorder, var(--vscode-textLink-foreground));
+  outline-offset: 1px;
+  animation: help-highlight-pulse 1.5s ease-in-out;
+}
+
+@keyframes help-highlight-pulse {
+  0% { outline-color: var(--vscode-editor-findMatchBorder, var(--vscode-textLink-foreground)); opacity: 1; }
+  50% { outline-color: transparent; opacity: 0.7; }
+  100% { outline-color: var(--vscode-editor-findMatchBorder, var(--vscode-textLink-foreground)); opacity: 1; }
+}
+
 .help-body {
   display: flex;
   flex-direction: column;
