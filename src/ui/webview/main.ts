@@ -400,7 +400,7 @@ function renderQuickAdd(): string {
       <select id="quick-add-col" aria-label="Target column">
         <option value="up-next">Up Next</option><option value="backlog">Backlog</option><option value="notes">Notes</option>
       </select>
-      <button class="icon-btn ai-suggest-btn" id="btn-ai-rewrite" title="AI improve title" aria-label="AI improve title">&#10024;</button>
+      <button class="icon-btn ai-suggest-btn" id="btn-ai-rewrite" title="AI improve task" aria-label="AI improve task">&#10024;</button>
       <button id="btn-quick-add">Add</button>
     </div>
     <div class="template-bar">${templateBtns}</div>
