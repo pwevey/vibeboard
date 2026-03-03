@@ -107,6 +107,10 @@ export class MessageHandler {
         const cTask = cData.tasks.find((t) => t.id === message.payload.id);
         if (cTask) { cTask.sentToCopilot = false; this.storage.setData(cData); }
         this.taskManager.completeTask(message.payload.id);
+        // If automation is active, notify it so it can advance
+        if (this.automationService.isActive()) {
+          await this.automationService.notifyTaskCompleted(message.payload.id);
+        }
         this.sendStateUpdate();
         break;
       }

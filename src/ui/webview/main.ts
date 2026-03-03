@@ -191,6 +191,10 @@ window.addEventListener('message', (event) => {
     case 'automationProgress':
       automationProgress = message.payload as AutomationProgress;
       if (automationProgress.state === 'idle') { automationProgress = null; }
+      // Safety: clear bar if all tasks are resolved
+      if (automationProgress && automationProgress.queue.every(
+        (q: { status: string }) => q.status === 'done' || q.status === 'skipped' || q.status === 'failed'
+      )) { automationProgress = null; }
       render();
       break;
   }

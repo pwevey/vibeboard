@@ -178,6 +178,50 @@ export class AutomationService {
     vscode.window.showInformationMessage('Vibe Board: Task rejected. Automation paused — resume to continue with next task.');
   }
 
+  /** Called when a task is completed outside of automation (e.g. via checkbox).
+   *  If the task is the current automation target, auto-advance. */
+  async notifyTaskCompleted(taskId: string): Promise<void> {
+    if (this.state === 'idle') { return; }
+
+    const current = this.queue[this.currentIndex];
+    if (current && current.taskId === taskId) {
+      // Current automation task was completed externally — treat as approved
+      current.status = 'done';
+      current.completedAt = new Date().toISOString();
+      current.result = 'Completed manually';
+      this.cleanup();
+      this.currentIndex++;
+
+      // If we were reviewing, switch back to running to continue
+      if (this.state === 'reviewing') {
+        this.state = 'running';
+      }
+
+      this.broadcastProgress();
+      await this.processNext();
+      return;
+    }
+
+    // Check if the task is elsewhere in the queue
+    for (const item of this.queue) {
+      if (item.taskId === taskId && item.status === 'pending') {
+        item.status = 'done';
+        item.completedAt = new Date().toISOString();
+        item.result = 'Completed manually';
+      }
+    }
+
+    // If all tasks in queue are now done/skipped/failed, finish
+    const allResolved = this.queue.every((q) =>
+      q.status === 'done' || q.status === 'skipped' || q.status === 'failed'
+    );
+    if (allResolved) {
+      this.finish();
+    } else {
+      this.broadcastProgress();
+    }
+  }
+
   /** Get current progress snapshot. */
   getProgress(): AutomationProgress {
     return {
