@@ -561,7 +561,8 @@ body.is-dragging .task-card:not(.dragging) {
   color: var(--vscode-input-foreground);
   outline: none;
   resize: vertical;
-  min-height: 48px;
+  min-height: 80px;
+  max-height: 300px;
   line-height: 1.4;
 }
 

@@ -761,6 +761,15 @@ function bindEditEvents(): void {
       if (e.key === 'Escape') { editingTaskId = null; render(); }
     });
   });
+  // Auto-resize description textareas to fit content
+  document.querySelectorAll<HTMLTextAreaElement>('[data-save-desc]').forEach((ta) => {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(Math.max(ta.scrollHeight, 80), 300) + 'px';
+    ta.addEventListener('input', () => {
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(Math.max(ta.scrollHeight, 80), 300) + 'px';
+    });
+  });
 }
 
 function saveEdit(taskId: string): void {
