@@ -41,6 +41,7 @@ export interface VBTask {
   timerStartedAt: string | null; // ISO 8601 when timer was last started
   carriedFromSessionId?: string; // set when a task was carried over from another session
   attachments?: VBAttachment[]; // image/file attachments
+  copilotLog?: { prompt: string; timestamp: string }[]; // log of follow-up prompts sent to Copilot
 }
 
 export interface VBSession {
@@ -140,6 +141,8 @@ export type WebviewToExtensionMessage =
   | { type: 'removeAttachment'; payload: { taskId: string; attachmentId: string } }
   | { type: 'pasteAttachment'; payload: { taskId: string; dataUri: string; filename: string } }
   | { type: 'pickFilesForQuickAdd'; payload: Record<string, never> }
+  | { type: 'sendFollowUp'; payload: { taskId: string; prompt: string; attachments?: VBAttachment[] } }
+  | { type: 'pickFilesForFollowUp'; payload: { taskId: string } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
@@ -147,7 +150,9 @@ export type ExtensionToWebviewMessage =
   | { type: 'sessionSummary'; payload: VBSessionSummary }
   | { type: 'sessionHistory'; payload: { sessions: VBSession[]; summaries: VBSessionSummary[] } }
   | { type: 'aiResult'; payload: { action: string; result: string | string[]; taskId?: string } }
-  | { type: 'quickAddFiles'; payload: { files: VBAttachment[] } };
+  | { type: 'quickAddFiles'; payload: { files: VBAttachment[] } }
+  | { type: 'showFollowUp'; payload: { taskId: string } }
+  | { type: 'followUpFiles'; payload: { taskId: string; files: VBAttachment[] } };
 
 // === Factory Functions ===
 

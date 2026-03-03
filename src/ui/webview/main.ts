@@ -25,6 +25,7 @@ interface VBTask {
   timerStartedAt: string | null;
   carriedFromSessionId?: string;
   attachments?: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[];
+  copilotLog?: { prompt: string; timestamp: string }[];
 }
 
 interface VBSession {
@@ -128,6 +129,9 @@ let pendingAIDescription: string = '';
 let voiceRecognition: unknown = null;
 let isVoiceRecording = false;
 let pendingQuickAddAttachments: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[] = [];
+let followUpTaskId: string | null = null;
+let pendingFollowUpAttachments: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[] = [];
+let voiceTargetId: string = 'quick-add-input'; // which textarea voice recording targets
 
 // ============================================================
 // Initialization
@@ -156,6 +160,17 @@ window.addEventListener('message', (event) => {
       // Files picked for quick-add — store as pending attachments
       pendingQuickAddAttachments = pendingQuickAddAttachments.concat(message.payload.files);
       render();
+      break;
+    case 'showFollowUp':
+      followUpTaskId = message.payload.taskId;
+      pendingFollowUpAttachments = [];
+      render();
+      break;
+    case 'followUpFiles':
+      if (message.payload.taskId === followUpTaskId) {
+        pendingFollowUpAttachments = pendingFollowUpAttachments.concat(message.payload.files);
+        render();
+      }
       break;
   }
 });
@@ -237,6 +252,7 @@ function render(): void {
   const prevTag = (document.getElementById('quick-add-tag') as HTMLSelectElement | null)?.value ?? '';
   const prevPriority = (document.getElementById('quick-add-priority') as HTMLSelectElement | null)?.value ?? '';
   const prevCol = (document.getElementById('quick-add-col') as HTMLSelectElement | null)?.value ?? '';
+  const prevFollowUp = (document.getElementById('follow-up-input') as HTMLTextAreaElement | null)?.value ?? '';
 
   app.innerHTML = html;
 
@@ -249,6 +265,9 @@ function render(): void {
   if (restoredTag && prevTag) { restoredTag.value = prevTag; }
   if (restoredPriority && prevPriority) { restoredPriority.value = prevPriority; }
   if (restoredCol && prevCol) { restoredCol.value = prevCol; }
+  // Restore follow-up textarea value
+  const restoredFollowUp = document.getElementById('follow-up-input') as HTMLTextAreaElement | null;
+  if (restoredFollowUp && prevFollowUp) { restoredFollowUp.value = prevFollowUp; }
 
   bindEvents();
   startTimer(activeSession);
@@ -531,6 +550,53 @@ function renderTaskCard(task: VBTask): string {
       ${attachBadge}
       ${timeStr ? `<span class="task-timer-display ${timerActive ? 'active' : ''}" data-timer-display="${task.id}">${timeStr}</span>` : ''}
       <span class="task-time" title="${new Date(task.createdAt).toLocaleString()}">${timeAgo}</span>
+    </div>
+    ${renderCopilotLog(task)}
+    ${followUpTaskId === task.id ? renderFollowUpSection(task.id) : ''}
+  </div>`;
+}
+
+// ============================================================
+// Copilot Follow-up
+// ============================================================
+
+function renderCopilotLog(task: VBTask): string {
+  const log = task.copilotLog;
+  if (!log || log.length === 0) { return ''; }
+  return `<div class="copilot-log">
+    <div class="copilot-log-header">&#128640; Copilot Log (${log.length})</div>
+    ${log.map((entry, i) => `<div class="copilot-log-entry">
+      <span class="copilot-log-num">#${i + 1}</span>
+      <span class="copilot-log-text">${escapeHtml(entry.prompt.length > 80 ? entry.prompt.slice(0, 80) + '…' : entry.prompt)}</span>
+      <span class="copilot-log-time">${getTimeAgo(entry.timestamp)}</span>
+    </div>`).join('')}
+  </div>`;
+}
+
+function renderFollowUpSection(taskId: string): string {
+  const micSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>`;
+
+  const pendingThumbs = pendingFollowUpAttachments.length > 0
+    ? `<div class="quick-add-attachments">
+        ${pendingFollowUpAttachments.map(a => `<div class="quick-add-att-item">
+          ${a.mimeType.startsWith('image/')
+            ? `<img class="quick-add-att-thumb" src="${a.dataUri}" alt="${escapeAttr(a.filename)}" title="${escapeAttr(a.filename)}" />`
+            : `<span class="quick-add-att-file" title="${escapeAttr(a.filename)}">&#128196;</span>`}
+          <button class="quick-add-att-remove" data-remove-followup-att="${a.id}" title="Remove">&#10005;</button>
+        </div>`).join('')}
+      </div>`
+    : '';
+
+  return `<div class="follow-up-section">
+    <div class="follow-up-header">&#128172; Copilot needs more info — describe what's next:</div>
+    <textarea id="follow-up-input" class="follow-up-textarea" placeholder="What else needs to be done..." rows="2"></textarea>
+    ${pendingThumbs}
+    <div class="follow-up-controls">
+      <button class="icon-btn voice-btn ${isVoiceRecording ? 'recording' : ''}" id="btn-follow-up-voice" title="Voice input">${micSvg}</button>
+      <button class="icon-btn attach-qa-btn" id="btn-follow-up-attach" title="Attach file">&#128206;</button>
+      <button class="btn-follow-up-send" id="btn-follow-up-send" data-task-id="${taskId}">Send to Copilot</button>
+      <button class="btn-follow-up-done secondary" id="btn-follow-up-done" data-task-id="${taskId}">&#10003; Mark Complete</button>
+      <button class="btn-follow-up-cancel secondary" id="btn-follow-up-cancel">Cancel</button>
     </div>
   </div>`;
 }
@@ -918,6 +984,9 @@ function bindEvents(): void {
     });
   });
 
+  // Follow-up section bindings
+  bindFollowUpEvents();
+
   // Right-click context menu
   document.querySelectorAll<HTMLElement>('.task-card:not(.editing)').forEach((card) => {
     card.addEventListener('contextmenu', (e) => {
@@ -1066,7 +1135,7 @@ function initVoiceRecognition(): void {
   recognition.lang = 'en-US';
 
   recognition.onresult = (event: SpeechRecognitionEvent) => {
-    const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+    const input = document.getElementById(voiceTargetId) as HTMLTextAreaElement | null;
     if (!input) { return; }
 
     let finalTranscript = '';
@@ -1081,11 +1150,9 @@ function initVoiceRecognition(): void {
     }
 
     if (finalTranscript) {
-      // Append final transcript to existing text
       const existing = input.value.trim();
       input.value = existing ? existing + ' ' + finalTranscript.trim() : finalTranscript.trim();
     } else if (interimTranscript) {
-      // Show interim text as placeholder-like feedback
       const existing = input.value;
       const marker = '|INTERIM|';
       const base = existing.includes(marker) ? existing.split(marker)[0] : existing;
@@ -1095,8 +1162,7 @@ function initVoiceRecognition(): void {
 
   recognition.onend = () => {
     isVoiceRecording = false;
-    // Clean up any interim markers
-    const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+    const input = document.getElementById(voiceTargetId) as HTMLTextAreaElement | null;
     if (input && input.value.includes('|INTERIM|')) {
       input.value = input.value.split('|INTERIM|')[0];
     }
@@ -1111,11 +1177,17 @@ function initVoiceRecognition(): void {
   voiceRecognition = recognition;
 }
 
-function toggleVoiceRecording(): void {
+function toggleVoiceRecording(targetElement?: HTMLTextAreaElement | null): void {
+  // Set voice target based on which textarea we're recording to
+  if (targetElement) {
+    voiceTargetId = targetElement.id || 'quick-add-input';
+  } else {
+    voiceTargetId = 'quick-add-input';
+  }
+
   if (!voiceRecognition) { initVoiceRecognition(); }
   if (!voiceRecognition) {
-    // Speech Recognition not supported in this webview
-    const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+    const input = document.getElementById(voiceTargetId) as HTMLTextAreaElement | null;
     if (input) { input.placeholder = 'Voice input not supported in this environment'; }
     return;
   }
@@ -1125,8 +1197,7 @@ function toggleVoiceRecording(): void {
     recognition.stop();
     isVoiceRecording = false;
   } else {
-    // Clean interim markers from previous session
-    const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+    const input = document.getElementById(voiceTargetId) as HTMLTextAreaElement | null;
     if (input && input.value.includes('|INTERIM|')) {
       input.value = input.value.split('|INTERIM|')[0];
     }
@@ -1138,10 +1209,13 @@ function toggleVoiceRecording(): void {
 
 function updateVoiceButton(): void {
   const btn = document.getElementById('btn-voice');
-  if (!btn) { return; }
-  btn.classList.toggle('recording', isVoiceRecording);
-  btn.title = isVoiceRecording ? 'Stop recording' : 'Voice input';
-  btn.setAttribute('aria-label', isVoiceRecording ? 'Stop voice recording' : 'Start voice recording');
+  const fuBtn = document.getElementById('btn-follow-up-voice');
+  for (const b of [btn, fuBtn]) {
+    if (!b) { continue; }
+    b.classList.toggle('recording', isVoiceRecording);
+    b.title = isVoiceRecording ? 'Stop recording' : 'Voice input';
+    b.setAttribute('aria-label', isVoiceRecording ? 'Stop voice recording' : 'Start voice recording');
+  }
 }
 
 // Minimal type shims for SpeechRecognition (not in all TS libs)
@@ -1228,6 +1302,109 @@ function saveEdit(taskId: string): void {
 
   vscode.postMessage({ type: 'updateTask', payload: { id: taskId, changes } });
   editingTaskId = null;
+}
+
+// ============================================================
+// Copilot Follow-up Bindings
+// ============================================================
+
+function bindFollowUpEvents(): void {
+  if (!followUpTaskId) { return; }
+
+  const followUpInput = document.getElementById('follow-up-input') as HTMLTextAreaElement | null;
+  const sendBtn = document.getElementById('btn-follow-up-send');
+  const doneBtn = document.getElementById('btn-follow-up-done');
+  const cancelBtn = document.getElementById('btn-follow-up-cancel');
+  const voiceBtn = document.getElementById('btn-follow-up-voice');
+  const attachBtn = document.getElementById('btn-follow-up-attach');
+
+  // Send follow-up
+  sendBtn?.addEventListener('click', () => {
+    if (!followUpInput || !followUpTaskId) { return; }
+    const prompt = followUpInput.value.trim();
+    if (!prompt && pendingFollowUpAttachments.length === 0) { return; }
+    const payload: Record<string, unknown> = { taskId: followUpTaskId, prompt: prompt || '(image attachment)' };
+    if (pendingFollowUpAttachments.length > 0) {
+      payload.attachments = pendingFollowUpAttachments;
+    }
+    vscode.postMessage({ type: 'sendFollowUp', payload });
+    followUpTaskId = null;
+    pendingFollowUpAttachments = [];
+    render();
+  });
+
+  // Mark complete
+  doneBtn?.addEventListener('click', () => {
+    if (!followUpTaskId) { return; }
+    vscode.postMessage({ type: 'completeTask', payload: { id: followUpTaskId } });
+    followUpTaskId = null;
+    pendingFollowUpAttachments = [];
+    render();
+  });
+
+  // Cancel
+  cancelBtn?.addEventListener('click', () => {
+    followUpTaskId = null;
+    pendingFollowUpAttachments = [];
+    render();
+  });
+
+  // Voice input for follow-up
+  voiceBtn?.addEventListener('click', () => {
+    toggleVoiceRecording(followUpInput);
+  });
+
+  // Attach file for follow-up
+  attachBtn?.addEventListener('click', () => {
+    if (followUpTaskId) {
+      vscode.postMessage({ type: 'pickFilesForFollowUp', payload: { taskId: followUpTaskId } });
+    }
+  });
+
+  // Paste image into follow-up textarea
+  followUpInput?.addEventListener('paste', (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) { return; }
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (!blob) { continue; }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUri = reader.result as string;
+          if (dataUri) {
+            const mimeMatch = dataUri.match(/^data:([^;]+);/);
+            const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+            pendingFollowUpAttachments.push({
+              id: 'fu-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+              filename: `paste-${Date.now()}.png`,
+              mimeType,
+              dataUri,
+              addedAt: new Date().toISOString(),
+            });
+            render();
+          }
+        };
+        reader.readAsDataURL(blob);
+        break;
+      }
+    }
+  });
+
+  // Remove pending follow-up attachment
+  document.querySelectorAll<HTMLElement>('[data-remove-followup-att]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const removeId = el.dataset.removeFollowupAtt!;
+      pendingFollowUpAttachments = pendingFollowUpAttachments.filter(a => a.id !== removeId);
+      render();
+    });
+  });
+
+  // Auto-focus the follow-up textarea
+  followUpInput?.focus();
 }
 
 // ============================================================

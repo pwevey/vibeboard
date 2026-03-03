@@ -274,67 +274,74 @@ export class MessageHandler {
           prompt += '\n\n' + task.description;
         }
 
-        // If the task has image attachments, save them to temp files so they can
-        // be attached to Copilot Chat via the attachFiles parameter
-        const imageAttachments = (task.attachments || []).filter((a) => a.mimeType.startsWith('image/'));
-        const savedImagePaths: vscode.Uri[] = [];
-        if (imageAttachments.length > 0) {
-          const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-          if (workspaceFolder) {
-            const tempDir = vscode.Uri.joinPath(workspaceFolder.uri, '.vibeboard', 'temp');
-            try { await vscode.workspace.fs.createDirectory(tempDir); } catch { /* exists */ }
-            for (const att of imageAttachments) {
-              try {
-                const base64Data = att.dataUri.replace(/^data:[^;]+;base64,/, '');
-                const bytes = Buffer.from(base64Data, 'base64');
-                const tempFile = vscode.Uri.joinPath(tempDir, att.filename);
-                await vscode.workspace.fs.writeFile(tempFile, bytes);
-                savedImagePaths.push(tempFile);
-              } catch { /* skip failed images */ }
-            }
-          }
-        }
-
-        // Open Copilot Chat with prompt and any image attachments
-        let chatOpened = false;
-        try {
-          const chatOptions: Record<string, unknown> = { query: prompt };
-          if (savedImagePaths.length > 0) {
-            chatOptions.attachFiles = savedImagePaths;
-            // Prevent auto-submit so the async image attachment can load first
-            chatOptions.isPartialQuery = true;
-          }
-          await vscode.commands.executeCommand('workbench.action.chat.open', chatOptions);
-          chatOpened = true;
-        } catch {
-          // Fallback: try GitHub Copilot Chat panel
-          try {
-            await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
-            await vscode.env.clipboard.writeText(prompt);
-            vscode.window.showInformationMessage('Vibe Board: Prompt copied to clipboard. Paste it in the chat.');
-          } catch {
-            // Last fallback: just copy to clipboard
-            await vscode.env.clipboard.writeText(prompt);
-            vscode.window.showInformationMessage('Vibe Board: Prompt copied to clipboard. Open Copilot Chat and paste.');
-          }
-        }
-
-        // If chat opened with images, wait for attachment to load then submit
-        if (chatOpened && savedImagePaths.length > 0) {
-          await new Promise((r) => setTimeout(r, 1000));
-          try {
-            await vscode.commands.executeCommand('workbench.action.chat.submit');
-          } catch {
-            try {
-              await vscode.commands.executeCommand('workbench.action.edits.submit');
-            } catch { /* user can press Enter manually */ }
-          }
-        }
+        // Send to Copilot using the shared helper
+        await this.sendPromptToCopilot(prompt, task.attachments || []);
 
         // Auto-move task to In Progress when sent to Copilot
         if (task.status !== 'completed' && task.status !== 'in-progress') {
           this.taskManager.moveTask(task.id, 'in-progress', 0);
           this.sendStateUpdate();
+        }
+
+        // Prompt user to mark complete or follow up (non-blocking)
+        this.promptCopilotCompletion(message.payload.taskId);
+        break;
+      }
+
+      case 'sendFollowUp': {
+        const followUpTaskId = message.payload.taskId;
+        const followUpPrompt = message.payload.prompt || '';
+        const followUpAttachments: VBAttachment[] = message.payload.attachments || [];
+
+        // Append follow-up to the task's copilot log
+        const fuData = this.storage.getData();
+        const fuTask = fuData.tasks.find((t) => t.id === followUpTaskId);
+        if (!fuTask) { break; }
+
+        if (!fuTask.copilotLog) { fuTask.copilotLog = []; }
+        fuTask.copilotLog.push({ prompt: followUpPrompt, timestamp: new Date().toISOString() });
+
+        // Also append follow-up attachments to task attachments
+        if (followUpAttachments.length > 0) {
+          if (!fuTask.attachments) { fuTask.attachments = []; }
+          fuTask.attachments.push(...followUpAttachments);
+        }
+
+        this.storage.setData(fuData);
+        this.sendStateUpdate();
+
+        // Send the follow-up to Copilot Chat
+        await this.sendPromptToCopilot(followUpPrompt, followUpAttachments);
+
+        // Prompt again
+        this.promptCopilotCompletion(followUpTaskId);
+        break;
+      }
+
+      case 'pickFilesForFollowUp': {
+        const fuTaskId = message.payload.taskId;
+        const fuFiles = await vscode.window.showOpenDialog({
+          canSelectMany: true,
+          filters: { 'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], 'All Files': ['*'] },
+          title: 'Attach files to follow-up',
+        });
+        if (fuFiles && fuFiles.length > 0) {
+          const pickedFiles: VBAttachment[] = [];
+          for (const fileUri of fuFiles) {
+            try {
+              const fileData = await vscode.workspace.fs.readFile(fileUri);
+              const ext = fileUri.path.split('.').pop()?.toLowerCase() || '';
+              const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml' };
+              const mime = mimeMap[ext] || 'application/octet-stream';
+              const base64 = Buffer.from(fileData).toString('base64');
+              const dataUri = `data:${mime};base64,${base64}`;
+              const filename = fileUri.path.split('/').pop() || 'file';
+              pickedFiles.push({ id: `fu-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, filename, mimeType: mime, dataUri, addedAt: new Date().toISOString() });
+            } catch { /* skip */ }
+          }
+          if (pickedFiles.length > 0) {
+            this.webview?.postMessage({ type: 'followUpFiles', payload: { taskId: fuTaskId, files: pickedFiles } });
+          }
         }
         break;
       }
@@ -594,6 +601,84 @@ export class MessageHandler {
     }
     const data = this.storage.getData();
     this.webview.postMessage({ type: 'stateUpdate', payload: data });
+  }
+
+  /**
+   * Prompt the user to mark a task complete or send a follow-up to Copilot.
+   * Non-blocking — uses .then() so the message loop continues processing.
+   */
+  private promptCopilotCompletion(taskId: string): void {
+    vscode.window.showInformationMessage(
+      'Vibe Board: Did Copilot finish this task?',
+      'Mark Complete ✅',
+      'Send Follow-up 💬'
+    ).then((choice) => {
+      if (choice === 'Mark Complete ✅') {
+        this.taskManager.completeTask(taskId);
+        this.sendStateUpdate();
+      } else if (choice === 'Send Follow-up 💬') {
+        // Tell webview to show follow-up UI on this task
+        this.webview?.postMessage({ type: 'showFollowUp', payload: { taskId } });
+      }
+      // If dismissed (no choice), do nothing — task stays in progress
+    });
+  }
+
+  /**
+   * Send a prompt (with optional image attachments) to Copilot Chat.
+   * Extracted so it can be reused for initial send and follow-ups.
+   */
+  private async sendPromptToCopilot(prompt: string, attachments: VBAttachment[] = []): Promise<void> {
+    const imageAttachments = attachments.filter((a) => a.mimeType.startsWith('image/'));
+    const savedImagePaths: vscode.Uri[] = [];
+
+    if (imageAttachments.length > 0) {
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (workspaceFolder) {
+        const tempDir = vscode.Uri.joinPath(workspaceFolder.uri, '.vibeboard', 'temp');
+        try { await vscode.workspace.fs.createDirectory(tempDir); } catch { /* exists */ }
+        for (const att of imageAttachments) {
+          try {
+            const base64Data = att.dataUri.replace(/^data:[^;]+;base64,/, '');
+            const bytes = Buffer.from(base64Data, 'base64');
+            const tempFile = vscode.Uri.joinPath(tempDir, att.filename);
+            await vscode.workspace.fs.writeFile(tempFile, bytes);
+            savedImagePaths.push(tempFile);
+          } catch { /* skip */ }
+        }
+      }
+    }
+
+    let chatOpened = false;
+    try {
+      const chatOptions: Record<string, unknown> = { query: prompt };
+      if (savedImagePaths.length > 0) {
+        chatOptions.attachFiles = savedImagePaths;
+        chatOptions.isPartialQuery = true;
+      }
+      await vscode.commands.executeCommand('workbench.action.chat.open', chatOptions);
+      chatOpened = true;
+    } catch {
+      try {
+        await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
+        await vscode.env.clipboard.writeText(prompt);
+        vscode.window.showInformationMessage('Vibe Board: Prompt copied to clipboard. Paste it in the chat.');
+      } catch {
+        await vscode.env.clipboard.writeText(prompt);
+        vscode.window.showInformationMessage('Vibe Board: Prompt copied to clipboard. Open Copilot Chat and paste.');
+      }
+    }
+
+    if (chatOpened && savedImagePaths.length > 0) {
+      await new Promise((r) => setTimeout(r, 1000));
+      try {
+        await vscode.commands.executeCommand('workbench.action.chat.submit');
+      } catch {
+        try {
+          await vscode.commands.executeCommand('workbench.action.edits.submit');
+        } catch { /* user can press Enter manually */ }
+      }
+    }
   }
 
   /**
