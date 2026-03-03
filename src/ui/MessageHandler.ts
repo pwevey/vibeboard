@@ -433,7 +433,7 @@ export class MessageHandler {
       }
 
       case 'retryAutomationTask': {
-        const { queueIndex } = (msg as { type: 'retryAutomationTask'; payload: { queueIndex: number } }).payload;
+        const { queueIndex } = (message as { type: 'retryAutomationTask'; payload: { queueIndex: number } }).payload;
         await this.automationService.retryTask(queueIndex);
         break;
       }
