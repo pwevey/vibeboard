@@ -2578,8 +2578,28 @@ function renderHelpContent(section: string): string {
           <li>Click the <strong>rocket icon</strong> (&#x1F680;) on any task card to send it directly to <strong>Copilot Chat</strong>.</li>
           <li>You can also right-click a task and choose <strong>Send to Copilot</strong> from the context menu.</li>
           <li>The task title and description are placed into the Copilot Chat input so you can start prompting immediately.</li>
+          <li>The task is <strong>automatically moved to In Progress</strong> and flagged as sent to Copilot.</li>
           <li>If Copilot Chat is not available, the prompt is copied to your clipboard instead.</li>
         </ul>
+        <h4>Copilot Completion Loop</h4>
+        <p>After sending a task to Copilot, persistent action buttons appear directly on the task card. These buttons stay visible as long as you need &mdash; no time pressure.</p>
+        <ul>
+          <li><strong>&#10003; Mark Complete</strong> &mdash; Mark the task as done and move it to the <em>Completed</em> column.</li>
+          <li><strong>&#128172; Follow Up</strong> &mdash; Open an inline follow-up section to send additional context to Copilot.</li>
+          <li><strong>&times; Dismiss</strong> &mdash; Clear the Copilot status without completing the task.</li>
+        </ul>
+        <h4>Follow-up Workflow</h4>
+        <p>When you click <strong>Follow Up</strong>, a text area appears on the task card where you can describe what else needs to be done:</p>
+        <ul>
+          <li>Type your follow-up prompt in the text area.</li>
+          <li>Use the <strong>microphone</strong> button for voice input.</li>
+          <li>Use the <strong>paperclip</strong> button or paste images (<kbd>Ctrl+V</kbd>) to attach files.</li>
+          <li>Click <strong>Send to Copilot</strong> to send the follow-up. It opens in Copilot Chat with any attached images.</li>
+          <li>Click <strong>&#10003; Mark Complete</strong> to finish the task.</li>
+          <li>Click <strong>Cancel</strong> to close the follow-up section without sending.</li>
+        </ul>
+        <h4>Copilot Log</h4>
+        <p>Each follow-up prompt you send is logged on the task card under a <strong>&#128640; Copilot Log</strong> section, showing a numbered list of prompts with timestamps. This gives you a history of the AI conversation tied to each task.</p>
         <h4>AI Improve Task</h4>
         <ul>
           <li>Type a rough idea in the quick-add input, then click the <strong>sparkle icon</strong> (&#10024;) next to the Add button.</li>
@@ -2617,6 +2637,11 @@ function renderHelpContent(section: string): string {
           <li>Speak your idea, add it as a task, then click the <strong>rocket icon</strong> (&#128640;) to send it to Copilot Chat.</li>
           <li>This creates a fluid voice &rarr; task &rarr; Copilot workflow.</li>
         </ul>
+        <h4>Voice in Follow-ups</h4>
+        <ul>
+          <li>When the Copilot follow-up section is open on a task card, click the <strong>microphone icon</strong> in the follow-up controls to dictate your follow-up prompt.</li>
+          <li>Voice input works the same way as in quick-add &mdash; speak naturally and the text appears in the follow-up text area.</li>
+        </ul>
         <h4>Tips</h4>
         <ul>
           <li>The recording indicator pulses red while the microphone is active.</li>
@@ -2648,8 +2673,8 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Attachments + Copilot</h4>
         <ul>
-          <li>When you <strong>Send to Copilot</strong> a task with image attachments, the images are saved to <code>.vibeboard/temp/</code> and referenced in the prompt.</li>
-          <li>You can then drag those images into Copilot Chat to include them in your conversation.</li>
+          <li>When you <strong>Send to Copilot</strong> a task with image attachments, the images are saved to <code>.vibeboard/temp/</code> and attached directly to the Copilot Chat prompt.</li>
+          <li>You can also attach images in the <strong>follow-up section</strong> &mdash; use the paperclip button or paste images (<kbd>Ctrl+V</kbd>) into the follow-up text area. These are sent along with your follow-up prompt.</li>
         </ul>`;
 
     case 'export':
@@ -2736,6 +2761,13 @@ function renderHelpContent(section: string): string {
           <li><strong>&#128206; (Paperclip)</strong> &mdash; Attach a file or image to the task.</li>
           <li><strong>&#128640; (Rocket)</strong> &mdash; Send task to Copilot Chat.</li>
           <li><strong>&#127908; (Microphone)</strong> &mdash; Voice input for quick-add (in the quick-add bar).</li>
+        </ul>
+        <h4>Copilot Action Buttons</h4>
+        <p>These appear on task cards after sending to Copilot:</p>
+        <ul>
+          <li><strong>&#10003; Mark Complete</strong> &mdash; Complete the task.</li>
+          <li><strong>&#128172; Follow Up</strong> &mdash; Open the follow-up section to send more context.</li>
+          <li><strong>&times; Dismiss</strong> &mdash; Clear the Copilot state without completing.</li>
         </ul>
         <h4>VS Code Commands</h4>
         <ul>
