@@ -80,6 +80,13 @@
           "type": "boolean",
           "default": true,
           "description": "Carry over unfinished tasks to the next session"
+        },
+        "vibeboard.automationAutoApproveThreshold": {
+          "type": "number",
+          "default": 85,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Minimum AI confidence percentage (0-100) to auto-approve a task without requiring manual review. Set to 100 to always require manual approval."
         }
       }
     }
