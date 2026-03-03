@@ -101,11 +101,12 @@ const PRIORITY_LABELS: Record<TaskPriority, string> = { high: 'High', medium: 'M
 const PRIORITY_OPTIONS: TaskPriority[] = ['high', 'medium', 'low'];
 
 const TEMPLATES = [
-  { name: 'Bug Report', icon: '🐛' },
-  { name: 'Feature Spike', icon: '💡' },
-  { name: 'Refactor Plan', icon: '🔧' },
-  { name: 'Quick Note', icon: '📝' },
-  { name: 'AI Prompt Idea', icon: '🤖' },
+  { name: 'Bug Report', icon: '🐛', title: 'Bug: ', description: 'Steps to reproduce:\n1. \n\nExpected:\nActual:', tag: 'bug', priority: 'high', col: 'up-next' },
+  { name: 'Feature Spike', icon: '💡', title: 'Spike: ', description: 'Goal:\n\nApproach:\n\nQuestions:', tag: 'feature', priority: 'medium', col: 'up-next' },
+  { name: 'Refactor Plan', icon: '🔧', title: 'Refactor: ', description: 'Current state:\n\nDesired state:\n\nRisks:', tag: 'refactor', priority: 'medium', col: 'backlog' },
+  { name: 'Quick Note', icon: '📝', title: '', description: '', tag: 'note', priority: 'low', col: 'notes' },
+  { name: 'AI Prompt Idea', icon: '🤖', title: 'Prompt: ', description: 'Context:\n\nPrompt:\n\nExpected output:', tag: 'note', priority: 'medium', col: 'notes' },
+  { name: 'Plan', icon: '📋', title: 'Plan: ', description: 'Objective:\n\nSteps:\n1. \n2. \n3. \n\nSuccess criteria:', tag: 'plan', priority: 'medium', col: 'up-next' },
 ];
 
 // ============================================================
@@ -338,7 +339,7 @@ function renderSessionBar(session: VBSession | null): string {
   const redoBtn = `<button class="icon-btn" id="btn-redo" title="Redo (Ctrl+Y)" aria-label="Redo last action">&#8631;</button>`;
   const helpBtn = `<button class="icon-btn help-btn" id="btn-help" title="Help (F1)" aria-label="Open help">&#63;</button>`;
   const aiBtn = session ? `<button class="icon-btn ai-btn" id="btn-ai-summarize" title="AI Summarize Session" aria-label="AI summarize session">&#10024;</button>` : '';
-  const autoBtn = session ? `<button class="icon-btn auto-btn" id="btn-start-automation" title="Run Automation (process tasks via Copilot)" aria-label="Start automation">&#9881;</button>` : '';
+  const autoBtn = session ? `<button class="auto-btn" id="btn-start-automation" title="Run Automation (process tasks via Copilot)" aria-label="Start automation">&#9881; Automate</button>` : '';
 
   const boardSwitcher = session ? renderBoardSwitcher() : '';
 
@@ -357,9 +358,15 @@ function renderSessionBar(session: VBSession | null): string {
     : `<button class="icon-btn session-pause-btn" id="btn-pause-session" title="Pause Board Timer" aria-label="Pause board timer">&#9208;</button>`;
   const timerClass = isPaused ? 'session-timer paused' : 'session-timer';
 
+  // Show project name if session belongs to one
+  const sessionProject = session.projectId ? (state?.projects || []).find((p) => p.id === session.projectId) : null;
+  const projectLabel = sessionProject
+    ? `<span class="session-project-label" ${sessionProject.color ? `style="border-color:${sessionProject.color};color:${sessionProject.color}"` : ''}>${escapeHtml(sessionProject.name)}</span>`
+    : '';
+
   return `<div class="session-bar" role="toolbar" aria-label="Session controls">
     <div class="session-info">
-      <span class="session-name">${escapeHtml(activeBoardName)}</span>
+      ${projectLabel}<span class="session-name">${escapeHtml(activeBoardName)}</span>
       <span class="${timerClass}" id="session-timer" aria-live="polite">00:00:00</span>
       ${pausePlayBtn}
     </div>
@@ -483,13 +490,19 @@ function showAutomationTaskPicker(): void {
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', 'Select tasks for automation');
 
-  const taskCheckboxes = tasks.map((t) => {
+  const taskCheckboxes = tasks.map((t, i) => {
     const tagBadge = `<span class="task-tag ${t.tag}" style="font-size:10px;padding:1px 5px;">${TAG_LABELS[t.tag]}</span>`;
-    return `<label class="auto-pick-item">
-      <input type="checkbox" value="${t.id}" checked />
+    const checkedAttr = t.tag === 'note' ? '' : ' checked';
+    return `<div class="auto-pick-item" data-task-id="${t.id}" draggable="true">
+      <span class="auto-pick-handle" title="Drag to reorder">&#8942;&#8942;</span>
+      <input type="checkbox" value="${t.id}"${checkedAttr} />
       ${tagBadge}
       <span class="auto-pick-title">${escapeHtml(t.title.length > 60 ? t.title.slice(0, 60) + '…' : t.title)}</span>
-    </label>`;
+      <span class="auto-pick-arrows">
+        <button class="auto-pick-arrow up" title="Move up"${i === 0 ? ' disabled' : ''}>&#9650;</button>
+        <button class="auto-pick-arrow down" title="Move down"${i === tasks.length - 1 ? ' disabled' : ''}>&#9660;</button>
+      </span>
+    </div>`;
   }).join('');
 
   overlay.innerHTML = `<div class="modal-card" style="max-width:420px;">
@@ -508,8 +521,8 @@ function showAutomationTaskPicker(): void {
     <div class="auto-threshold" style="margin-bottom:12px;padding:8px;background:var(--vscode-editor-background);border-radius:4px;">
       <label style="font-size:12px;display:flex;align-items:center;gap:8px;">
         <span>Auto-approve threshold:</span>
-        <input type="range" id="auto-threshold-slider" min="0" max="100" value="85" step="5" style="flex:1;" />
-        <span id="auto-threshold-value" style="font-weight:600;min-width:36px;text-align:right;">85%</span>
+        <input type="range" id="auto-threshold-slider" min="0" max="100" value="100" step="5" style="flex:1;" />
+        <span id="auto-threshold-value" style="font-weight:600;min-width:36px;text-align:right;">100%</span>
       </label>
       <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:4px 0 0;">Tasks verified with confidence &ge; this value are auto-completed. Set to 100% to always review manually.</p>
     </div>
@@ -520,6 +533,74 @@ function showAutomationTaskPicker(): void {
   </div>`;
 
   document.body.appendChild(overlay);
+
+  // --- Reorder helpers ---
+  const pickList = overlay.querySelector('.auto-pick-list') as HTMLElement;
+
+  function updateArrowStates(): void {
+    const items = pickList.querySelectorAll<HTMLElement>('.auto-pick-item');
+    items.forEach((item, idx) => {
+      const up = item.querySelector('.auto-pick-arrow.up') as HTMLButtonElement;
+      const down = item.querySelector('.auto-pick-arrow.down') as HTMLButtonElement;
+      if (up) { up.disabled = idx === 0; }
+      if (down) { down.disabled = idx === items.length - 1; }
+    });
+  }
+
+  // Arrow buttons
+  pickList.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('.auto-pick-arrow') as HTMLButtonElement;
+    if (!btn || btn.disabled) { return; }
+    const item = btn.closest('.auto-pick-item') as HTMLElement;
+    if (!item) { return; }
+    if (btn.classList.contains('up') && item.previousElementSibling) {
+      pickList.insertBefore(item, item.previousElementSibling);
+    } else if (btn.classList.contains('down') && item.nextElementSibling) {
+      pickList.insertBefore(item.nextElementSibling, item);
+    }
+    updateArrowStates();
+  });
+
+  // Drag-and-drop reorder
+  let dragItem: HTMLElement | null = null;
+  pickList.addEventListener('dragstart', (e) => {
+    dragItem = (e.target as HTMLElement).closest('.auto-pick-item');
+    if (dragItem) {
+      dragItem.classList.add('auto-pick-dragging');
+      e.dataTransfer!.effectAllowed = 'move';
+    }
+  });
+  pickList.addEventListener('dragend', () => {
+    if (dragItem) { dragItem.classList.remove('auto-pick-dragging'); }
+    dragItem = null;
+    pickList.querySelectorAll('.auto-pick-drag-over').forEach((el) => el.classList.remove('auto-pick-drag-over'));
+    updateArrowStates();
+  });
+  pickList.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'move';
+    const target = (e.target as HTMLElement).closest('.auto-pick-item') as HTMLElement;
+    if (target && target !== dragItem) {
+      pickList.querySelectorAll('.auto-pick-drag-over').forEach((el) => el.classList.remove('auto-pick-drag-over'));
+      target.classList.add('auto-pick-drag-over');
+    }
+  });
+  pickList.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const target = (e.target as HTMLElement).closest('.auto-pick-item') as HTMLElement;
+    if (target && dragItem && target !== dragItem) {
+      const items = Array.from(pickList.querySelectorAll('.auto-pick-item'));
+      const dragIdx = items.indexOf(dragItem);
+      const targetIdx = items.indexOf(target);
+      if (dragIdx < targetIdx) {
+        pickList.insertBefore(dragItem, target.nextElementSibling);
+      } else {
+        pickList.insertBefore(dragItem, target);
+      }
+    }
+    pickList.querySelectorAll('.auto-pick-drag-over').forEach((el) => el.classList.remove('auto-pick-drag-over'));
+    updateArrowStates();
+  });
 
   // Threshold slider
   const slider = document.getElementById('auto-threshold-slider') as HTMLInputElement;
@@ -540,14 +621,15 @@ function showAutomationTaskPicker(): void {
   document.getElementById('auto-pick-cancel')?.addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 
-  // Start
+  // Start — collect selected task IDs in display order
   document.getElementById('auto-pick-start')?.addEventListener('click', () => {
     const selected: string[] = [];
-    overlay.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked').forEach((cb) => {
-      selected.push(cb.value);
+    overlay.querySelectorAll<HTMLElement>('.auto-pick-item').forEach((item) => {
+      const cb = item.querySelector<HTMLInputElement>('input[type="checkbox"]');
+      if (cb?.checked) { selected.push(cb.value); }
     });
     const thresholdSlider = document.getElementById('auto-threshold-slider') as HTMLInputElement;
-    const threshold = thresholdSlider ? parseInt(thresholdSlider.value, 10) : 85;
+    const threshold = thresholdSlider ? parseInt(thresholdSlider.value, 10) : 100;
     overlay.remove();
     if (selected.length === 0) { return; }
     vscode.postMessage({ type: 'startAutomation', payload: { taskIds: selected, threshold } });
@@ -676,7 +758,7 @@ function renderQuickAdd(): string {
   const micSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>`;
 
   return `<div class="quick-add">
-    <textarea id="quick-add-input" placeholder="Add a task... (Enter to submit)" rows="2" aria-label="New task title"></textarea>
+    <textarea id="quick-add-input" placeholder="Add a task... (Enter to submit, Shift+Enter for new line)" rows="2" aria-label="New task title"></textarea>
     ${pendingThumbs}
     <div class="quick-add-controls">
       <select id="quick-add-tag" aria-label="Task tag">
@@ -865,21 +947,54 @@ function renderTaskEditCard(task: VBTask): string {
 // ============================================================
 
 function renderNoSessionState(): string {
+  const projects = state?.projects || [];
+  const activeProjectId = state?.activeProjectId || null;
+  const activeProject = projects.find((p) => p.id === activeProjectId) || null;
+
   let html = `<div class="start-page">
     <div class="start-hero">
       <div class="empty-icon">&#128161;</div>
-      <h2>Ready to think?</h2>
-      <p>Start a session to capture ideas, organize prompts, and track your AI workflow.</p>
+      <h2>Ready to build?</h2>
+      <p>Plan tasks, send them to Copilot, and automate your entire workflow &mdash; all from one board.</p>
       <button class="btn-start-session">Start Session</button>
     </div>`;
 
+  // --- Projects section ---
+  html += `<div class="start-section">
+    <div class="start-section-header">
+      <h3>&#128194; Projects</h3>
+      <button class="icon-btn" id="btn-create-project" title="New Project" style="font-size:14px;padding:0 4px;">+</button>
+    </div>`;
+
+  if (projects.length === 0) {
+    html += `<p style="font-size:11px;color:var(--vscode-descriptionForeground);padding:4px 0;">Group sessions into projects to organize your work. Click <strong>+</strong> to create one.</p>`;
+  } else {
+    const totalSessionCount = (state?.sessions || []).length;
+    html += `<div class="project-list">
+      <button class="project-chip${!activeProjectId ? ' active' : ''}" data-project-id="">All Projects <span class="project-count">${totalSessionCount}</span></button>`;
+    for (const p of projects) {
+      const colorDot = p.color ? `<span class="project-dot" style="background:${p.color};"></span>` : '';
+      const sessionCount = (state?.sessions || []).filter((s) => s.projectId === p.id).length;
+      html += `<button class="project-chip${activeProjectId === p.id ? ' active' : ''}" data-project-id="${p.id}">
+        ${colorDot}${escapeHtml(p.name)} <span class="project-count">${sessionCount}</span>
+        <span class="project-actions">
+          <span class="project-action-btn project-rename" data-rename-project="${p.id}" title="Rename">&#9998;</span>
+          <span class="project-action-btn project-delete" data-delete-project="${p.id}" title="Delete">&#10005;</span>
+        </span>
+      </button>`;
+    }
+    html += `</div>`;
+  }
+  html += `</div>`;
+
   if (state && state.sessions.length > 0) {
     // Export (always visible at top)
-    html += `<div class="start-section"><div class="start-section-header"><h3>&#128230; Export / Import</h3></div>
+    const exportScope = activeProject ? ` (${escapeHtml(activeProject.name)})` : '';
+    html += `<div class="start-section"><div class="start-section-header"><h3>&#128230; Export / Import${exportScope}</h3></div>
       <div class="start-export-actions">
         <button class="secondary" id="btn-export-json" title="Full data backup — all sessions, tasks, and settings in machine-readable format">JSON</button>
-        <button class="secondary" id="btn-export-csv" title="Spreadsheet-ready table — all tasks with session info, plus summary totals">CSV</button>
-        <button class="secondary" id="btn-export-md" title="Human-readable report — summary stats, session history, and all tasks">Markdown</button>
+        <button class="secondary" id="btn-export-csv" title="Spreadsheet-ready table — ${activeProject ? 'project' : 'all'} tasks with session info, plus summary totals">CSV</button>
+        <button class="secondary" id="btn-export-md" title="Human-readable report — ${activeProject ? 'project' : 'all'} summary stats, session history, and tasks">Markdown</button>
       </div>
       <div class="start-export-hints">
         <span>JSON: Full backup</span>
@@ -890,15 +1005,20 @@ function renderNoSessionState(): string {
         <button class="secondary" id="btn-import-data" title="Import data from a Vibe Board JSON export or data.json backup">&#128229; Import JSON</button>
       </div></div>`;
 
-    // Session history
-    const endedSessions = state.sessions
+    // Session history — filtered by active project
+    const allEndedSessions = state.sessions
       .filter((s) => s.status === 'ended')
       .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
 
+    const endedSessions = activeProjectId
+      ? allEndedSessions.filter((s) => s.projectId === activeProjectId)
+      : allEndedSessions;
+
     const SESSION_PREVIEW = 5;
     if (endedSessions.length > 0) {
+      const historyLabel = activeProject ? `Sessions in ${escapeHtml(activeProject.name)}` : 'Session History';
       const showAllSessions = endedSessions.length > SESSION_PREVIEW;
-      html += `<div class="start-section"><div class="start-section-header"><h3>&#128218; Session History <span class="start-section-count">(${endedSessions.length})</span></h3></div><div class="start-section-list start-section-scrollable" id="session-history-list">`;
+      html += `<div class="start-section"><div class="start-section-header"><h3>&#128218; ${historyLabel} <span class="start-section-count">(${endedSessions.length})</span></h3></div><div class="start-section-list start-section-scrollable" id="session-history-list">`;
       for (let i = 0; i < endedSessions.length; i++) {
         const s = endedSessions[i];
         const date = new Date(s.startedAt).toLocaleDateString();
@@ -910,9 +1030,14 @@ function renderNoSessionState(): string {
         const completed = sessionTasks.filter((t) => t.status === 'completed').length;
         const carried = sessionTasks.filter((t) => t.carriedFromSessionId).length;
         const carriedStr = carried > 0 ? `<span>&#8634; ${carried} carried over</span>` : '';
+        // Show project badge if viewing all projects
+        const projBadge = !activeProjectId && s.projectId ? (() => {
+          const proj = projects.find((p) => p.id === s.projectId);
+          return proj ? `<span class="start-history-project" ${proj.color ? `style="border-color:${proj.color};color:${proj.color}"` : ''}>${escapeHtml(proj.name)}</span>` : '';
+        })() : '';
         const hiddenClass = showAllSessions && i >= SESSION_PREVIEW ? ' start-hidden-item' : '';
         html += `<div class="start-history-item${hiddenClass}">
-          <div class="start-history-row"><span class="start-history-date">${date} ${time}</span><span class="start-history-dur">${dur}</span></div>
+          <div class="start-history-row"><span class="start-history-date">${date} ${time}</span>${projBadge}<span class="start-history-dur">${dur}</span></div>
           <div class="start-history-stats"><span>&#10003; ${completed}/${sessionTasks.length} tasks</span>${carriedStr}</div>
         </div>`;
       }
@@ -923,10 +1048,17 @@ function renderNoSessionState(): string {
       html += '</div>';
     }
 
-    // Completed tasks
-    const completedTasks = state.tasks
+    // Completed tasks — filtered by active project
+    const allCompletedTasks = state.tasks
       .filter((t) => t.status === 'completed')
       .sort((a, b) => new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime());
+
+    const completedTasks = activeProjectId
+      ? allCompletedTasks.filter((t) => {
+          const sess = state!.sessions.find((s) => s.id === t.sessionId);
+          return sess?.projectId === activeProjectId;
+        })
+      : allCompletedTasks;
 
     const TASK_PREVIEW = 5;
     if (completedTasks.length > 0) {
@@ -1121,19 +1253,71 @@ function bindEvents(): void {
   document.getElementById('btn-add-board')?.addEventListener('click', () => showNewBoardDialog());
 
   // Export & Import
-  document.getElementById('btn-export-json')?.addEventListener('click', () => vscode.postMessage({ type: 'exportData', payload: { format: 'json' } }));
-  document.getElementById('btn-export-csv')?.addEventListener('click', () => showExportTimePicker('csv'));
-  document.getElementById('btn-export-md')?.addEventListener('click', () => showExportTimePicker('markdown'));
+  document.getElementById('btn-export-json')?.addEventListener('click', () => showExportProjectPicker('json'));
+  document.getElementById('btn-export-csv')?.addEventListener('click', () => showExportProjectPicker('csv'));
+  document.getElementById('btn-export-md')?.addEventListener('click', () => showExportProjectPicker('markdown'));
   document.getElementById('btn-import-data')?.addEventListener('click', () => vscode.postMessage({ type: 'importData', payload: {} }));
+
+  // Project management
+  document.getElementById('btn-create-project')?.addEventListener('click', () => showCreateProjectDialog());
+  document.querySelectorAll<HTMLElement>('[data-project-id]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      // Ignore clicks on rename/delete action buttons
+      if ((e.target as HTMLElement).closest('.project-action-btn')) { return; }
+      const projectId = el.dataset.projectId || null;
+      vscode.postMessage({ type: 'setActiveProject', payload: { projectId } });
+    });
+  });
+  document.querySelectorAll<HTMLElement>('[data-rename-project]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const projectId = el.dataset.renameProject!;
+      const project = state?.projects?.find((p) => p.id === projectId);
+      if (project) { showRenameProjectDialog(projectId, project.name); }
+    });
+  });
+  document.querySelectorAll<HTMLElement>('[data-delete-project]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const projectId = el.dataset.deleteProject!;
+      const project = state?.projects?.find((p) => p.id === projectId);
+      if (project) {
+        showConfirmDialog(`Delete "${project.name}"?`, 'Sessions will be unlinked but not deleted.', () => {
+          vscode.postMessage({ type: 'deleteProject', payload: { projectId } });
+        });
+      }
+    });
+  });
 
   // Clear all data
   document.getElementById('btn-clear-all-data')?.addEventListener('click', () => vscode.postMessage({ type: 'clearAllData', payload: {} }));
 
-  // Templates
+  // Templates — populate quick-add textarea instead of auto-creating
   document.querySelectorAll<HTMLElement>('[data-template]').forEach((el) => {
     el.addEventListener('click', () => {
       const idx = parseInt(el.dataset.template!, 10);
-      vscode.postMessage({ type: 'addFromTemplate', payload: { templateIndex: idx } });
+      const tmpl = TEMPLATES[idx];
+      if (!tmpl) { return; }
+      const input = document.getElementById('quick-add-input') as HTMLTextAreaElement;
+      if (!input) { return; }
+      const text = tmpl.description ? `${tmpl.title}\n${tmpl.description}` : tmpl.title;
+      input.value = text;
+      input.style.height = 'auto';
+      input.style.height = input.scrollHeight + 'px';
+      // Set dropdowns
+      quickAddTag = tmpl.tag;
+      quickAddPriority = tmpl.priority;
+      quickAddCol = tmpl.col;
+      const tagSel = document.getElementById('quick-add-tag') as HTMLSelectElement;
+      const priSel = document.getElementById('quick-add-priority') as HTMLSelectElement;
+      const colSel = document.getElementById('quick-add-col') as HTMLSelectElement;
+      if (tagSel) { tagSel.value = tmpl.tag; }
+      if (priSel) { priSel.value = tmpl.priority; }
+      if (colSel) { colSel.value = tmpl.col; }
+      // Focus and place cursor at end of title prefix
+      input.focus();
+      const titleEnd = tmpl.title.length;
+      input.setSelectionRange(titleEnd, titleEnd);
     });
   });
 
@@ -1854,8 +2038,17 @@ function showContextMenu(taskId: string, event: Event): void {
 // ============================================================
 
 function showStartSessionDialog(): void {
-  const sessionNumber = state ? state.sessions.length + 1 : 1;
+  const activeProjectId = state?.activeProjectId || '';
+  const projectSessions = activeProjectId
+    ? (state?.sessions || []).filter((s) => s.projectId === activeProjectId)
+    : (state?.sessions || []);
+  const sessionNumber = projectSessions.length + 1;
   const defaultName = `Session ${sessionNumber}`;
+  const projects = state?.projects || [];
+
+  const projectOptions = projects.map((p) =>
+    `<option value="${p.id}"${p.id === activeProjectId ? ' selected' : ''}>${escapeHtml(p.name)}</option>`
+  ).join('');
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -1864,8 +2057,21 @@ function showStartSessionDialog(): void {
   overlay.setAttribute('aria-label', 'Start New Session');
   overlay.innerHTML = `<div class="modal-card">
     <h3>Start New Session</h3>
-    <input type="text" id="session-name-input" placeholder="Session name..." value="${escapeAttr(defaultName)}" style="width:100%;padding:6px;margin:8px 0;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
-    <div class="modal-actions">
+    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Session Name</label>
+    <input type="text" id="session-name-input" placeholder="Session name..." value="${escapeAttr(defaultName)}" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Project</label>
+    <select id="session-project-select" style="width:100%;padding:6px;margin:0 0 4px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;">
+      <option value="">No Project</option>
+      ${projectOptions}
+      <option value="__new__">+ New Project</option>
+    </select>
+    <div id="new-project-inline" style="display:none;margin-bottom:8px;">
+      <input type="text" id="new-project-name" placeholder="Project name..." style="width:100%;padding:6px;margin:4px 0;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+      <div class="project-color-picker" style="margin:4px 0 0;">
+        ${PROJECT_COLORS.map((c, i) => `<button type="button" class="project-color-btn${i === 0 ? ' selected' : ''}" data-color="${c}" style="background:${c};" aria-label="Color ${c}"></button>`).join('')}
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:8px;">
       <button class="secondary" id="modal-cancel">Cancel</button>
       <button id="modal-confirm">Start</button>
     </div>
@@ -1876,14 +2082,137 @@ function showStartSessionDialog(): void {
   input?.focus();
   input?.select();
 
+  const projectSelect = document.getElementById('session-project-select') as HTMLSelectElement;
+  const newProjectSection = document.getElementById('new-project-inline') as HTMLElement;
+  const newProjectNameInput = document.getElementById('new-project-name') as HTMLInputElement;
+  let selectedNewColor = PROJECT_COLORS[0];
+
+  // Toggle inline new-project form when "+ New Project" is selected
+  projectSelect.addEventListener('change', () => {
+    if (projectSelect.value === '__new__') {
+      newProjectSection.style.display = 'block';
+      newProjectNameInput.focus();
+    } else {
+      newProjectSection.style.display = 'none';
+    }
+  });
+
+  // Color picker in inline form
+  newProjectSection.querySelectorAll<HTMLButtonElement>('.project-color-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      newProjectSection.querySelectorAll('.project-color-btn').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedNewColor = btn.dataset.color || PROJECT_COLORS[0];
+    });
+  });
+
   const doStart = () => {
     const name = input?.value.trim() || defaultName;
-    vscode.postMessage({ type: 'startSession', payload: { name } });
+    let projectId: string | undefined = projectSelect?.value || undefined;
+
+    // Create new project inline if selected
+    if (projectId === '__new__') {
+      const newName = newProjectNameInput?.value.trim();
+      if (!newName) { newProjectNameInput?.focus(); return; }
+      const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+      vscode.postMessage({ type: 'createProject', payload: { name: newName, color: selectedNewColor, id: newId } });
+      projectId = newId;
+    }
+
+    vscode.postMessage({ type: 'startSession', payload: { name, projectId } });
     overlay.remove();
   };
 
   document.getElementById('modal-confirm')!.addEventListener('click', doStart);
   input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { doStart(); } });
+  document.getElementById('modal-cancel')!.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
+}
+
+// ============================================================
+// Project Dialogs
+// ============================================================
+
+const PROJECT_COLORS = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
+
+function showCreateProjectDialog(): void {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Create Project');
+
+  const colorBtns = PROJECT_COLORS.map((c, i) =>
+    `<button class="project-color-btn${i === 0 ? ' selected' : ''}" data-color="${c}" style="background:${c};" title="${c}"></button>`
+  ).join('');
+
+  overlay.innerHTML = `<div class="modal-card" style="max-width:340px;">
+    <h3>New Project</h3>
+    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Name</label>
+    <input type="text" id="project-name-input" placeholder="Project name..." style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:4px;">Color</label>
+    <div class="project-color-picker">${colorBtns}</div>
+    <div class="modal-actions">
+      <button class="secondary" id="modal-cancel">Cancel</button>
+      <button id="modal-confirm">Create</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+
+  let selectedColor = PROJECT_COLORS[0];
+  overlay.querySelectorAll<HTMLElement>('.project-color-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      overlay.querySelectorAll('.project-color-btn').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedColor = btn.dataset.color!;
+    });
+  });
+
+  const input = document.getElementById('project-name-input') as HTMLInputElement;
+  input?.focus();
+
+  const doCreate = () => {
+    const name = input?.value.trim();
+    if (!name) { return; }
+    vscode.postMessage({ type: 'createProject', payload: { name, color: selectedColor } });
+    overlay.remove();
+  };
+
+  document.getElementById('modal-confirm')!.addEventListener('click', doCreate);
+  input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { doCreate(); } });
+  document.getElementById('modal-cancel')!.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
+}
+
+function showRenameProjectDialog(projectId: string, currentName: string): void {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Rename Project');
+  overlay.innerHTML = `<div class="modal-card" style="max-width:340px;">
+    <h3>Rename Project</h3>
+    <input type="text" id="project-rename-input" value="${escapeAttr(currentName)}" style="width:100%;padding:6px;margin:8px 0;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+    <div class="modal-actions">
+      <button class="secondary" id="modal-cancel">Cancel</button>
+      <button id="modal-confirm">Rename</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+
+  const input = document.getElementById('project-rename-input') as HTMLInputElement;
+  input?.focus();
+  input?.select();
+
+  const doRename = () => {
+    const name = input?.value.trim();
+    if (!name) { return; }
+    vscode.postMessage({ type: 'renameProject', payload: { projectId, name } });
+    overlay.remove();
+  };
+
+  document.getElementById('modal-confirm')!.addEventListener('click', doRename);
+  input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { doRename(); } });
   document.getElementById('modal-cancel')!.addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 }
@@ -1898,82 +2227,153 @@ function showEndSessionPicker(): void {
   if (boards.length === 0) { return; }
   const activeBoardId = state.activeBoardId || 'default';
 
-  // If only one board, confirm directly with board name
-  if (boards.length === 1) {
-    const b = boards[0];
-    showConfirmDialog(`End "${b.name}"?`, 'This board and its tasks will be closed and the session will end.', () => {
-      vscode.postMessage({ type: 'closeBoards', payload: { boardIds: [b.id] } });
-    });
-    return;
+  // Determine which tasks will be carried over
+  const incompleteTasks = state.tasks.filter(
+    (t) => t.sessionId === state!.activeSessionId && t.status !== 'completed'
+  );
+
+  const TAG_COLORS: Record<string, string> = {
+    feature: '#4CAF50', bug: '#F44336', refactor: '#2196F3', note: '#FF9800', plan: '#9C27B0'
+  };
+
+  // Build carry-over section
+  let carryOverHtml = '';
+  if (incompleteTasks.length > 0) {
+    // Group tasks by board
+    const boardMap = new Map<string, typeof incompleteTasks>();
+    for (const t of incompleteTasks) {
+      const boardId = (t as any).boardId || 'default';
+      if (!boardMap.has(boardId)) { boardMap.set(boardId, []); }
+      boardMap.get(boardId)!.push(t);
+    }
+
+    let taskRows = '';
+    for (const [boardId, boardTasks] of boardMap) {
+      const board = boards.find((b) => b.id === boardId);
+      const boardName = board?.name || 'Board';
+      taskRows += `<div class="carryover-session-group">
+        <div class="carryover-session-label">${escapeHtml(boardName)}</div>`;
+      for (const t of boardTasks.slice(0, 15)) {
+        const tagColor = TAG_COLORS[t.tag] || '#888';
+        const prio = t.priority === 'high' ? '&#9650;' : t.priority === 'low' ? '&#9660;' : '&#9670;';
+        const prioClass = t.priority === 'high' ? 'high' : t.priority === 'low' ? 'low' : '';
+        const carried = (t as any).carriedFromSessionId ? ' <span class="carryover-badge">&#8634;</span>' : '';
+        taskRows += `<div class="carryover-task-row">
+          <span class="carryover-task-prio ${prioClass}">${prio}</span>
+          <span class="carryover-task-title">${escapeHtml(t.title)}${carried}</span>
+          <span class="carryover-task-tag" style="background:${tagColor}">${t.tag}</span>
+        </div>`;
+      }
+      taskRows += '</div>';
+    }
+
+    const moreCount = incompleteTasks.length - 15;
+    const moreLabel = moreCount > 0 ? `<p class="carryover-more">…and ${moreCount} more</p>` : '';
+
+    carryOverHtml = `
+      <div class="carryover-section">
+        <p class="carryover-desc">&#8634; <strong>${incompleteTasks.length}</strong> incomplete task${incompleteTasks.length === 1 ? '' : 's'} will carry over to your next session.</p>
+        <div class="carryover-task-list">${taskRows}</div>
+        ${moreLabel}
+      </div>`;
   }
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', 'Close Projects');
+  overlay.setAttribute('aria-label', 'End Session');
 
-  const boardRows = boards.map((b) => {
-    const isActive = b.id === activeBoardId;
-    const boardTasks = state!.tasks.filter((t) => (t.boardId || 'default') === b.id && t.sessionId === state!.activeSessionId);
-    const completed = boardTasks.filter((t) => t.status === 'completed').length;
-
-    return `<label class="session-pick-row ${isActive ? 'active' : ''}" data-session-pick="${b.id}">
-      <input type="checkbox" class="session-pick-cb" value="${b.id}" />
-      <div class="session-pick-info">
-        <div class="session-pick-top">
-          <span class="session-pick-name">${escapeHtml(b.name)}</span>
-          ${isActive ? '<span class="session-pick-active">Active</span>' : ''}
-        </div>
-        <div class="session-pick-bottom">
-          <span>&#10003; ${completed}/${boardTasks.length} tasks</span>
-        </div>
+  if (boards.length === 1) {
+    // Single board — simple end session dialog
+    const b = boards[0];
+    overlay.innerHTML = `<div class="modal-card carryover-preview-card">
+      <h3>End Session?</h3>
+      <p class="session-pick-desc">"${escapeHtml(b.name)}" will be closed and the session will end.</p>
+      ${carryOverHtml}
+      <div class="modal-actions" style="margin-top:12px">
+        <button class="secondary" id="end-session-cancel">Cancel</button>
+        <button class="danger" id="end-session-confirm">End Session</button>
       </div>
-    </label>`;
-  }).join('');
+    </div>`;
+    document.body.appendChild(overlay);
 
-  overlay.innerHTML = `<div class="modal-card session-picker-card">
-    <h3>Close Projects</h3>
-    <p class="session-pick-desc">Select which projects to close. If all are closed, the session will end.</p>
-    <div class="session-pick-list">${boardRows}</div>
-    <div class="session-pick-actions">
-      <button class="secondary" id="session-pick-select-all">Select All</button>
-      <div class="modal-actions">
-        <button class="secondary" id="session-pick-cancel">Cancel</button>
-        <button class="danger" id="session-pick-confirm" disabled>Close Selected</button>
+    document.getElementById('end-session-confirm')!.addEventListener('click', () => {
+      vscode.postMessage({ type: 'closeBoards', payload: { boardIds: [b.id] } });
+      overlay.remove();
+    });
+    document.getElementById('end-session-cancel')!.addEventListener('click', () => overlay.remove());
+  } else {
+    // Multi-board — board picker with carry-over preview
+    const boardRows = boards.map((b) => {
+      const isActive = b.id === activeBoardId;
+      const boardTasks = state!.tasks.filter((t) => (t.boardId || 'default') === b.id && t.sessionId === state!.activeSessionId);
+      const completed = boardTasks.filter((t) => t.status === 'completed').length;
+
+      return `<label class="session-pick-row ${isActive ? 'active' : ''}" data-session-pick="${b.id}">
+        <input type="checkbox" class="session-pick-cb" value="${b.id}"${isActive ? ' checked' : ''} />
+        <div class="session-pick-info">
+          <div class="session-pick-top">
+            <span class="session-pick-name">${escapeHtml(b.name)}</span>
+            ${isActive ? '<span class="session-pick-active">Active</span>' : ''}
+          </div>
+          <div class="session-pick-bottom">
+            <span>&#10003; ${completed}/${boardTasks.length} tasks</span>
+          </div>
+        </div>
+      </label>`;
+    }).join('');
+
+    overlay.innerHTML = `<div class="modal-card session-picker-card carryover-preview-card">
+      <h3>End Session</h3>
+      <p class="session-pick-desc">Select which boards to close. If all are closed, the session will end.</p>
+      <div class="session-pick-list">
+        <label class="session-pick-row select-all-row">
+          <input type="checkbox" class="session-pick-cb" id="session-pick-select-all" />
+          <div class="session-pick-info">
+            <div class="session-pick-top"><span class="session-pick-name">Select All</span></div>
+          </div>
+        </label>
+        ${boardRows}
       </div>
-    </div>
-  </div>`;
-  document.body.appendChild(overlay);
+      ${carryOverHtml}
+      <div class="modal-actions" style="margin-top:12px">
+        <button class="secondary" id="end-session-cancel">Cancel</button>
+        <button class="danger" id="end-session-confirm" disabled>Close Selected</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
 
-  const checkboxes = overlay.querySelectorAll<HTMLInputElement>('.session-pick-cb');
-  const confirmBtn = document.getElementById('session-pick-confirm') as HTMLButtonElement;
+    const checkboxes = overlay.querySelectorAll<HTMLInputElement>('.session-pick-cb:not(#session-pick-select-all)');
+    const selectAllCb = document.getElementById('session-pick-select-all') as HTMLInputElement;
+    const confirmBtn = document.getElementById('end-session-confirm') as HTMLButtonElement;
 
-  // Update confirm button state when selections change
-  const updateConfirm = () => {
-    const anyChecked = Array.from(checkboxes).some((cb) => cb.checked);
-    confirmBtn.disabled = !anyChecked;
-  };
-  checkboxes.forEach((cb) => cb.addEventListener('change', updateConfirm));
-
-  // Select all
-  document.getElementById('session-pick-select-all')!.addEventListener('click', () => {
-    const allChecked = Array.from(checkboxes).every((cb) => cb.checked);
-    checkboxes.forEach((cb) => { cb.checked = !allChecked; });
+    const updateConfirm = () => {
+      const anyChecked = Array.from(checkboxes).some((cb) => cb.checked);
+      confirmBtn.disabled = !anyChecked;
+      const allChecked = Array.from(checkboxes).every((cb) => cb.checked);
+      selectAllCb.checked = allChecked;
+      selectAllCb.indeterminate = anyChecked && !allChecked;
+    };
+    checkboxes.forEach((cb) => cb.addEventListener('change', updateConfirm));
     updateConfirm();
-  });
 
-  // Confirm
-  confirmBtn.addEventListener('click', () => {
-    const selected = Array.from(checkboxes).filter((cb) => cb.checked).map((cb) => cb.value);
-    if (selected.length > 0) {
-      vscode.postMessage({ type: 'closeBoards', payload: { boardIds: selected } });
-    }
-    overlay.remove();
-  });
+    selectAllCb.addEventListener('change', () => {
+      checkboxes.forEach((cb) => { cb.checked = selectAllCb.checked; });
+      updateConfirm();
+    });
 
-  // Cancel
-  document.getElementById('session-pick-cancel')!.addEventListener('click', () => overlay.remove());
+    document.getElementById('end-session-confirm')!.addEventListener('click', () => {
+      const selected = Array.from(checkboxes).filter((cb) => cb.checked).map((cb) => cb.value);
+      if (selected.length > 0) {
+        vscode.postMessage({ type: 'closeBoards', payload: { boardIds: selected } });
+      }
+      overlay.remove();
+    });
+
+    document.getElementById('end-session-cancel')!.addEventListener('click', () => overlay.remove());
+  }
+
   overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
   overlay.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Escape') { overlay.remove(); } });
 }
@@ -2033,10 +2433,113 @@ function showImagePreview(src: string, alt: string): void {
 }
 
 // ============================================================
+// Export Project Picker
+// ============================================================
+
+function showExportProjectPicker(format: 'json' | 'csv' | 'markdown'): void {
+  const projects = state?.projects || [];
+
+  // If no projects exist, skip picker and go directly
+  if (projects.length === 0) {
+    if (format === 'json') {
+      vscode.postMessage({ type: 'exportData', payload: { format: 'json' } });
+    } else {
+      showExportTimePicker(format as 'csv' | 'markdown');
+    }
+    return;
+  }
+
+  const formatLabel = format === 'json' ? 'JSON' : format === 'csv' ? 'CSV' : 'Markdown';
+  const confirmLabel = format === 'json' ? 'Export' : 'Next';
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', `Export ${formatLabel} — Select Projects`);
+
+  const activeProjectId = state?.activeProjectId || null;
+  const isAllSelected = !activeProjectId;
+
+  const projectRows = projects.map((p) => {
+    const dotColor = p.color || '#888';
+    const isChecked = isAllSelected || p.id === activeProjectId;
+    return `<label class="export-project-option">
+      <input type="checkbox" name="export-project" value="${p.id}"${isChecked ? ' checked' : ''} />
+      <span class="project-dot" style="background:${dotColor}"></span>
+      <span>${escapeHtml(p.name)}</span>
+    </label>`;
+  }).join('');
+
+  overlay.innerHTML = `<div class="modal-card export-project-picker">
+    <h3>Export ${formatLabel} — Projects</h3>
+    <p>Choose which projects to include in the export.</p>
+    <div class="export-project-options">
+      <label class="export-project-option export-project-all">
+        <input type="checkbox" id="export-all-projects"${isAllSelected ? ' checked' : ''} />
+        <span>All Projects</span>
+      </label>
+      <div class="export-project-divider"></div>
+      ${projectRows}
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" id="export-project-cancel">Cancel</button>
+      <button id="export-project-confirm">${confirmLabel}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+
+  const allCheckbox = document.getElementById('export-all-projects') as HTMLInputElement;
+  const projectCheckboxes = overlay.querySelectorAll<HTMLInputElement>('input[name="export-project"]');
+
+  // "All Projects" toggle behavior — checks all individual projects
+  allCheckbox.addEventListener('change', () => {
+    projectCheckboxes.forEach((cb) => {
+      cb.checked = allCheckbox.checked;
+    });
+  });
+
+  // When individual projects change, sync "All" checkbox state
+  projectCheckboxes.forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const allChecked = Array.from(projectCheckboxes).every((c) => c.checked);
+      const noneChecked = !Array.from(projectCheckboxes).some((c) => c.checked);
+      allCheckbox.checked = allChecked;
+      allCheckbox.indeterminate = !allChecked && !noneChecked;
+    });
+  });
+
+  document.getElementById('export-project-confirm')!.addEventListener('click', () => {
+    const allChecked = allCheckbox.checked && !allCheckbox.indeterminate;
+    // Collect selected project IDs (undefined means "all")
+    let selectedIds: string[] | undefined;
+    if (!allChecked) {
+      selectedIds = Array.from(projectCheckboxes).filter((cb) => cb.checked).map((cb) => cb.value);
+      if (selectedIds.length === 0) {
+        // Must select at least one project
+        return;
+      }
+    }
+
+    overlay.remove();
+
+    if (format === 'json') {
+      const payload: Record<string, unknown> = { format: 'json' };
+      if (selectedIds) { payload.projectIds = selectedIds; }
+      vscode.postMessage({ type: 'exportData', payload });
+    } else {
+      showExportTimePicker(format as 'csv' | 'markdown', selectedIds);
+    }
+  });
+
+  document.getElementById('export-project-cancel')!.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
+}
+
+// ============================================================
 // Export Time Period Picker
 // ============================================================
 
-function showExportTimePicker(format: 'csv' | 'markdown'): void {
+function showExportTimePicker(format: 'csv' | 'markdown', projectIds?: string[]): void {
   const formatLabel = format === 'csv' ? 'CSV' : 'Markdown';
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -2110,6 +2613,8 @@ function showExportTimePicker(format: 'csv' | 'markdown'): void {
       payload.customStart = cStart;
       payload.customEnd = cEnd;
     }
+    // Include selected project filter
+    if (projectIds && projectIds.length > 0) { (payload as Record<string, unknown>).projectIds = projectIds; }
     vscode.postMessage({ type: 'exportData', payload });
     overlay.remove();
   });
@@ -2515,6 +3020,7 @@ function showHelp(): void {
         <button class="help-tab" data-help-tab="tasks" role="tab" aria-selected="false">Tasks</button>
         <button class="help-tab" data-help-tab="board" role="tab" aria-selected="false">Board</button>
         <button class="help-tab" data-help-tab="sessions" role="tab" aria-selected="false">Sessions</button>
+        <button class="help-tab" data-help-tab="projects" role="tab" aria-selected="false">Projects</button>
         <button class="help-tab" data-help-tab="timers" role="tab" aria-selected="false">Timers</button>
         <button class="help-tab" data-help-tab="templates" role="tab" aria-selected="false">Templates</button>
         <button class="help-tab" data-help-tab="ai" role="tab" aria-selected="false">AI Features</button>
@@ -2630,25 +3136,27 @@ function renderHelpContent(section: string): string {
     case 'getting-started':
       return `
         <h3>Welcome to Vibe Board</h3>
-        <p>Vibe Board is a Kanban-style task board built right into VS Code. It's designed for AI-assisted workflows, brainstorming sessions, and prompt engineering.</p>
+        <p>Vibe Board is a Kanban-style task board built right into VS Code. Plan, organize, and send tasks directly to <strong>GitHub Copilot</strong> &mdash; or automate your entire queue and let AI work through them one by one while you review.</p>
         <h4>Quick Start</h4>
         <ol>
           <li><strong>Start a Session</strong> &mdash; Click the <em>Start Session</em> button to begin tracking your work. Sessions time your overall workflow.</li>
-          <li><strong>Add Tasks</strong> &mdash; Use the text area at the top to type a task title, pick a tag, priority, and target column, then press <kbd>Enter</kbd> or click <em>Add</em>.</li>
-          <li><strong>Organize</strong> &mdash; Drag tasks between columns, edit inline, set priorities, and use timers to track time on each task.</li>
-          <li><strong>End Session</strong> &mdash; When you're done, click <em>End Session</em> to see your summary. Unfinished tasks from all previous sessions automatically carry over to the next one.</li>
+          <li><strong>Add Tasks</strong> &mdash; Type a rough idea and click <strong>AI Improve</strong> (&#10024;) to auto-classify, format, and template it &mdash; or add manually with a tag, priority, and column.</li>
+          <li><strong>Send to Copilot</strong> &mdash; Click the <strong>rocket icon</strong> (&#128640;) on any task to send it to Copilot Chat. Follow up, attach screenshots, and mark complete &mdash; all from the card.</li>
+          <li><strong>Automate</strong> &mdash; Click the <strong>gear icon</strong> (&#9881;) to queue multiple tasks and let the automation engine send them to Copilot in sequence, verify changes via AI, and checkpoint for your approval.</li>
+          <li><strong>Organize &amp; Track</strong> &mdash; Drag tasks between columns, use per-task timers, and export your session as JSON, CSV, or Markdown.</li>
         </ol>
         <h4>Interface Overview</h4>
         <ul>
-          <li><strong>Session Bar</strong> &mdash; Top bar showing session timer, pause/resume button, and action buttons (undo, redo, AI summary, help, history, end session).</li>
+          <li><strong>Session Bar</strong> &mdash; Top bar showing session timer, pause/resume, undo/redo, AI summary, automation (&#9881;), help, and end session.</li>
           <li><strong>Board Tabs</strong> &mdash; Below the session bar. Click to switch boards, <strong>&times;</strong> to close, double-click to rename, <strong>+</strong> to create a new board.</li>
-          <li><strong>Stats Bar</strong> &mdash; Displays live counts for total tasks, completed, in progress, up next, and high-priority items.</li>
+          <li><strong>Automation Bar</strong> &mdash; Appears during automation, showing the current task, queue progress, and pause/skip/cancel controls.</li>
+          <li><strong>Stats Bar</strong> &mdash; Live counts for total tasks, completed, in progress, up next, and high-priority items.</li>
           <li><strong>Search &amp; Filter</strong> &mdash; Filter tasks by text, tag, or priority.</li>
-          <li><strong>Quick Add</strong> &mdash; Fast task creation with tag, priority, and column selectors plus template buttons and AI task improvement.</li>
+          <li><strong>Quick Add</strong> &mdash; Fast task creation with tag, priority, and column selectors plus template buttons, voice input, and AI Improve.</li>
           <li><strong>Columns</strong> &mdash; Five columns: <em>In Progress</em>, <em>Up Next</em>, <em>Backlog</em>, <em>Completed</em>, and <em>Notes</em>. Click headers to collapse.</li>
         </ul>
-        <h4>AI Features</h4>
-        <p>Vibe Board integrates with <strong>GitHub Copilot Chat</strong> for AI-powered summaries, task breakdowns, and tag suggestions. See the <em>AI Features</em> tab for setup details.</p>`;
+        <h4>AI &amp; Automation</h4>
+        <p>Vibe Board integrates deeply with <strong>GitHub Copilot Chat</strong> &mdash; from one-click sends and follow-ups to fully automated task queues with AI-powered verification. See the <em>AI Features</em> and <em>Automation</em> tabs for details.</p>`;
 
     case 'tasks':
       return `
@@ -2692,6 +3200,7 @@ function renderHelpContent(section: string): string {
           <li><span class="task-tag bug">Bug</span> &mdash; Defects to fix.</li>
           <li><span class="task-tag refactor">Refactor</span> &mdash; Code improvements.</li>
           <li><span class="task-tag note">Note</span> &mdash; Ideas, reminders, prompts.</li>
+          <li><span class="task-tag plan">Plan</span> &mdash; Implementation plans. Sent to Copilot in Ask mode for planning without changes.</li>
         </ul>`;
 
     case 'board':
@@ -2774,6 +3283,41 @@ function renderHelpContent(section: string): string {
           <li>Supports undoing/redoing edits, moves, completions, deletions, task creation, and timer toggles.</li>
           <li>Up to <strong>20 actions</strong> are stored in the undo stack per session.</li>
           <li>Performing a new action clears the redo history.</li>
+        </ul>`;
+
+    case 'projects':
+      return `
+        <h3>Projects</h3>
+        <h4>What Is a Project?</h4>
+        <p>Projects are a way to group related sessions together. If you work on multiple codebases, features, or initiatives, create a project for each one and assign sessions to it. Projects provide an organizational layer above sessions.</p>
+        <h4>Creating a Project</h4>
+        <ul>
+          <li>On the start page, click <strong>+ New Project</strong> in the project bar.</li>
+          <li>Give the project a name and pick a color to distinguish it visually.</li>
+          <li>Projects appear as colored chips on the start page.</li>
+        </ul>
+        <h4>Assigning Sessions</h4>
+        <ul>
+          <li>When starting a new session, choose a <strong>Project</strong> from the dropdown in the Start Session dialog.</li>
+          <li>The active project is pre-selected, but you can change it or leave it unassigned.</li>
+          <li>The session bar shows a colored badge with the project name while the session is active.</li>
+        </ul>
+        <h4>Filtering by Project</h4>
+        <ul>
+          <li>Click a project chip on the start page to filter session history, completed tasks, and exports to that project only.</li>
+          <li>Click <strong>All Projects</strong> to remove the filter and see everything.</li>
+          <li>When a project is active, the export buttons scope data to that project automatically.</li>
+        </ul>
+        <h4>Managing Projects</h4>
+        <ul>
+          <li><strong>Rename</strong> &mdash; Hover over a project chip and click the pencil icon to rename it.</li>
+          <li><strong>Delete</strong> &mdash; Hover over a project chip and click the &times; icon to delete it. Sessions are preserved but become unassigned.</li>
+        </ul>
+        <h4>Project-Scoped Exports</h4>
+        <ul>
+          <li>When a project filter is active, all export formats (JSON, CSV, Markdown) only include sessions and tasks from that project.</li>
+          <li>The export filename and headers include the project name for easy identification.</li>
+          <li>Switch to <strong>All Projects</strong> to export everything.</li>
         </ul>`;
 
     case 'timers':
@@ -2878,6 +3422,7 @@ function renderHelpContent(section: string): string {
               <li><strong>Feature</strong> &mdash; Title prefixed with "Spike:", description with Goal, Approach, Questions</li>
               <li><strong>Refactor</strong> &mdash; Title prefixed with "Refactor:", description with Current state, Desired state, Risks</li>
               <li><strong>Note</strong> &mdash; Clear note text</li>
+              <li><strong>Plan</strong> &mdash; Title prefixed with "Plan:", description with Objective, Steps, Success criteria</li>
             </ul>
           </li>
           <li>The full result (title on the first line, structured description below) appears in the <strong>quick-add textarea</strong> for you to review and edit. The tag, priority, and column dropdowns are set automatically.</li>
@@ -2934,7 +3479,7 @@ function renderHelpContent(section: string): string {
           <li>Each task can be retried up to <strong>3 times</strong>. After that, the retry button is replaced with <em>(max retries)</em>.</li>
         </ul>
         <h4>Auto-Approve Threshold</h4>
-        <p>By default, tasks with &ge;85% AI confidence are auto-approved without a checkpoint. You can adjust this in VS Code settings:</p>
+        <p>By default, all tasks require manual approval (threshold is 100%). You can lower this in VS Code settings to auto-approve high-confidence results:</p>
         <ul>
           <li>Open <strong>Settings</strong> (<kbd>Ctrl+,</kbd>) and search for <em>vibeboard.automationAutoApproveThreshold</em>.</li>
           <li>Set a value between 0 and 100. Higher = more manual checkpoints. Set to <strong>100</strong> to always require manual approval.</li>
@@ -3029,6 +3574,8 @@ function renderHelpContent(section: string): string {
           <li><strong>Custom Range</strong> &mdash; Set a specific start and end date.</li>
         </ul>
         <p>Tasks are filtered by their <strong>creation date</strong>. The selected period is shown in the exported file.</p>
+        <h4>Project Scoping</h4>
+        <p>When a project filter is active on the start page, exports are automatically scoped to that project. Only sessions and tasks belonging to the selected project are included. The project name appears in the file header and filename.</p>
         <h4>Performance Metrics</h4>
         <p>CSV and Markdown exports include a <strong>Performance</strong> section with productivity insights:</p>
         <ul>

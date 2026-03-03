@@ -1,7 +1,7 @@
 {
   "name": "vibeboard",
   "displayName": "Vibe Board",
-  "description": "AI Brainstorm & Prompt Workflow for VSCode",
+  "description": "Kanban task board with GitHub Copilot integration — plan, send, automate, and track your AI-assisted workflow",
   "version": "0.1.0",
   "publisher": "vibeboard",
   "license": "MIT",
@@ -13,11 +13,13 @@
   ],
   "keywords": [
     "ai",
-    "brainstorm",
+    "automation",
     "kanban",
     "productivity",
     "copilot",
-    "workflow"
+    "workflow",
+    "task-management",
+    "planning"
   ],
   "activationEvents": [
     "onView:vibeboard.boardView",
@@ -83,7 +85,7 @@
         },
         "vibeboard.automationAutoApproveThreshold": {
           "type": "number",
-          "default": 85,
+          "default": 100,
           "minimum": 0,
           "maximum": 100,
           "description": "Minimum AI confidence percentage (0-100) to auto-approve a task without requiring manual review. Set to 100 to always require manual approval."

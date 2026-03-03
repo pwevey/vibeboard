@@ -58,6 +58,15 @@ body {
   white-space: nowrap;
 }
 
+.session-project-label {
+  font-size: 10px;
+  padding: 1px 6px;
+  border: 1px solid var(--vscode-descriptionForeground);
+  border-radius: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .session-bar .session-timer {
   font-weight: bold;
   font-variant-numeric: tabular-nums;
@@ -852,6 +861,60 @@ body.is-dragging .task-card:not(.dragging) {
 }
 
 /* ============================================================
+   Export Project Picker
+   ============================================================ */
+
+.export-project-picker {
+  max-width: 320px;
+}
+
+.export-project-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.export-project-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 3px;
+}
+
+.export-project-option:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.export-project-option input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--vscode-checkbox-background);
+  width: 14px;
+  height: 14px;
+}
+
+.export-project-option input[type="checkbox"]:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.export-project-all {
+  font-weight: 600;
+}
+
+.export-project-divider {
+  height: 1px;
+  background: var(--vscode-widget-border);
+  margin: 2px 0;
+}
+
+/* ============================================================
    Session Summary Card
    ============================================================ */
 
@@ -1060,6 +1123,111 @@ body.is-dragging .task-card:not(.dragging) {
 .start-history-stats {
   font-size: 11px;
   color: var(--vscode-descriptionForeground);
+}
+
+.start-history-project {
+  font-size: 10px;
+  padding: 1px 6px;
+  border: 1px solid var(--vscode-descriptionForeground);
+  border-radius: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Project management */
+
+.project-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0;
+}
+
+.project-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  position: relative;
+}
+
+.project-chip:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.project-chip.active {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border-color: var(--vscode-button-background);
+}
+
+.project-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.project-count {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.project-actions {
+  display: none;
+  gap: 2px;
+  margin-left: 2px;
+}
+
+.project-chip:hover .project-actions {
+  display: inline-flex;
+}
+
+.project-chip.active .project-actions {
+  display: inline-flex;
+}
+
+.project-action-btn {
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 0 2px;
+}
+
+.project-action-btn:hover {
+  opacity: 1;
+}
+
+.project-color-picker {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0 12px;
+}
+
+.project-color-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.1s, transform 0.1s;
+}
+
+.project-color-btn:hover {
+  transform: scale(1.15);
+}
+
+.project-color-btn.selected {
+  border-color: var(--vscode-foreground);
+  transform: scale(1.15);
 }
 
 /* Completed items on start page */
@@ -1651,6 +1819,118 @@ textarea:focus-visible {
 
 .session-pick-actions .modal-actions {
   margin-top: 0;
+}
+
+.select-all-link {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+.select-all-link:hover {
+  text-decoration: underline;
+}
+
+.select-all-row {
+  border-bottom: 1px solid var(--vscode-widget-border);
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+}
+.select-all-row .session-pick-name {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* ============================================================
+   Carry-Over Preview
+   ============================================================ */
+
+.carryover-preview-card {
+  max-width: 380px;
+}
+
+.carryover-desc {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 8px;
+}
+
+.carryover-task-list {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.carryover-session-group {
+  margin-bottom: 6px;
+}
+
+.carryover-session-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+  padding: 4px 4px 2px;
+  border-bottom: 1px solid var(--vscode-widget-border);
+  margin-bottom: 4px;
+}
+
+.carryover-badge {
+  font-size: 10px;
+  color: #FF9800;
+  margin-left: 2px;
+}
+
+.carryover-task-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 3px;
+  background: var(--vscode-input-background);
+  font-size: 12px;
+}
+
+.carryover-task-prio {
+  flex-shrink: 0;
+  font-size: 8px;
+  color: var(--vscode-descriptionForeground);
+}
+.carryover-task-prio.high { color: #F44336; }
+.carryover-task-prio.low { color: #4CAF50; }
+
+.carryover-task-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--vscode-foreground);
+}
+
+.carryover-task-tag {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 600;
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+
+.carryover-more {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  text-align: center;
+  margin-top: 6px;
+}
+
+.carryover-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--vscode-widget-border);
 }
 
 /* ============================================================
@@ -2573,11 +2853,24 @@ textarea:focus-visible {
 
 /* Automation button in session bar */
 .auto-btn {
-  color: var(--vscode-foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--vscode-button-background);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-button-background);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
 }
 
 .auto-btn:hover {
-  color: var(--vscode-button-background);
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
 }
 
 /* Automation task picker */
@@ -2589,10 +2882,64 @@ textarea:focus-visible {
   font-size: 12px;
   cursor: pointer;
   border-radius: 4px;
+  transition: background 0.1s, opacity 0.15s;
+  border: 1px solid transparent;
 }
 
 .auto-pick-item:hover {
   background: var(--vscode-list-hoverBackground);
+}
+
+.auto-pick-item.auto-pick-dragging {
+  opacity: 0.4;
+}
+
+.auto-pick-item.auto-pick-drag-over {
+  border-top: 2px solid var(--vscode-button-background);
+}
+
+.auto-pick-handle {
+  cursor: grab;
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
+  letter-spacing: -2px;
+  user-select: none;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.1s;
+}
+
+.auto-pick-item:hover .auto-pick-handle {
+  opacity: 1;
+}
+
+.auto-pick-arrows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.auto-pick-arrow {
+  background: none;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  font-size: 8px;
+  line-height: 1;
+  padding: 1px 3px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.auto-pick-arrow:hover:not(:disabled) {
+  color: var(--vscode-button-background);
+  background: var(--vscode-list-hoverBackground);
+}
+
+.auto-pick-arrow:disabled {
+  opacity: 0.25;
+  cursor: default;
 }
 
 .auto-pick-item input[type="checkbox"] {

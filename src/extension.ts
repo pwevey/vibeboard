@@ -43,9 +43,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // startSession() internally ends the active session first
       const newSession = sessionManager.startSession(projectPath);
 
-      // Carry over incomplete tasks from ALL ended sessions
+      // Carry over incomplete tasks from ended sessions (scoped to project if set)
+      const activeProjectId = storage.getData().activeProjectId;
       if (carryOver) {
-        const carried = taskManager.carryOverAllTasks(newSession.id);
+        const carried = taskManager.carryOverAllTasks(newSession.id, activeProjectId ?? undefined);
         if (carried > 0) {
           vscode.window.showInformationMessage(
             `Vibe Board: Session started! ${carried} task${carried === 1 ? '' : 's'} carried over.`

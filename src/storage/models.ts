@@ -23,6 +23,15 @@ export interface VBAttachment {
   addedAt: string;         // ISO 8601
 }
 
+// === Projects ===
+
+export interface VBProject {
+  id: string;
+  name: string;
+  createdAt: string;       // ISO 8601
+  color?: string;          // optional hex color for visual distinction
+}
+
 // === Core Models ===
 
 export interface VBTask {
@@ -49,6 +58,7 @@ export interface VBSession {
   id: string;
   name: string;            // user-assigned session name
   projectPath: string;
+  projectId?: string;      // optional project grouping
   startedAt: string;       // ISO 8601
   endedAt: string | null;
   status: SessionStatus;
@@ -83,6 +93,8 @@ export interface VBWorkspaceData {
   redoStack?: UndoEntry[];
   activeBoardId?: string;
   boards?: VBBoard[];
+  projects?: VBProject[];
+  activeProjectId?: string | null;
 }
 
 // === Multi-Board ===
@@ -151,7 +163,7 @@ export type WebviewToExtensionMessage =
   | { type: 'resumeSession'; payload: Record<string, never> }
   | { type: 'endSessions'; payload: { sessionIds: string[] } }
   | { type: 'requestHistory'; payload: Record<string, never> }
-  | { type: 'exportData'; payload: { format: 'json' | 'csv' | 'markdown'; timePeriod?: ExportTimePeriod; customStart?: string; customEnd?: string } }
+  | { type: 'exportData'; payload: { format: 'json' | 'csv' | 'markdown'; timePeriod?: ExportTimePeriod; customStart?: string; customEnd?: string; projectId?: string; projectIds?: string[] } }
   | { type: 'importData'; payload: Record<string, never> }
   | { type: 'clearAllData'; payload: Record<string, never> }
   | { type: 'undo'; payload: Record<string, never> }
@@ -182,6 +194,10 @@ export type WebviewToExtensionMessage =
   | { type: 'approveAutomationTask'; payload: Record<string, never> }
   | { type: 'rejectAutomationTask'; payload: Record<string, never> }
   | { type: 'retryAutomationTask'; payload: { queueIndex: number } }
+  | { type: 'createProject'; payload: { name: string; color?: string } }
+  | { type: 'renameProject'; payload: { projectId: string; name: string } }
+  | { type: 'deleteProject'; payload: { projectId: string } }
+  | { type: 'setActiveProject'; payload: { projectId: string | null } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
@@ -206,6 +222,8 @@ export function createDefaultWorkspaceData(): VBWorkspaceData {
     redoStack: [],
     activeBoardId: 'default',
     boards: [{ id: 'default', name: 'Main Board', createdAt: new Date().toISOString(), pausedAt: null, totalPausedMs: 0 }],
+    projects: [],
+    activeProjectId: null,
   };
 }
 

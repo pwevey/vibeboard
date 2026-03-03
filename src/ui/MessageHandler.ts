@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { WebviewToExtensionMessage, TASK_TEMPLATES, createDefaultWorkspaceData, ExportTimePeriod, VBAttachment } from '../storage/models';
+import { WebviewToExtensionMessage, TASK_TEMPLATES, createDefaultWorkspaceData, ExportTimePeriod, VBAttachment, VBProject, VBTask } from '../storage/models';
 import { SessionManager } from '../session/SessionManager';
 import { TaskManager } from '../tasks/TaskManager';
 import { StorageProvider } from '../storage/StorageProvider';
@@ -566,10 +566,20 @@ export class MessageHandler {
         const projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
         const config = vscode.workspace.getConfiguration('vibeboard');
         const carryOver = config.get<boolean>('carryOverTasks', true);
-        const sessionName = (message.payload as { name?: string }).name;
+        const sessionName = (message.payload as { name?: string; projectId?: string }).name;
+        const projectId = (message.payload as { name?: string; projectId?: string }).projectId;
 
         // startSession() internally ends the active session first
         const newSession = this.sessionManager.startSession(projectPath, sessionName);
+
+        // Link session to project if one was selected
+        if (projectId) {
+          const d = this.storage.getData();
+          const sess = d.sessions.find((s) => s.id === newSession.id);
+          if (sess) { sess.projectId = projectId; }
+          d.activeProjectId = projectId;
+          this.storage.setData(d);
+        }
 
         // Ensure at least one board exists, named after the session
         {
@@ -582,10 +592,10 @@ export class MessageHandler {
           }
         }
 
-        // Carry over incomplete tasks from ALL ended sessions (runs after
-        // startSession has ended the previous session, so nothing is missed)
+        // Carry over incomplete tasks from ended sessions, scoped to project
+        // (runs after startSession has ended the previous session, so nothing is missed)
         if (carryOver) {
-          const carried = this.taskManager.carryOverAllTasks(newSession.id);
+          const carried = this.taskManager.carryOverAllTasks(newSession.id, projectId);
           if (carried > 0) {
             vscode.window.showInformationMessage(
               `Vibe Board: Session started! ${carried} task${carried === 1 ? '' : 's'} carried over.`
@@ -668,7 +678,8 @@ export class MessageHandler {
       }
 
       case 'exportData': {
-        this.exportData(message.payload.format, message.payload.timePeriod, message.payload.customStart, message.payload.customEnd);
+        const resolvedProjectIds = message.payload.projectIds ?? (message.payload.projectId ? [message.payload.projectId] : undefined);
+        this.exportData(message.payload.format, message.payload.timePeriod, message.payload.customStart, message.payload.customEnd, resolvedProjectIds);
         break;
       }
 
@@ -679,6 +690,56 @@ export class MessageHandler {
 
       case 'clearAllData': {
         this.clearAllData();
+        break;
+      }
+
+      case 'createProject': {
+        const d = this.storage.getData();
+        if (!d.projects) { d.projects = []; }
+        const project = {
+          id: message.payload.id || generateId(),
+          name: message.payload.name,
+          createdAt: new Date().toISOString(),
+          color: message.payload.color,
+        };
+        d.projects.push(project);
+        d.activeProjectId = project.id;
+        this.storage.setData(d);
+        this.sendStateUpdate();
+        break;
+      }
+
+      case 'renameProject': {
+        const d = this.storage.getData();
+        const proj = d.projects?.find((p) => p.id === message.payload.projectId);
+        if (proj) {
+          proj.name = message.payload.name;
+          this.storage.setData(d);
+          this.sendStateUpdate();
+        }
+        break;
+      }
+
+      case 'deleteProject': {
+        const d = this.storage.getData();
+        if (d.projects) {
+          d.projects = d.projects.filter((p) => p.id !== message.payload.projectId);
+          // Unlink sessions from this project
+          for (const s of d.sessions) {
+            if (s.projectId === message.payload.projectId) { s.projectId = undefined; }
+          }
+          if (d.activeProjectId === message.payload.projectId) { d.activeProjectId = null; }
+          this.storage.setData(d);
+          this.sendStateUpdate();
+        }
+        break;
+      }
+
+      case 'setActiveProject': {
+        const d = this.storage.getData();
+        d.activeProjectId = message.payload.projectId;
+        this.storage.setData(d);
+        this.sendStateUpdate();
         break;
       }
     }
@@ -847,58 +908,90 @@ export class MessageHandler {
     format: 'json' | 'csv' | 'markdown',
     timePeriod?: ExportTimePeriod,
     customStart?: string,
-    customEnd?: string
+    customEnd?: string,
+    projectIds?: string[]
   ): Promise<void> {
     const data = this.storage.getData();
     const history = this.sessionManager.getSessionHistory();
     const period = timePeriod || 'all';
     const dateRange = this.getDateRange(period, customStart, customEnd);
-    const filteredTasks = this.filterTasksByDateRange(data.tasks, dateRange);
-    const periodLabel = this.getTimePeriodLabel(period, customStart, customEnd);
 
-    // For totals computation, use filtered tasks
-    const filteredData = { ...data, tasks: filteredTasks };
+    // Determine project-scoped session IDs (supports multiple projects)
+    const projectSessionIds = projectIds && projectIds.length > 0
+      ? new Set(data.sessions.filter((s) => s.projectId && projectIds.includes(s.projectId)).map((s) => s.id))
+      : null;
+
+    // Filter tasks by date range, then optionally by project
+    let filteredTasks = this.filterTasksByDateRange(data.tasks, dateRange);
+    if (projectSessionIds) {
+      filteredTasks = filteredTasks.filter((t) => projectSessionIds.has(t.sessionId));
+    }
+
+    const periodLabel = this.getTimePeriodLabel(period, customStart, customEnd);
+    const projectNames = projectIds && projectIds.length > 0
+      ? projectIds.map((id) => data.projects?.find((p) => p.id === id)?.name).filter(Boolean)
+      : [];
+    const scopeLabel = projectNames.length === 1 ? ` — ${projectNames[0]}` : projectNames.length > 1 ? ` — ${projectNames.length} projects` : '';
+
+    // Build filtered sessions for project scope
+    const filteredSessions = projectSessionIds
+      ? data.sessions.filter((s) => projectSessionIds.has(s.id))
+      : data.sessions;
+
+    const filteredData = { ...data, tasks: filteredTasks, sessions: filteredSessions };
     const totals = this.computeExportTotals(filteredData);
+
+    const localDate = new Date().toISOString().slice(0, 10);
     let content: string;
+    let ext: string;
     let defaultName: string;
     let filterLabel: string;
-    let ext: string;
+    const nameSuffix = projectNames.length === 1 ? `-${projectNames[0]!.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : projectNames.length > 1 ? '-multi' : '';
 
-    // Use local date for filename (toISOString gives UTC which can be the wrong day)
-    const now = new Date();
-    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    // Collect relevant project objects for the export
+    const exportProjects = projectIds && projectIds.length > 0
+      ? (data.projects || []).filter((p) => projectIds.includes(p.id))
+      : (data.projects || []);
 
     if (format === 'json') {
-      // JSON is always a full backup — no time filtering
-      const allTotals = this.computeExportTotals(data);
+      // JSON is always a full backup (but project-scoped if selected)
+      const jsonData = projectSessionIds ? filteredData : data;
+      const allTotals = this.computeExportTotals(jsonData);
+      const jsonSessions = projectSessionIds
+        ? history.sessions.filter((s) => projectSessionIds.has(s.id)).map((s) => ({
+            ...s,
+            summary: history.summaries[history.sessions.indexOf(s)],
+          }))
+        : history.sessions.map((s, i) => ({ ...s, summary: history.summaries[i] }));
       const exportObj = {
         exportedAt: new Date().toISOString(),
+        projects: exportProjects,
         summary: allTotals,
-        sessions: history.sessions.map((s, i) => ({
-          ...s,
-          summary: history.summaries[i],
-        })),
+        sessions: jsonSessions,
         activeSession: data.activeSessionId ? {
           id: data.activeSessionId,
           session: data.sessions.find((s) => s.id === data.activeSessionId),
           tasks: data.tasks.filter((t) => t.sessionId === data.activeSessionId),
         } : null,
-        tasks: data.tasks,
+        tasks: jsonData.tasks,
       };
       content = JSON.stringify(exportObj, null, 2);
       ext = 'json';
-      defaultName = `vibeboard-export-${localDate}.json`;
+      defaultName = `vibeboard-export${nameSuffix}-${localDate}.json`;
       filterLabel = 'JSON';
     } else if (format === 'csv') {
-      content = this.generateCsv(filteredData, totals, periodLabel);
+      content = this.generateCsv(filteredData, totals, periodLabel + scopeLabel, exportProjects);
       ext = 'csv';
-      defaultName = `vibeboard-export-${localDate}.csv`;
+      defaultName = `vibeboard-export${nameSuffix}-${localDate}.csv`;
       filterLabel = 'CSV';
     } else {
       // Markdown export
-      content = this.generateMarkdown(filteredData, history, totals, periodLabel);
+      const mdHistory = projectSessionIds
+        ? { sessions: history.sessions.filter((s) => projectSessionIds.has(s.id)), summaries: history.summaries.filter((_, i) => projectSessionIds.has(history.sessions[i].id)) }
+        : history;
+      content = this.generateMarkdown(filteredData, mdHistory, totals, periodLabel + scopeLabel, exportProjects);
       ext = 'md';
-      defaultName = `vibeboard-export-${localDate}.md`;
+      defaultName = `vibeboard-export${nameSuffix}-${localDate}.md`;
       filterLabel = 'Markdown';
     }
 
@@ -963,12 +1056,14 @@ export class MessageHandler {
       let sessions: any[] = [];
       let tasks: any[] = [];
       let boards: any[] | undefined;
+      let projects: any[] | undefined;
 
       if (imported.version === 1 && Array.isArray(imported.sessions) && Array.isArray(imported.tasks)) {
         // Raw workspace data format (direct copy of data.json)
         sessions = imported.sessions;
         tasks = imported.tasks;
         boards = imported.boards;
+        projects = imported.projects;
       } else if (Array.isArray(imported.sessions) && Array.isArray(imported.tasks)) {
         // Export format — sessions may have .summary attached
         sessions = imported.sessions.map((s: any) => {
@@ -976,6 +1071,10 @@ export class MessageHandler {
           return sessionData;
         });
         tasks = imported.tasks;
+        // Import projects from export format
+        if (Array.isArray(imported.projects)) {
+          projects = imported.projects;
+        }
       } else {
         vscode.window.showErrorMessage('Import failed: unrecognized file format. Use a Vibe Board JSON export or data.json backup.');
         return;
@@ -1024,6 +1123,13 @@ export class MessageHandler {
           data.boards = [{ id: 'default', name: 'Main Board', createdAt: new Date().toISOString() }];
           data.activeBoardId = 'default';
         }
+        if (projects && Array.isArray(projects)) {
+          data.projects = projects;
+          data.activeProjectId = null;
+        } else {
+          data.projects = [];
+          data.activeProjectId = null;
+        }
       } else {
         // Merge — add non-duplicate sessions and tasks
         const existingSessionIds = new Set(data.sessions.map((s) => s.id));
@@ -1055,6 +1161,16 @@ export class MessageHandler {
           }
         }
 
+        if (projects && Array.isArray(projects)) {
+          const existingProjectIds = new Set((data.projects || []).map((p) => p.id));
+          for (const p of projects) {
+            if (!existingProjectIds.has(p.id)) {
+              data.projects = data.projects || [];
+              data.projects.push(p);
+            }
+          }
+        }
+
         vscode.window.showInformationMessage(`Vibe Board: Merged ${addedSessions} sessions and ${addedTasks} tasks (${sessionCount - addedSessions} sessions and ${taskCount - addedTasks} tasks were duplicates).`);
       }
 
@@ -1080,7 +1196,7 @@ export class MessageHandler {
 
     const totalTasks = allTasks.length;
     const byStatus: Record<string, number> = { 'in-progress': 0, 'up-next': 0, backlog: 0, completed: 0, notes: 0 };
-    const byTag: Record<string, number> = { feature: 0, bug: 0, refactor: 0, note: 0 };
+    const byTag: Record<string, number> = { feature: 0, bug: 0, refactor: 0, note: 0, plan: 0 };
     const byPriority: Record<string, number> = { low: 0, medium: 0, high: 0 };
     let totalTimeMs = 0;
     let carriedOverCount = 0;
@@ -1173,10 +1289,20 @@ export class MessageHandler {
   private generateCsv(
     data: ReturnType<StorageProvider['getData']>,
     totals: ReturnType<MessageHandler['computeExportTotals']>,
-    periodLabel?: string
+    periodLabel?: string,
+    projects?: VBProject[]
   ): string {
     const csvEsc = (s: string) => `"${s.replace(/"/g, '""').replace(/[\r\n]+/g, ' ')}"`;
     const lines: string[] = [];
+
+    // Build project groupings
+    const hasProjects = projects && projects.length > 0;
+    const sessionProjectMap = new Map<string, string>();
+    if (hasProjects) {
+      for (const s of data.sessions) {
+        if (s.projectId) { sessionProjectMap.set(s.id, s.projectId); }
+      }
+    }
 
     // Period header
     if (periodLabel && periodLabel !== 'All Time') {
@@ -1192,6 +1318,28 @@ export class MessageHandler {
     lines.push(`Active Sessions,${totals.activeSessions}`);
     lines.push(`Ended Sessions,${totals.endedSessions}`);
     lines.push(`Total Session Time,${totals.totalSessionTime}`);
+
+    // Per-project session breakdown
+    if (hasProjects) {
+      lines.push('');
+      lines.push('Sessions by Project');
+      const projectGroups = [...projects!, null];
+      for (const project of projectGroups) {
+        const projId = project?.id;
+        const projName = project?.name || 'Unassigned';
+        const projSessions = data.sessions.filter((s) => {
+          return projId ? s.projectId === projId : !s.projectId;
+        });
+        if (projSessions.length === 0) { continue; }
+        const projSessionTime = projSessions.reduce((sum, s) => {
+          const dur = Math.max(0, ((s.endedAt ? new Date(s.endedAt).getTime() : Date.now()) - new Date(s.startedAt).getTime()) - (s.totalPausedMs || 0));
+          return sum + dur;
+        }, 0);
+        const projTasks = data.tasks.filter((t) => projSessions.some((s) => s.id === t.sessionId));
+        lines.push(`${csvEsc(projName)},${projSessions.length} sessions,${projTasks.length} tasks,${this.formatDuration(projSessionTime)}`);
+      }
+    }
+
     lines.push('');
     lines.push('Tasks');
     lines.push(`Total Tasks,${totals.totalTasks}`);
@@ -1207,6 +1355,7 @@ export class MessageHandler {
     lines.push(`Bugs,${totals.byTag['bug'] || 0}`);
     lines.push(`Refactors,${totals.byTag['refactor'] || 0}`);
     lines.push(`Notes,${totals.byTag['note'] || 0}`);
+    lines.push(`Plans,${totals.byTag['plan'] || 0}`);
     lines.push('');
     lines.push('By Priority');
     lines.push(`High,${totals.byPriority['high'] || 0}`);
@@ -1228,38 +1377,97 @@ export class MessageHandler {
       { tag: 'bug', label: 'BUGS' },
       { tag: 'refactor', label: 'REFACTORS' },
       { tag: 'note', label: 'NOTES' },
+      { tag: 'plan', label: 'PLANS' },
     ];
 
-    for (const { tag, label } of tagOrder) {
-      const tagTasks = data.tasks.filter((t) => t.tag === tag);
-      if (tagTasks.length === 0) { continue; }
+    const csvTaskRow = (task: VBTask) => {
+      const session = data.sessions.find((s) => s.id === task.sessionId);
+      const sessionName = session?.name || '';
+      const sessionDate = session ? new Date(session.startedAt).toLocaleDateString() : '';
+      const sessionDur = session ? this.formatDuration(
+        Math.max(0, ((session.endedAt ? new Date(session.endedAt).getTime() : Date.now()) - new Date(session.startedAt).getTime()) - (session.totalPausedMs || 0))
+      ) : '';
+      const board = data.boards?.find((b) => b.id === task.boardId);
+      const boardName = board?.name || task.boardId;
+      const carriedOver = task.carriedFromSessionId ? 'Yes' : 'No';
+      return [
+        csvEsc(sessionName),
+        sessionDate,
+        sessionDur,
+        csvEsc(task.title),
+        csvEsc(task.description),
+        task.priority || 'medium',
+        task.status,
+        csvEsc(boardName),
+        carriedOver,
+        new Date(task.createdAt).toLocaleString(),
+        task.completedAt ? new Date(task.completedAt).toLocaleString() : '',
+      ].join(',');
+    };
 
-      lines.push('');
-      lines.push(label);
-      lines.push('Session,Session Date,Session Duration,Task Title,Description,Priority,Status,Board,Carried Over,Created,Completed');
-      for (const task of tagTasks) {
-        const session = data.sessions.find((s) => s.id === task.sessionId);
-        const sessionName = session?.name || '';
-        const sessionDate = session ? new Date(session.startedAt).toLocaleDateString() : '';
-        const sessionDur = session ? this.formatDuration(
-          Math.max(0, ((session.endedAt ? new Date(session.endedAt).getTime() : Date.now()) - new Date(session.startedAt).getTime()) - (session.totalPausedMs || 0))
-        ) : '';
-        const board = data.boards?.find((b) => b.id === task.boardId);
-        const boardName = board?.name || task.boardId;
-        const carriedOver = task.carriedFromSessionId ? 'Yes' : 'No';
-        lines.push([
-          csvEsc(sessionName),
-          sessionDate,
-          sessionDur,
-          csvEsc(task.title),
-          csvEsc(task.description),
-          task.priority || 'medium',
-          task.status,
-          csvEsc(boardName),
-          carriedOver,
-          new Date(task.createdAt).toLocaleString(),
-          task.completedAt ? new Date(task.completedAt).toLocaleString() : '',
-        ].join(','));
+    const csvTaskHeader = 'Session,Session Date,Session Duration,Task Title,Description,Priority,Status,Board,Carried Over,Created,Completed';
+
+    if (hasProjects) {
+      // Group by project, then by tag within each project
+      const projectGroups = [...projects!, null]; // null = unassigned tasks
+      for (const project of projectGroups) {
+        const projId = project?.id;
+        const projName = project?.name || 'Unassigned';
+        const projSessions = data.sessions.filter((s) => {
+          return projId ? s.projectId === projId : !s.projectId;
+        });
+        const projTasks = data.tasks.filter((t) => {
+          const taskProjId = sessionProjectMap.get(t.sessionId);
+          return projId ? taskProjId === projId : !taskProjId;
+        });
+        // Show project if it has sessions or tasks
+        if (projSessions.length === 0 && projTasks.length === 0) { continue; }
+
+        lines.push('');
+        lines.push(`PROJECT: ${projName}`);
+
+        // List sessions for this project
+        if (projSessions.length > 0) {
+          lines.push('');
+          lines.push('  SESSIONS');
+          lines.push('Session,Date,Duration,Tasks,Completed,Carried Over');
+          for (const s of projSessions) {
+            const date = new Date(s.startedAt).toLocaleDateString();
+            const dur = this.formatDuration(Math.max(0, ((s.endedAt ? new Date(s.endedAt).getTime() : Date.now()) - new Date(s.startedAt).getTime()) - (s.totalPausedMs || 0)));
+            const sTasks = data.tasks.filter((t) => t.sessionId === s.id);
+            const sCompleted = sTasks.filter((t) => t.status === 'completed').length;
+            const sCarried = sTasks.filter((t) => t.carriedFromSessionId).length;
+            lines.push(`${csvEsc(s.name)},${date},${dur},${sTasks.length},${sCompleted},${sCarried}`);
+          }
+        }
+
+        if (projTasks.length > 0) {
+          for (const { tag, label } of tagOrder) {
+            const tagTasks = projTasks.filter((t) => t.tag === tag);
+            if (tagTasks.length === 0) { continue; }
+            lines.push('');
+            lines.push(`  ${label}`);
+            lines.push(csvTaskHeader);
+            for (const task of tagTasks) {
+              lines.push(csvTaskRow(task));
+            }
+          }
+        } else {
+          lines.push('');
+          lines.push('  No tasks');
+        }
+      }
+    } else {
+      // No projects — flat tag grouping (original behavior)
+      for (const { tag, label } of tagOrder) {
+        const tagTasks = data.tasks.filter((t) => t.tag === tag);
+        if (tagTasks.length === 0) { continue; }
+        lines.push('');
+        lines.push(label);
+        lines.push(csvTaskHeader);
+        for (const task of tagTasks) {
+          lines.push(csvTaskRow(task));
+        }
       }
     }
 
@@ -1273,10 +1481,21 @@ export class MessageHandler {
     data: ReturnType<StorageProvider['getData']>,
     history: ReturnType<SessionManager['getSessionHistory']>,
     totals: ReturnType<MessageHandler['computeExportTotals']>,
-    periodLabel?: string
+    periodLabel?: string,
+    projects?: VBProject[]
   ): string {
     const lines: string[] = [];
     lines.push('# Vibe Board Export');
+
+    // Build project lookup for session → project mapping
+    const hasProjects = projects && projects.length > 0;
+    const sessionProjectMap = new Map<string, string>();
+    if (hasProjects) {
+      for (const s of data.sessions) {
+        if (s.projectId) { sessionProjectMap.set(s.id, s.projectId); }
+      }
+    }
+
     lines.push('');
     lines.push(`*Exported: ${new Date().toLocaleString()}*`);
     if (periodLabel && periodLabel !== 'All Time') {
@@ -1302,8 +1521,31 @@ export class MessageHandler {
     lines.push(`| Carried Over | ${totals.carriedOverCount} |`);
     lines.push(`| Total Session Time | ${totals.totalSessionTime} |`);
     lines.push('');
+
+    // Per-project breakdown in summary
+    if (hasProjects) {
+      lines.push('### By Project');
+      lines.push('');
+      lines.push('| Project | Sessions | Tasks | Session Time |');
+      lines.push('|---------|----------|-------|-------------|');
+      const projectGroups = [...projects!, null];
+      for (const project of projectGroups) {
+        const projId = project?.id;
+        const projName = project?.name || 'Unassigned';
+        const projSessions = data.sessions.filter((s) => projId ? s.projectId === projId : !s.projectId);
+        if (projSessions.length === 0) { continue; }
+        const projSessionTime = projSessions.reduce((sum, s) => {
+          const dur = Math.max(0, ((s.endedAt ? new Date(s.endedAt).getTime() : Date.now()) - new Date(s.startedAt).getTime()) - (s.totalPausedMs || 0));
+          return sum + dur;
+        }, 0);
+        const projTasks = data.tasks.filter((t) => projSessions.some((s) => s.id === t.sessionId));
+        lines.push(`| ${projName} | ${projSessions.length} | ${projTasks.length} | ${this.formatDuration(projSessionTime)} |`);
+      }
+      lines.push('');
+    }
+
     lines.push('**By Tag:** ');
-    lines.push(`Feature: ${totals.byTag['feature'] || 0} · Bug: ${totals.byTag['bug'] || 0} · Refactor: ${totals.byTag['refactor'] || 0} · Note: ${totals.byTag['note'] || 0}`);
+    lines.push(`Feature: ${totals.byTag['feature'] || 0} · Bug: ${totals.byTag['bug'] || 0} · Refactor: ${totals.byTag['refactor'] || 0} · Note: ${totals.byTag['note'] || 0} · Plan: ${totals.byTag['plan'] || 0}`);
     lines.push('');
     lines.push('**By Priority:** ');
     lines.push(`High: ${totals.byPriority['high'] || 0} · Medium: ${totals.byPriority['medium'] || 0} · Low: ${totals.byPriority['low'] || 0}`);
@@ -1357,21 +1599,54 @@ export class MessageHandler {
       }
     }
 
+    // Build project lookup for session → project mapping
+    // (hasProjects and sessionProjectMap declared at top of function)
+
     // Session history
     if (history.sessions.length > 0) {
       lines.push('## Session History');
       lines.push('');
-      lines.push('| # | Date | Name | Duration | Tasks | Completed | Carried Over |');
-      lines.push('|---|------|------|----------|-------|-----------|-------------|');
-      for (let i = 0; i < history.sessions.length; i++) {
-        const s = history.sessions[i];
-        const sum = history.summaries[i];
-        const date = new Date(s.startedAt).toLocaleDateString();
-        const dur = this.formatDuration(sum.duration);
-        const totalTasks = data.tasks.filter((t) => t.sessionId === s.id).length;
-        lines.push(`| ${i + 1} | ${date} | ${s.name} | ${dur} | ${totalTasks} | ${sum.tasksCompleted} | ${sum.tasksCarriedOver} |`);
+
+      if (hasProjects) {
+        // Group sessions by project
+        const projectGroups = [...projects, null];
+        for (const project of projectGroups) {
+          const projId = project?.id;
+          const projName = project?.name || 'Unassigned';
+          const projSessions = history.sessions.filter((s) => {
+            const sProjId = (s as any).projectId;
+            return projId ? sProjId === projId : !sProjId;
+          });
+          if (projSessions.length === 0) { continue; }
+
+          lines.push(`### ${projName}`);
+          lines.push('');
+          lines.push('| # | Date | Name | Duration | Tasks | Completed | Carried Over |');
+          lines.push('|---|------|------|----------|-------|-----------|-------------|');
+          for (let i = 0; i < projSessions.length; i++) {
+            const s = projSessions[i];
+            const origIdx = history.sessions.indexOf(s);
+            const sum = history.summaries[origIdx];
+            const date = new Date(s.startedAt).toLocaleDateString();
+            const dur = this.formatDuration(sum.duration);
+            const totalTasks = data.tasks.filter((t) => t.sessionId === s.id).length;
+            lines.push(`| ${i + 1} | ${date} | ${s.name} | ${dur} | ${totalTasks} | ${sum.tasksCompleted} | ${sum.tasksCarriedOver} |`);
+          }
+          lines.push('');
+        }
+      } else {
+        lines.push('| # | Date | Name | Duration | Tasks | Completed | Carried Over |');
+        lines.push('|---|------|------|----------|-------|-----------|-------------|');
+        for (let i = 0; i < history.sessions.length; i++) {
+          const s = history.sessions[i];
+          const sum = history.summaries[i];
+          const date = new Date(s.startedAt).toLocaleDateString();
+          const dur = this.formatDuration(sum.duration);
+          const totalTasks = data.tasks.filter((t) => t.sessionId === s.id).length;
+          lines.push(`| ${i + 1} | ${date} | ${s.name} | ${dur} | ${totalTasks} | ${sum.tasksCompleted} | ${sum.tasksCarriedOver} |`);
+        }
+        lines.push('');
       }
-      lines.push('');
     }
 
     // All tasks grouped by tag
@@ -1380,43 +1655,82 @@ export class MessageHandler {
       { tag: 'bug', label: 'Bugs' },
       { tag: 'refactor', label: 'Refactors' },
       { tag: 'note', label: 'Notes' },
+      { tag: 'plan', label: 'Plans' },
     ];
 
-    for (const { tag, label } of tagGroups) {
-      const tasks = data.tasks
-        .filter((t) => t.tag === tag)
-        .sort((a, b) => {
-          // Completed first, then by date
-          if (a.status === 'completed' && b.status !== 'completed') { return -1; }
-          if (a.status !== 'completed' && b.status === 'completed') { return 1; }
-          if (a.status === 'completed' && b.status === 'completed') {
-            return new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime();
-          }
-          return a.order - b.order;
-        });
-
-      if (tasks.length === 0) { continue; }
-
-      const completedCount = tasks.filter((t) => t.status === 'completed').length;
-      lines.push(`## ${label} (${tasks.length} total, ${completedCount} completed)`);
-      lines.push('');
-      for (const t of tasks) {
-        const check = t.status === 'completed' ? '[x]' : '[ ]';
-        const prio = t.priority ? ` \`${t.priority}\`` : '';
-        const statusLabel = t.status === 'completed' ? '' : ` \`${t.status}\``;
-        const time = t.timeSpentMs ? ` (${this.formatDuration(t.timeSpentMs)})` : '';
-        const when = t.completedAt ? ` — ${new Date(t.completedAt).toLocaleDateString()}` : '';
-        const carried = t.carriedFromSessionId ? ' ↺' : '';
-        const session = data.sessions.find((s) => s.id === t.sessionId);
-        const sessionInfo = session ? ` [${session.name}]` : '';
-        lines.push(`- ${check} **${t.title}**${prio}${statusLabel}${time}${carried}${when}${sessionInfo}`);
-        if (t.description) {
-          for (const descLine of t.description.split('\n')) {
-            lines.push(`  ${descLine}`);
-          }
+    const renderTaskLine = (t: VBTask) => {
+      const check = t.status === 'completed' ? '[x]' : '[ ]';
+      const prio = t.priority ? ` \`${t.priority}\`` : '';
+      const statusLbl = t.status === 'completed' ? '' : ` \`${t.status}\``;
+      const time = t.timeSpentMs ? ` (${this.formatDuration(t.timeSpentMs)})` : '';
+      const when = t.completedAt ? ` — ${new Date(t.completedAt).toLocaleDateString()}` : '';
+      const carried = t.carriedFromSessionId ? ' ↺' : '';
+      const session = data.sessions.find((s) => s.id === t.sessionId);
+      const sessionInfo = session ? ` [${session.name}]` : '';
+      lines.push(`- ${check} **${t.title}**${prio}${statusLbl}${time}${carried}${when}${sessionInfo}`);
+      if (t.description) {
+        for (const descLine of t.description.split('\n')) {
+          lines.push(`  ${descLine}`);
         }
       }
+    };
+
+    const sortTasks = (tasks: VBTask[]) => tasks.sort((a, b) => {
+      if (a.status === 'completed' && b.status !== 'completed') { return -1; }
+      if (a.status !== 'completed' && b.status === 'completed') { return 1; }
+      if (a.status === 'completed' && b.status === 'completed') {
+        return new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime();
+      }
+      return a.order - b.order;
+    });
+
+    if (hasProjects) {
+      // Group by project, then by tag within each project
+      lines.push('## Tasks by Project');
       lines.push('');
+
+      const projectGroups = [...projects!, null];
+      for (const project of projectGroups) {
+        const projId = project?.id;
+        const projName = project?.name || 'Unassigned';
+        const projSessions = data.sessions.filter((s) => projId ? s.projectId === projId : !s.projectId);
+        const projTasks = data.tasks.filter((t) => {
+          const taskProjId = sessionProjectMap.get(t.sessionId);
+          return projId ? taskProjId === projId : !taskProjId;
+        });
+        // Show project if it has sessions or tasks
+        if (projSessions.length === 0 && projTasks.length === 0) { continue; }
+
+        const projCompleted = projTasks.filter((t) => t.status === 'completed').length;
+        lines.push(`### ${projName} (${projSessions.length} sessions, ${projTasks.length} tasks, ${projCompleted} completed)`);
+        lines.push('');
+
+        if (projTasks.length > 0) {
+          for (const { tag, label } of tagGroups) {
+            const tasks = sortTasks(projTasks.filter((t) => t.tag === tag));
+            if (tasks.length === 0) { continue; }
+            const completedCount = tasks.filter((t) => t.status === 'completed').length;
+            lines.push(`#### ${label} (${tasks.length} total, ${completedCount} completed)`);
+            lines.push('');
+            for (const t of tasks) { renderTaskLine(t); }
+            lines.push('');
+          }
+        } else {
+          lines.push('*No tasks*');
+          lines.push('');
+        }
+      }
+    } else {
+      // No projects — flat tag grouping (original behavior)
+      for (const { tag, label } of tagGroups) {
+        const tasks = sortTasks(data.tasks.filter((t) => t.tag === tag));
+        if (tasks.length === 0) { continue; }
+        const completedCount = tasks.filter((t) => t.status === 'completed').length;
+        lines.push(`## ${label} (${tasks.length} total, ${completedCount} completed)`);
+        lines.push('');
+        for (const t of tasks) { renderTaskLine(t); }
+        lines.push('');
+      }
     }
 
     return lines.join('\n');

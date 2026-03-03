@@ -362,15 +362,18 @@ export class TaskManager {
 
   /**
    * Carry over unfinished tasks from ALL ended sessions to the new session.
+   * When projectId is provided, only carry over tasks from sessions in that project.
    * Updates sessionId and boardId so tasks appear on the new session's active board.
    */
-  carryOverAllTasks(newSessionId: string): number {
+  carryOverAllTasks(newSessionId: string, projectId?: string): number {
     const data = this.storage.getData();
     const newBoardId = data.activeBoardId || 'default';
 
-    // Find all ended session IDs
+    // Find ended session IDs, optionally scoped to a project
     const endedSessionIds = new Set(
-      data.sessions.filter((s) => s.status === 'ended').map((s) => s.id)
+      data.sessions
+        .filter((s) => s.status === 'ended' && (!projectId || s.projectId === projectId))
+        .map((s) => s.id)
     );
 
     let carried = 0;
