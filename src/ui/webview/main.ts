@@ -151,6 +151,7 @@ interface VBSettings {
   autoBackupIntervalMin: number;
   autoPromptSession: boolean;
   carryOverTasks: boolean;
+  jiraConfigured: boolean;
 }
 let extensionSettings: VBSettings = {
   autoBackup: true,
@@ -158,6 +159,7 @@ let extensionSettings: VBSettings = {
   autoBackupIntervalMin: 5,
   autoPromptSession: true,
   carryOverTasks: true,
+  jiraConfigured: false,
 };
 
 // Automation state
@@ -222,6 +224,12 @@ window.addEventListener('message', (event) => {
     case 'settingsUpdate':
       extensionSettings = message.payload as VBSettings;
       render();
+      break;
+    case 'jiraProjects':
+      handleJiraProjectsResponse(message.payload);
+      break;
+    case 'jiraExportResult':
+      handleJiraExportResult(message.payload);
       break;
   }
 });
@@ -1029,11 +1037,13 @@ function renderNoSessionState(): string {
         <button class="secondary" id="btn-export-json" title="Full data backup — all sessions, tasks, and settings in machine-readable format">JSON</button>
         <button class="secondary" id="btn-export-csv" title="Spreadsheet-ready table — ${activeProject ? 'project' : 'all'} tasks with session info, plus summary totals">CSV</button>
         <button class="secondary" id="btn-export-md" title="Human-readable report — ${activeProject ? 'project' : 'all'} summary stats, session history, and tasks">Markdown</button>
+        <button class="secondary" id="btn-export-jira" title="Create Jira issues from tasks — requires Jira credentials in Settings">&#127919; Jira</button>
       </div>
       <div class="start-export-hints">
         <span>JSON: Full backup</span>
         <span>CSV: Spreadsheet</span>
         <span>MD: Report</span>
+        <span>Jira: Create issues</span>
       </div>
       <div class="start-import-actions">
         <button class="secondary" id="btn-import-data" title="Import data from a Vibe Board JSON export or data.json backup">&#128229; Import JSON</button>
@@ -1292,6 +1302,7 @@ function bindEvents(): void {
   document.getElementById('btn-export-json')?.addEventListener('click', () => showExportProjectPicker('json'));
   document.getElementById('btn-export-csv')?.addEventListener('click', () => showExportProjectPicker('csv'));
   document.getElementById('btn-export-md')?.addEventListener('click', () => showExportProjectPicker('markdown'));
+  document.getElementById('btn-export-jira')?.addEventListener('click', () => showJiraExportDialog());
   document.getElementById('btn-import-data')?.addEventListener('click', () => vscode.postMessage({ type: 'importData', payload: {} }));
 
   // Project management
@@ -2759,6 +2770,265 @@ function showExportTimePicker(format: 'csv' | 'markdown', projectIds?: string[])
 }
 
 // ============================================================
+// Jira Export
+// ============================================================
+
+/** Pending callback for when Jira projects arrive from the extension. */
+let jiraProjectsCallback: ((payload: { projects: { id: string; key: string; name: string }[]; error?: string }) => void) | null = null;
+
+/** Pending overlay for Jira export result display. */
+let jiraResultOverlay: HTMLDivElement | null = null;
+
+/**
+ * Show the Jira export dialog.
+ * Step 1: Check credentials → fetch projects → show project picker with task selection.
+ */
+function showJiraExportDialog(): void {
+  if (!extensionSettings.jiraConfigured) {
+    showJiraCredentialsPrompt();
+    return;
+  }
+
+  // Show a loading overlay while projects are fetched
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Export to Jira');
+  overlay.innerHTML = `<div class="modal-card jira-dialog">
+    <h3>&#127919; Export to Jira</h3>
+    <p class="jira-loading">Fetching Jira projects&hellip;</p>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
+
+  jiraProjectsCallback = (payload) => {
+    jiraProjectsCallback = null;
+    if (payload.error) {
+      overlay.querySelector('.jira-dialog')!.innerHTML = `
+        <h3>&#127919; Export to Jira</h3>
+        <p class="jira-error">&#9888; ${escapeHtml(payload.error)}</p>
+        <div class="modal-actions">
+          <button id="jira-error-close">Close</button>
+        </div>`;
+      overlay.querySelector('#jira-error-close')!.addEventListener('click', () => overlay.remove());
+      return;
+    }
+    if (payload.projects.length === 0) {
+      overlay.querySelector('.jira-dialog')!.innerHTML = `
+        <h3>&#127919; Export to Jira</h3>
+        <p class="jira-error">No Jira projects found. Check your permissions.</p>
+        <div class="modal-actions">
+          <button id="jira-error-close">Close</button>
+        </div>`;
+      overlay.querySelector('#jira-error-close')!.addEventListener('click', () => overlay.remove());
+      return;
+    }
+    showJiraProjectAndTaskPicker(overlay, payload.projects);
+  };
+
+  vscode.postMessage({ type: 'getJiraProjects', payload: {} });
+}
+
+/** Handle the jiraProjects response from the extension. */
+function handleJiraProjectsResponse(payload: { projects: { id: string; key: string; name: string }[]; error?: string }): void {
+  if (jiraProjectsCallback) {
+    jiraProjectsCallback(payload);
+  }
+}
+
+/**
+ * Show a dialog prompting the user to configure Jira credentials.
+ */
+function showJiraCredentialsPrompt(): void {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Jira Setup Required');
+  overlay.innerHTML = `<div class="modal-card jira-dialog">
+    <h3>&#127919; Jira Setup Required</h3>
+    <p>To export tasks to Jira, configure your credentials in VS Code settings:</p>
+    <ol class="jira-setup-steps">
+      <li>Open <strong>Settings</strong> (<kbd>Ctrl+,</kbd>)</li>
+      <li>Search for <strong>"Vibe Board Jira"</strong></li>
+      <li>Enter your <strong>Base URL</strong> (e.g. https://your-domain.atlassian.net)</li>
+      <li>Enter your <strong>Email</strong></li>
+      <li>Enter your <strong>API Token</strong> (<a href="https://id.atlassian.com/manage-profile/security/api-tokens" class="jira-link">generate one here</a>)</li>
+    </ol>
+    <div class="modal-actions">
+      <button class="secondary" id="jira-setup-close">Close</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#jira-setup-close')!.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
+}
+
+/**
+ * Replace the loading overlay with the project + task picker.
+ */
+function showJiraProjectAndTaskPicker(
+  overlay: HTMLDivElement,
+  jiraProjects: { id: string; key: string; name: string }[]
+): void {
+  // Get tasks in the current context
+  const activeSessionId = state?.activeSessionId || null;
+  const tasks = state?.tasks || [];
+  const sessionTasks = activeSessionId
+    ? tasks.filter((t: { sessionId: string }) => t.sessionId === activeSessionId)
+    : tasks;
+
+  // Filter to actionable tasks (not notes)
+  const exportableTasks = sessionTasks.filter(
+    (t: { status: string; tag: string }) => t.status !== 'notes' || t.tag !== 'note'
+  );
+
+  if (exportableTasks.length === 0) {
+    overlay.querySelector('.jira-dialog')!.innerHTML = `
+      <h3>&#127919; Export to Jira</h3>
+      <p class="jira-error">No tasks available to export${activeSessionId ? ' in the active session' : ''}.</p>
+      <div class="modal-actions">
+        <button id="jira-error-close">Close</button>
+      </div>`;
+    overlay.querySelector('#jira-error-close')!.addEventListener('click', () => overlay.remove());
+    return;
+  }
+
+  const projectOptions = jiraProjects.map((p) =>
+    `<option value="${escapeHtml(p.key)}">${escapeHtml(p.name)} (${escapeHtml(p.key)})</option>`
+  ).join('');
+
+  const taskRows = exportableTasks.map((t: { id: string; title: string; tag: string; priority: string; status: string }) => {
+    const tagClass = `tag-${t.tag}`;
+    return `<label class="jira-task-option">
+      <input type="checkbox" name="jira-task" value="${t.id}" checked />
+      <span class="task-tag ${tagClass}">${t.tag}</span>
+      <span class="jira-task-title">${escapeHtml(t.title)}</span>
+    </label>`;
+  }).join('');
+
+  overlay.querySelector('.jira-dialog')!.innerHTML = `
+    <h3>&#127919; Export to Jira</h3>
+    <div class="jira-form">
+      <div class="jira-field">
+        <label for="jira-project-select">Jira Project</label>
+        <select id="jira-project-select" class="jira-select">${projectOptions}</select>
+      </div>
+      <div class="jira-field">
+        <label>Tasks to Export <span class="jira-task-count">(${exportableTasks.length} selected)</span></label>
+        <div class="jira-task-list">
+          <label class="jira-task-option jira-select-all">
+            <input type="checkbox" id="jira-select-all" checked />
+            <strong>Select All</strong>
+          </label>
+          <div class="jira-task-divider"></div>
+          ${taskRows}
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" id="jira-cancel">Cancel</button>
+      <button id="jira-export-confirm">&#128640; Export to Jira</button>
+    </div>`;
+
+  // Select All toggling
+  const selectAllCb = overlay.querySelector('#jira-select-all') as HTMLInputElement;
+  const taskCbs = overlay.querySelectorAll<HTMLInputElement>('input[name="jira-task"]');
+  const countSpan = overlay.querySelector('.jira-task-count') as HTMLElement;
+
+  const updateCount = () => {
+    const checked = Array.from(taskCbs).filter((cb) => cb.checked).length;
+    countSpan.textContent = `(${checked} selected)`;
+  };
+
+  selectAllCb.addEventListener('change', () => {
+    taskCbs.forEach((cb) => { cb.checked = selectAllCb.checked; });
+    updateCount();
+  });
+
+  taskCbs.forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const allChecked = Array.from(taskCbs).every((c) => c.checked);
+      const noneChecked = !Array.from(taskCbs).some((c) => c.checked);
+      selectAllCb.checked = allChecked;
+      selectAllCb.indeterminate = !allChecked && !noneChecked;
+      updateCount();
+    });
+  });
+
+  // Cancel
+  overlay.querySelector('#jira-cancel')!.addEventListener('click', () => overlay.remove());
+
+  // Export
+  overlay.querySelector('#jira-export-confirm')!.addEventListener('click', () => {
+    const selectedIds = Array.from(taskCbs).filter((cb) => cb.checked).map((cb) => cb.value);
+    if (selectedIds.length === 0) { return; }
+
+    const projectKey = (overlay.querySelector('#jira-project-select') as HTMLSelectElement).value;
+
+    // Replace dialog with progress
+    overlay.querySelector('.jira-dialog')!.innerHTML = `
+      <h3>&#127919; Exporting to Jira&hellip;</h3>
+      <p class="jira-loading">Creating ${selectedIds.length} issue${selectedIds.length === 1 ? '' : 's'} in ${escapeHtml(projectKey)}&hellip;</p>`;
+
+    jiraResultOverlay = overlay;
+
+    vscode.postMessage({
+      type: 'exportToJira',
+      payload: { projectKey, taskIds: selectedIds },
+    });
+  });
+}
+
+/**
+ * Handle the export result from the extension and show success/failure summary.
+ */
+function handleJiraExportResult(payload: {
+  success: boolean;
+  created: number;
+  failed: number;
+  issues: { taskTitle: string; issueKey: string; issueUrl: string }[];
+  errors: string[];
+}): void {
+  const overlay = jiraResultOverlay || document.querySelector('.jira-dialog')?.closest('.modal-overlay') as HTMLDivElement;
+  jiraResultOverlay = null;
+
+  if (!overlay) { return; }
+
+  const issueRows = payload.issues.map((i) =>
+    `<li class="jira-result-item jira-result-success">
+      <span class="jira-issue-key">${escapeHtml(i.issueKey)}</span>
+      <span class="jira-issue-title">${escapeHtml(i.taskTitle)}</span>
+    </li>`
+  ).join('');
+
+  const errorRows = payload.errors.map((e) =>
+    `<li class="jira-result-item jira-result-error">&#9888; ${escapeHtml(e)}</li>`
+  ).join('');
+
+  const statusIcon = payload.created > 0 && payload.failed === 0 ? '&#9989;' : payload.created > 0 ? '&#9888;' : '&#10060;';
+  const statusText = payload.created > 0 && payload.failed === 0
+    ? `Successfully created ${payload.created} issue${payload.created === 1 ? '' : 's'}!`
+    : payload.created > 0
+    ? `Created ${payload.created} issue${payload.created === 1 ? '' : 's'}, ${payload.failed} failed.`
+    : `Failed to create issues.`;
+
+  overlay.querySelector('.jira-dialog')!.innerHTML = `
+    <h3>&#127919; Jira Export Result</h3>
+    <p class="jira-status">${statusIcon} ${statusText}</p>
+    <ul class="jira-result-list">
+      ${issueRows}
+      ${errorRows}
+    </ul>
+    <div class="modal-actions">
+      <button id="jira-result-close">Close</button>
+    </div>`;
+
+  overlay.querySelector('#jira-result-close')!.addEventListener('click', () => overlay.remove());
+}
+
+// ============================================================
 // Session Summary
 // ============================================================
 
@@ -3765,6 +4035,22 @@ function renderHelpContent(section: string): string {
           <li>The <strong>Danger Zone</strong> section on the start page lets you permanently delete all sessions, tasks, and boards.</li>
           <li>A confirmation dialog prevents accidental deletion.</li>
           <li>Consider exporting your data first as a backup &mdash; this action cannot be undone.</li>
+        </ul>
+        <h4>Jira Integration</h4>
+        <p>Export tasks directly to Jira as issues. Each Vibe Board task becomes a Jira issue with auto-mapped fields.</p>
+        <ul>
+          <li><strong>Setup</strong> &mdash; Configure your Jira credentials in VS Code settings: Base URL, Email, and API Token.</li>
+          <li><strong>API Token</strong> &mdash; Generate one at <em>id.atlassian.com &rarr; Security &rarr; API tokens</em>.</li>
+          <li><strong>Project Picker</strong> &mdash; The Jira button fetches your available projects and lets you choose where to create issues.</li>
+          <li><strong>Task Selection</strong> &mdash; Pick which tasks to export &mdash; defaults to all tasks in the active session.</li>
+        </ul>
+        <h4>Jira Field Mapping</h4>
+        <ul>
+          <li><strong>Title</strong> &rarr; Issue Summary</li>
+          <li><strong>Description</strong> &rarr; Issue Description (with metadata footer)</li>
+          <li><strong>Tag</strong> &rarr; Label (feature, bug, refactor, etc.)</li>
+          <li><strong>Priority</strong> &rarr; Issue Priority (High, Medium, Low)</li>
+          <li><strong>Issue Type</strong> &rarr; Task (default)</li>
         </ul>`;
 
     case 'shortcuts':

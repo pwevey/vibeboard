@@ -5,6 +5,7 @@ import { TaskManager } from '../tasks/TaskManager';
 import { StorageProvider } from '../storage/StorageProvider';
 import { CopilotAIService } from '../services/index';
 import { AutomationService } from '../services/AutomationService';
+import { JiraService } from '../services/JiraService';
 import { generateId } from '../utils/uuid';
 
 /**
@@ -15,6 +16,7 @@ export class MessageHandler {
   private webview: vscode.Webview | null = null;
   private aiService: CopilotAIService;
   private automationService: AutomationService;
+  private jiraService: JiraService;
 
   constructor(
     private storage: StorageProvider,
@@ -22,6 +24,7 @@ export class MessageHandler {
     private taskManager: TaskManager
   ) {
     this.aiService = new CopilotAIService();
+    this.jiraService = new JiraService();
     this.automationService = new AutomationService(storage, taskManager, this.aiService);
 
     // Wire automation progress to webview
@@ -745,9 +748,65 @@ export class MessageHandler {
 
       case 'updateSetting': {
         const { key, value } = message.payload as { key: string; value: unknown };
-        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks'];
+        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl', 'jiraEmail', 'jiraApiToken'];
         if (allowedKeys.includes(key)) {
           await vscode.workspace.getConfiguration('vibeboard').update(key, value, vscode.ConfigurationTarget.Global);
+        }
+        break;
+      }
+
+      case 'getJiraProjects': {
+        const result = await this.jiraService.getProjects();
+        this.webview?.postMessage({ type: 'jiraProjects', payload: result });
+        break;
+      }
+
+      case 'exportToJira': {
+        const data = this.storage.getData();
+        const { projectKey, taskIds, issueType } = message.payload as { projectKey: string; taskIds?: string[]; issueType?: string };
+
+        // If taskIds provided, export those; otherwise export all tasks in active session
+        let tasksToExport: VBTask[];
+        if (taskIds && taskIds.length > 0) {
+          tasksToExport = data.tasks.filter((t) => taskIds.includes(t.id));
+        } else if (data.activeSessionId) {
+          tasksToExport = data.tasks.filter((t) => t.sessionId === data.activeSessionId);
+        } else {
+          tasksToExport = data.tasks;
+        }
+
+        if (tasksToExport.length === 0) {
+          this.webview?.postMessage({
+            type: 'jiraExportResult',
+            payload: { success: false, created: 0, failed: 0, issues: [], errors: ['No tasks to export.'] },
+          });
+          break;
+        }
+
+        const { created, errors } = await this.jiraService.createIssues(
+          tasksToExport,
+          projectKey,
+          issueType || 'Task'
+        );
+
+        const success = created.length > 0 && errors.length === 0;
+        this.webview?.postMessage({
+          type: 'jiraExportResult',
+          payload: {
+            success,
+            created: created.length,
+            failed: errors.length,
+            issues: created,
+            errors,
+          },
+        });
+
+        if (created.length > 0) {
+          vscode.window.showInformationMessage(
+            `Vibe Board: Created ${created.length} Jira issue${created.length === 1 ? '' : 's'}${errors.length > 0 ? ` (${errors.length} failed)` : ''}.`
+          );
+        } else {
+          vscode.window.showErrorMessage('Vibe Board: Failed to create Jira issues. Check the export results for details.');
         }
         break;
       }
@@ -773,6 +832,9 @@ export class MessageHandler {
         autoBackupIntervalMin: config.get<number>('autoBackupIntervalMin', 5),
         autoPromptSession: config.get<boolean>('autoPromptSession', true),
         carryOverTasks: config.get<boolean>('carryOverTasks', true),
+        jiraBaseUrl: config.get<string>('jiraBaseUrl', ''),
+        jiraEmail: config.get<string>('jiraEmail', ''),
+        jiraConfigured: !!(config.get<string>('jiraBaseUrl', '') && config.get<string>('jiraEmail', '') && config.get<string>('jiraApiToken', '')),
       },
     });
   }

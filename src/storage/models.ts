@@ -199,6 +199,8 @@ export type WebviewToExtensionMessage =
   | { type: 'deleteProject'; payload: { projectId: string } }
   | { type: 'setActiveProject'; payload: { projectId: string | null } }
   | { type: 'updateSetting'; payload: { key: string; value: unknown } }
+  | { type: 'getJiraProjects'; payload: Record<string, never> }
+  | { type: 'exportToJira'; payload: { projectKey: string; taskIds?: string[]; issueType?: string } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
@@ -210,7 +212,23 @@ export type ExtensionToWebviewMessage =
   | { type: 'showFollowUp'; payload: { taskId: string } }
   | { type: 'followUpFiles'; payload: { taskId: string; files: VBAttachment[] } }
   | { type: 'automationProgress'; payload: AutomationProgress }
-  | { type: 'settingsUpdate'; payload: Record<string, unknown> };
+  | { type: 'settingsUpdate'; payload: Record<string, unknown> }
+  | { type: 'jiraProjects'; payload: { projects: JiraProject[]; error?: string } }
+  | { type: 'jiraExportResult'; payload: { success: boolean; created: number; failed: number; issues: JiraCreatedIssue[]; errors: string[] } };
+
+// === Jira Types ===
+
+export interface JiraProject {
+  id: string;
+  key: string;
+  name: string;
+}
+
+export interface JiraCreatedIssue {
+  taskTitle: string;
+  issueKey: string;
+  issueUrl: string;
+}
 
 // === Factory Functions ===
 

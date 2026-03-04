@@ -3063,3 +3063,181 @@ textarea:focus-visible {
   white-space: nowrap;
   flex: 1;
 }
+
+/* ============================================================
+   Jira Export Dialog
+   ============================================================ */
+
+.jira-dialog {
+  max-width: 380px;
+  width: 90%;
+}
+
+.jira-loading {
+  text-align: center;
+  padding: 20px 0;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.jira-error {
+  color: var(--vscode-errorForeground, #f44);
+  padding: 8px 0;
+}
+
+.jira-setup-steps {
+  font-size: 12px;
+  padding-left: 18px;
+  margin: 8px 0 16px;
+  line-height: 1.8;
+}
+
+.jira-setup-steps kbd {
+  font-size: 11px;
+  background: var(--vscode-keybindingLabel-background, rgba(255,255,255,0.1));
+  border: 1px solid var(--vscode-keybindingLabel-border, rgba(255,255,255,0.15));
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.jira-link {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: underline;
+}
+
+.jira-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.jira-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.jira-select {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-widget-border));
+  border-radius: 3px;
+  outline: none;
+}
+
+.jira-select:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.jira-task-count {
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.jira-task-list {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.jira-task-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 3px;
+}
+
+.jira-task-option:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.jira-task-option input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--vscode-checkbox-background);
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.jira-select-all {
+  font-weight: 600;
+}
+
+.jira-task-divider {
+  height: 1px;
+  background: var(--vscode-widget-border);
+  margin: 2px 0;
+}
+
+.jira-task-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.jira-status {
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.jira-result-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 16px;
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jira-result-item {
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jira-result-success {
+  background: rgba(0, 200, 83, 0.08);
+}
+
+.jira-result-error {
+  background: rgba(244, 67, 54, 0.08);
+  color: var(--vscode-errorForeground, #f44);
+}
+
+.jira-issue-key {
+  font-family: var(--vscode-editor-font-family);
+  font-weight: 600;
+  font-size: 11px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.jira-issue-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
