@@ -2204,6 +2204,7 @@ function showSettingsDialog(): void {
   });
 
   // Jira Save button
+  let jiraTokenMask = '\u2022'.repeat(8); // default mask length
   document.getElementById('jira-save-btn')?.addEventListener('click', () => {
     const fields = overlay.querySelectorAll<HTMLInputElement>('.jira-setting');
     let hasToken = false;
@@ -2212,8 +2213,10 @@ function showSettingsDialog(): void {
       if (!key) { return; }
       const val = input.value.trim();
       if (key === 'jiraApiToken') {
-        if (val && val !== '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022') {
+        // Only save if the value is a real token (not the mask)
+        if (val && val !== jiraTokenMask) {
           vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
+          jiraTokenMask = '\u2022'.repeat(val.length);
           hasToken = true;
         }
       } else {
@@ -2231,7 +2234,7 @@ function showSettingsDialog(): void {
 
     // Mask the token field after save
     if (hasToken && tokenInput) {
-      tokenInput.value = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+      tokenInput.value = jiraTokenMask;
     }
 
     // Show saved confirmation
@@ -2245,7 +2248,7 @@ function showSettingsDialog(): void {
   // Clear placeholder dots when user focuses the token field
   const tokenInput = overlay.querySelector('[data-setting="jiraApiToken"]') as HTMLInputElement;
   tokenInput?.addEventListener('focus', () => {
-    if (tokenInput.value === '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022') {
+    if (tokenInput.value === jiraTokenMask) {
       tokenInput.value = '';
     }
   });
