@@ -101,6 +101,13 @@
           "minimum": 1,
           "maximum": 100,
           "description": "Maximum number of auto-backup files to keep. Oldest backups are deleted when the limit is exceeded."
+        },
+        "vibeboard.autoBackupIntervalMin": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 60,
+          "description": "Minutes between automatic backups (1-60). Backups only occur when data has changed."
         }
       }
     }

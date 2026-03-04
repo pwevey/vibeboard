@@ -745,7 +745,7 @@ export class MessageHandler {
 
       case 'updateSetting': {
         const { key, value } = message.payload as { key: string; value: unknown };
-        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoPromptSession', 'carryOverTasks'];
+        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks'];
         if (allowedKeys.includes(key)) {
           await vscode.workspace.getConfiguration('vibeboard').update(key, value, vscode.ConfigurationTarget.Global);
         }
@@ -770,6 +770,7 @@ export class MessageHandler {
       payload: {
         autoBackup: config.get<boolean>('autoBackup', true),
         autoBackupMaxCount: config.get<number>('autoBackupMaxCount', 10),
+        autoBackupIntervalMin: config.get<number>('autoBackupIntervalMin', 5),
         autoPromptSession: config.get<boolean>('autoPromptSession', true),
         carryOverTasks: config.get<boolean>('carryOverTasks', true),
       },

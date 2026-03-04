@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { VBWorkspaceData, createDefaultWorkspaceData } from './models';
-import { STORAGE_DIR, STORAGE_FILE, STORAGE_WRITE_DEBOUNCE_MS, BACKUP_DIR, AUTO_BACKUP_MIN_INTERVAL_MS } from '../utils/constants';
+import { STORAGE_DIR, STORAGE_FILE, STORAGE_WRITE_DEBOUNCE_MS, BACKUP_DIR } from '../utils/constants';
 
 /**
  * StorageProvider handles reading/writing the workspace JSON data file.
@@ -134,7 +134,9 @@ export class StorageProvider {
     if (!enabled) { return; }
 
     const now = Date.now();
-    if (now - this.lastBackupTime < AUTO_BACKUP_MIN_INTERVAL_MS) { return; }
+    const intervalMin = config.get<number>('autoBackupIntervalMin', 5);
+    const intervalMs = Math.max(1, Math.min(60, intervalMin)) * 60 * 1000;
+    if (now - this.lastBackupTime < intervalMs) { return; }
     this.lastBackupTime = now;
 
     try {

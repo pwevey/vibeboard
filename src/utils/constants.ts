@@ -36,4 +36,4 @@ export const STORAGE_WRITE_DEBOUNCE_MS = 300;
 /**
  * Minimum interval between auto-backups (ms). Default: 5 minutes.
  */
-export const AUTO_BACKUP_MIN_INTERVAL_MS = 5 * 60 * 1000;
+export const AUTO_BACKUP_DEFAULT_INTERVAL_MIN = 5;

@@ -143,12 +143,14 @@ let quickAddCol: string = 'up-next';
 interface VBSettings {
   autoBackup: boolean;
   autoBackupMaxCount: number;
+  autoBackupIntervalMin: number;
   autoPromptSession: boolean;
   carryOverTasks: boolean;
 }
 let extensionSettings: VBSettings = {
   autoBackup: true,
   autoBackupMaxCount: 10,
+  autoBackupIntervalMin: 5,
   autoPromptSession: true,
   carryOverTasks: true,
 };
@@ -2084,6 +2086,11 @@ function showSettingsDialog(): void {
         <span class="start-setting-label">Max Backup Files</span>
         <input type="number" class="setting-number" data-setting="autoBackupMaxCount" value="${extensionSettings.autoBackupMaxCount}" min="1" max="100" />
       </label>
+      <label class="start-setting-row" id="setting-row-backup-interval" style="${extensionSettings.autoBackup ? '' : 'opacity:0.5;pointer-events:none;'}">
+        <span class="start-setting-label">Backup Interval</span>
+        <input type="number" class="setting-number" data-setting="autoBackupIntervalMin" value="${extensionSettings.autoBackupIntervalMin}" min="1" max="60" />
+        <span class="start-setting-desc">minutes</span>
+      </label>
       <label class="start-setting-row">
         <input type="checkbox" class="setting-checkbox" data-setting="autoPromptSession" ${extensionSettings.autoPromptSession ? 'checked' : ''} />
         <span class="start-setting-label">Auto-Prompt Session</span>
@@ -2124,10 +2131,12 @@ function showSettingsDialog(): void {
       vscode.postMessage({ type: 'updateSetting', payload: { key, value: cb.checked } });
       (extensionSettings as Record<string, unknown>)[key] = cb.checked;
       if (key === 'autoBackup') {
-        const countRow = overlay.querySelector('#setting-row-backup-count') as HTMLElement;
-        if (countRow) {
-          countRow.style.opacity = cb.checked ? '1' : '0.5';
-          countRow.style.pointerEvents = cb.checked ? 'auto' : 'none';
+        for (const rowId of ['#setting-row-backup-count', '#setting-row-backup-interval']) {
+          const row = overlay.querySelector(rowId) as HTMLElement;
+          if (row) {
+            row.style.opacity = cb.checked ? '1' : '0.5';
+            row.style.pointerEvents = cb.checked ? 'auto' : 'none';
+          }
         }
       }
     });
@@ -3721,7 +3730,7 @@ function renderHelpContent(section: string): string {
         <p>Vibe Board automatically creates backup copies of your data in the background so you never lose work.</p>
         <ul>
           <li>Backups are saved to <code>.vibeboard/backups/</code> as timestamped JSON files (e.g. <code>data-backup-2026-03-04T10-30-00.json</code>).</li>
-          <li>A new backup is created at most every <strong>5 minutes</strong> when data changes.</li>
+          <li>A new backup is created at most every <strong>5 minutes</strong> (configurable) when data changes.</li>
           <li>Old backups are automatically rotated &mdash; only the most recent files are kept (default: 10).</li>
           <li>To restore from a backup, use <strong>Import JSON</strong> on the start page and select a backup file, or copy it over <code>.vibeboard/data.json</code>.</li>
         </ul>
@@ -3729,6 +3738,7 @@ function renderHelpContent(section: string): string {
         <ul>
           <li><code>vibeboard.autoBackup</code> &mdash; Enable or disable auto-backups (default: <strong>on</strong>).</li>
           <li><code>vibeboard.autoBackupMaxCount</code> &mdash; Maximum number of backup files to keep (default: <strong>10</strong>, range: 1&ndash;100).</li>
+          <li><code>vibeboard.autoBackupIntervalMin</code> &mdash; Minutes between backups (default: <strong>5</strong>, range: 1&ndash;60).</li>
           <li>You can also configure these in the <strong>&#9881; Settings</strong> dialog (click the gear icon in the toolbar).</li>
         </ul>
         <h4>Clear All Data</h4>
@@ -3796,6 +3806,7 @@ function renderHelpContent(section: string): string {
           <li><code>vibeboard.carryOverTasks</code> &mdash; Carry over unfinished tasks to the next session (default: true).</li>
           <li><code>vibeboard.autoBackup</code> &mdash; Automatically back up data (default: true).</li>
           <li><code>vibeboard.autoBackupMaxCount</code> &mdash; Maximum backup files to keep (default: 10).</li>
+          <li><code>vibeboard.autoBackupIntervalMin</code> &mdash; Minutes between backups (default: 5, range: 1&ndash;60).</li>
         </ul>`;
 
     default:
