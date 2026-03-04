@@ -361,10 +361,12 @@ function renderSessionBar(session: VBSession | null): string {
 
   const boardSwitcher = session ? renderBoardSwitcher() : '';
 
+  const settingsBtn = `<button class="icon-btn settings-btn" id="btn-settings" title="Settings" aria-label="Open settings">&#9881;</button>`;
+
   if (!session) {
     return `<div class="session-bar" role="toolbar" aria-label="Session controls">
       <div class="session-info"><span style="font-size:12px;font-weight:600;">Vibe Board</span></div>
-      <div class="session-actions"><button class="btn-start-session">Start Session</button>${helpBtn}</div>
+      <div class="session-actions">${settingsBtn}<button class="btn-start-session">Start Session</button>${helpBtn}</div>
     </div>`;
   }
 
@@ -1100,31 +1102,6 @@ function renderNoSessionState(): string {
     }
   }
 
-  // Settings section
-  html += `<div class="start-section"><div class="start-section-header"><h3>&#9881; Settings</h3></div>
-    <div class="start-settings">
-      <label class="start-setting-row">
-        <input type="checkbox" class="setting-checkbox" data-setting="autoBackup" ${extensionSettings.autoBackup ? 'checked' : ''} />
-        <span class="start-setting-label">Auto-Backup</span>
-        <span class="start-setting-desc">Automatically back up data to .vibeboard/backups/</span>
-      </label>
-      <label class="start-setting-row" id="setting-row-backup-count" style="${extensionSettings.autoBackup ? '' : 'opacity:0.5;pointer-events:none;'}">
-        <span class="start-setting-label">Max Backup Files</span>
-        <input type="number" class="setting-number" data-setting="autoBackupMaxCount" value="${extensionSettings.autoBackupMaxCount}" min="1" max="100" />
-      </label>
-      <label class="start-setting-row">
-        <input type="checkbox" class="setting-checkbox" data-setting="autoPromptSession" ${extensionSettings.autoPromptSession ? 'checked' : ''} />
-        <span class="start-setting-label">Auto-Prompt Session</span>
-        <span class="start-setting-desc">Prompt to start a session when VS Code opens</span>
-      </label>
-      <label class="start-setting-row">
-        <input type="checkbox" class="setting-checkbox" data-setting="carryOverTasks" ${extensionSettings.carryOverTasks ? 'checked' : ''} />
-        <span class="start-setting-label">Carry-Over Tasks</span>
-        <span class="start-setting-desc">Carry over unfinished tasks to the next session</span>
-      </label>
-    </div>
-  </div>`;
-
   // Clear all data (shown when there's data to clear)
   if (state && (state.sessions.length > 0 || state.tasks.length > 0)) {
     html += `<div class="start-section"><div class="start-section-header"><h3>&#128465; Danger Zone</h3></div>
@@ -1335,34 +1312,8 @@ function bindEvents(): void {
   // Clear all data
   document.getElementById('btn-clear-all-data')?.addEventListener('click', () => vscode.postMessage({ type: 'clearAllData', payload: {} }));
 
-  // Settings toggles
-  document.querySelectorAll<HTMLInputElement>('.setting-checkbox').forEach((cb) => {
-    cb.addEventListener('change', () => {
-      const key = cb.dataset.setting;
-      if (!key) { return; }
-      vscode.postMessage({ type: 'updateSetting', payload: { key, value: cb.checked } });
-      // Locally update for instant feedback
-      (extensionSettings as Record<string, unknown>)[key] = cb.checked;
-      // Toggle backup count row availability
-      if (key === 'autoBackup') {
-        const countRow = document.getElementById('setting-row-backup-count');
-        if (countRow) {
-          countRow.style.opacity = cb.checked ? '1' : '0.5';
-          countRow.style.pointerEvents = cb.checked ? 'auto' : 'none';
-        }
-      }
-    });
-  });
-  document.querySelectorAll<HTMLInputElement>('.setting-number').forEach((input) => {
-    input.addEventListener('change', () => {
-      const key = input.dataset.setting;
-      if (!key) { return; }
-      const val = Math.max(Number(input.min) || 1, Math.min(Number(input.max) || 100, parseInt(input.value, 10) || 10));
-      input.value = String(val);
-      vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
-      (extensionSettings as Record<string, unknown>)[key] = val;
-    });
-  });
+  // Settings button
+  document.getElementById('btn-settings')?.addEventListener('click', () => showSettingsDialog());
 
   // Templates — populate quick-add textarea instead of auto-creating
   document.querySelectorAll<HTMLElement>('[data-template]').forEach((el) => {
@@ -2102,6 +2053,94 @@ function showContextMenu(taskId: string, event: Event): void {
     else if (target.dataset.ctxMove) { vscode.postMessage({ type: 'moveTask', payload: { id: taskId, newStatus: target.dataset.ctxMove as TaskStatus, newOrder: 0 } }); }
     menu.remove();
     contextMenuTaskId = null;
+  });
+}
+
+// ============================================================
+// Settings Dialog
+// ============================================================
+
+function showSettingsDialog(): void {
+  const existing = document.querySelector('.settings-overlay');
+  if (existing) { existing.remove(); return; }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'settings-overlay modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Settings');
+  overlay.innerHTML = `<div class="modal-card settings-dialog">
+    <div class="settings-dialog-header">
+      <h3>&#9881; Settings</h3>
+      <button class="icon-btn" id="settings-close-btn" aria-label="Close settings">&times;</button>
+    </div>
+    <div class="start-settings">
+      <label class="start-setting-row">
+        <input type="checkbox" class="setting-checkbox" data-setting="autoBackup" ${extensionSettings.autoBackup ? 'checked' : ''} />
+        <span class="start-setting-label">Auto-Backup</span>
+        <span class="start-setting-desc">Automatically back up data to .vibeboard/backups/</span>
+      </label>
+      <label class="start-setting-row" id="setting-row-backup-count" style="${extensionSettings.autoBackup ? '' : 'opacity:0.5;pointer-events:none;'}">
+        <span class="start-setting-label">Max Backup Files</span>
+        <input type="number" class="setting-number" data-setting="autoBackupMaxCount" value="${extensionSettings.autoBackupMaxCount}" min="1" max="100" />
+      </label>
+      <label class="start-setting-row">
+        <input type="checkbox" class="setting-checkbox" data-setting="autoPromptSession" ${extensionSettings.autoPromptSession ? 'checked' : ''} />
+        <span class="start-setting-label">Auto-Prompt Session</span>
+        <span class="start-setting-desc">Prompt to start a session when VS Code opens</span>
+      </label>
+      <label class="start-setting-row">
+        <input type="checkbox" class="setting-checkbox" data-setting="carryOverTasks" ${extensionSettings.carryOverTasks ? 'checked' : ''} />
+        <span class="start-setting-label">Carry-Over Tasks</span>
+        <span class="start-setting-desc">Carry over unfinished tasks to the next session</span>
+      </label>
+    </div>
+    <p class="settings-hint">These settings are also available in VS Code Settings (<kbd>Ctrl+,</kbd>) under <em>Vibe Board</em>.</p>
+  </div>`;
+  document.body.appendChild(overlay);
+
+  // Close button
+  document.getElementById('settings-close-btn')?.addEventListener('click', () => overlay.remove());
+
+  // Click outside to close
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) { overlay.remove(); }
+  });
+
+  // Escape to close
+  const escHandler = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      overlay.remove();
+      document.removeEventListener('keydown', escHandler);
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+
+  // Settings toggles
+  overlay.querySelectorAll<HTMLInputElement>('.setting-checkbox').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const key = cb.dataset.setting;
+      if (!key) { return; }
+      vscode.postMessage({ type: 'updateSetting', payload: { key, value: cb.checked } });
+      (extensionSettings as Record<string, unknown>)[key] = cb.checked;
+      if (key === 'autoBackup') {
+        const countRow = overlay.querySelector('#setting-row-backup-count') as HTMLElement;
+        if (countRow) {
+          countRow.style.opacity = cb.checked ? '1' : '0.5';
+          countRow.style.pointerEvents = cb.checked ? 'auto' : 'none';
+        }
+      }
+    });
+  });
+  overlay.querySelectorAll<HTMLInputElement>('.setting-number').forEach((input) => {
+    input.addEventListener('change', () => {
+      const key = input.dataset.setting;
+      if (!key) { return; }
+      const val = Math.max(Number(input.min) || 1, Math.min(Number(input.max) || 100, parseInt(input.value, 10) || 10));
+      input.value = String(val);
+      vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
+      (extensionSettings as Record<string, unknown>)[key] = val;
+    });
   });
 }
 

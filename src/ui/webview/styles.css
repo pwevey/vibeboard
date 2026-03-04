@@ -1351,6 +1351,44 @@ body.is-dragging .task-card:not(.dragging) {
   text-align: center;
 }
 
+/* Settings dialog */
+.settings-dialog {
+  min-width: 280px;
+  max-width: 360px;
+}
+
+.settings-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.settings-dialog-header h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.settings-hint {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin: 12px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.2));
+}
+
+.settings-hint kbd {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--vscode-keybindingLabel-background, rgba(128,128,128,0.15));
+  border: 1px solid var(--vscode-keybindingLabel-border, rgba(128,128,128,0.3));
+}
+
+.settings-btn {
+  font-size: 14px !important;
+}
+
 /* Empty state (for when there's really no data) */
 
 .empty-state {
