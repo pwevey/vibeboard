@@ -1,10 +1,12 @@
 /**
  * Vibe Board - Jira Integration Service
  * Creates Jira issues from Vibe Board tasks via REST API v3.
+ * Credentials are retrieved from SecretStorageService (OS keychain).
  */
 
 import * as vscode from 'vscode';
 import { VBTask, JiraProject, JiraCreatedIssue, JiraStatus } from '../storage/models';
+import { SecretStorageService, JiraCredentials } from './SecretStorageService';
 
 /** Jira REST API v3 priority mapping. */
 const PRIORITY_MAP: Record<string, string> = {
@@ -23,27 +25,28 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export class JiraService {
+  constructor(private secretStorage: SecretStorageService) {}
+
   /**
-   * Read Jira credentials from VS Code settings.
+   * Read Jira credentials from secure storage.
    * Returns null with an error message if any are missing.
    */
-  private getConfig(): { baseUrl: string; email: string; token: string } | null {
-    const config = vscode.workspace.getConfiguration('vibeboard');
-    const baseUrl = (config.get<string>('jiraBaseUrl') || '').replace(/\/+$/, '');
-    const email = config.get<string>('jiraEmail') || '';
-    const token = config.get<string>('jiraApiToken') || '';
-
-    if (!baseUrl || !email || !token) {
+  private async getConfig(): Promise<JiraCredentials | null> {
+    const creds = await this.secretStorage.getJiraCredentials();
+    if (!creds) {
+      const summary = await this.secretStorage.getJiraSummary();
       const missing: string[] = [];
+      const config = vscode.workspace.getConfiguration('vibeboard');
+      const baseUrl = (config.get<string>('jiraBaseUrl') || '').trim();
       if (!baseUrl) { missing.push('Base URL'); }
-      if (!email) { missing.push('Email'); }
-      if (!token) { missing.push('API Token'); }
+      if (!summary.email) { missing.push('Email'); }
+      if (summary.tokenLength === 0) { missing.push('API Token'); }
       vscode.window.showErrorMessage(
-        `Vibe Board: Jira credentials incomplete — missing: ${missing.join(', ')}. Configure them in Settings → Vibe Board.`
+        `Vibe Board: Jira credentials incomplete — missing: ${missing.join(', ')}. Configure them in the Settings dialog.`
       );
       return null;
     }
-    return { baseUrl, email, token };
+    return creds;
   }
 
   /** Build Basic auth header value. */
@@ -55,7 +58,7 @@ export class JiraService {
    * Fetch available Jira projects.
    */
   async getProjects(): Promise<{ projects: JiraProject[]; error?: string }> {
-    const cfg = this.getConfig();
+    const cfg = await this.getConfig();
     if (!cfg) { return { projects: [], error: 'Jira credentials not configured.' }; }
 
     try {
@@ -93,7 +96,7 @@ export class JiraService {
    * Returns a de-duplicated list of status names used by the project's issue types.
    */
   async getStatuses(projectKey: string): Promise<{ statuses: JiraStatus[]; error?: string }> {
-    const cfg = this.getConfig();
+    const cfg = await this.getConfig();
     if (!cfg) { return { statuses: [], error: 'Jira credentials not configured.' }; }
 
     try {
@@ -143,7 +146,7 @@ export class JiraService {
     issueKey: string,
     targetStatusName: string
   ): Promise<{ success: boolean; error?: string }> {
-    const cfg = this.getConfig();
+    const cfg = await this.getConfig();
     if (!cfg) { return { success: false, error: 'Jira credentials not configured.' }; }
 
     try {
@@ -205,7 +208,7 @@ export class JiraService {
     onProgress?: (done: number, total: number) => void,
     statusMapping?: Record<string, string>
   ): Promise<{ created: JiraCreatedIssue[]; errors: string[] }> {
-    const cfg = this.getConfig();
+    const cfg = await this.getConfig();
     if (!cfg) { return { created: [], errors: ['Jira credentials not configured.'] }; }
 
     const created: JiraCreatedIssue[] = [];

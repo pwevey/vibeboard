@@ -112,16 +112,6 @@
           "type": "string",
           "default": "",
           "description": "Jira instance base URL (e.g. https://your-domain.atlassian.net)"
-        },
-        "vibeboard.jiraEmail": {
-          "type": "string",
-          "default": "",
-          "description": "Email address associated with your Jira account"
-        },
-        "vibeboard.jiraApiToken": {
-          "type": "string",
-          "default": "",
-          "description": "Jira API token (generate at https://id.atlassian.com/manage-profile/security/api-tokens)"
         }
       }
     }

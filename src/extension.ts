@@ -5,12 +5,14 @@ import { SessionManager } from './session/SessionManager';
 import { TaskManager } from './tasks/TaskManager';
 import { MessageHandler } from './ui/MessageHandler';
 import { WebviewProvider } from './ui/WebviewProvider';
+import { SecretStorageService } from './services/SecretStorageService';
 
 let storageProvider: StorageProvider | null = null;
 let sessionManager: SessionManager | null = null;
 let taskManager: TaskManager | null = null;
 let messageHandler: MessageHandler | null = null;
 let webviewProvider: WebviewProvider | null = null;
+let secretStorageService: SecretStorageService | null = null;
 let initPromise: Promise<boolean> | null = null;
 
 /**
@@ -29,9 +31,15 @@ function ensureInitialized(): Promise<boolean> {
       vscode.window.showErrorMessage('Vibe Board: Failed to initialize storage. Make sure a workspace folder is open.');
       return false;
     }
+
+    // Migrate any plain-text Jira credentials to secure storage
+    if (secretStorageService) {
+      await secretStorageService.migrateFromSettings();
+    }
+
     sessionManager = new SessionManager(storageProvider);
     taskManager = new TaskManager(storageProvider);
-    messageHandler = new MessageHandler(storageProvider, sessionManager, taskManager);
+    messageHandler = new MessageHandler(storageProvider, sessionManager, taskManager, secretStorageService!);
     if (webviewProvider) {
       webviewProvider.setMessageHandler(messageHandler);
     }
@@ -41,6 +49,9 @@ function ensureInitialized(): Promise<boolean> {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
+  // Create the secure storage service early so it's available for lazy init
+  secretStorageService = new SecretStorageService(context.secrets);
+
   // Register the sidebar webview provider immediately (lightweight — no I/O).
   // Actual storage init happens lazily when the webview resolves or a command runs.
   webviewProvider = new WebviewProvider(context.extensionUri, ensureInitialized);

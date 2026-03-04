@@ -2138,7 +2138,7 @@ function showSettingsDialog(): void {
     </div>
     <div class="settings-section-divider"></div>
     <h4 class="settings-section-title">&#127919; Jira Integration</h4>
-    <p class="settings-section-desc">Export tasks as Jira issues. Enter your Atlassian credentials below, then use the <strong>Jira</strong> button in Export to send tasks.</p>
+    <p class="settings-section-desc">Export tasks as Jira issues. Your email and API token are stored securely in your OS keychain — never in plain text.</p>
     <div class="start-settings">
       <label class="start-setting-row setting-text-row">
         <span class="start-setting-label">Base URL</span>
@@ -2154,11 +2154,11 @@ function showSettingsDialog(): void {
       </label>
       <p class="settings-hint" style="margin-top:4px;">Generate a token at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" class="jira-link">id.atlassian.com</a></p>
       <div class="jira-save-row">
-        <button class="secondary" id="jira-save-btn">Save</button>
+        <button class="secondary" id="jira-save-btn">&#128274; Save Securely</button>
         <span class="jira-save-status" id="jira-save-status"></span>
       </div>
     </div>
-    <p class="settings-hint">These settings are also available in VS Code Settings (<kbd>Ctrl+,</kbd>) under <em>Vibe Board</em>.</p>
+    <p class="settings-hint">&#128274; Email &amp; API Token are encrypted via your OS keychain (Windows Credential Manager / macOS Keychain).</p>
   </div>`;
   document.body.appendChild(overlay);
 
@@ -2208,45 +2208,50 @@ function showSettingsDialog(): void {
     });
   });
 
-  // Jira Save button
+  // Jira Save button — sends credentials via secure saveJiraCredentials message
   let jiraTokenMask = '\u2022'.repeat(extensionSettings.jiraApiTokenLength || 8); // match real token length
   document.getElementById('jira-save-btn')?.addEventListener('click', () => {
-    const fields = overlay.querySelectorAll<HTMLInputElement>('.jira-setting');
-    let hasToken = false;
-    fields.forEach((input) => {
-      const key = input.dataset.setting;
-      if (!key) { return; }
-      const val = input.value.trim();
-      if (key === 'jiraApiToken') {
-        // Only save if the value is a real token (not the mask)
-        if (val && val !== jiraTokenMask) {
-          vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
-          jiraTokenMask = '\u2022'.repeat(val.length);
-          hasToken = true;
-        }
-      } else {
-        vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
-        (extensionSettings as Record<string, unknown>)[key] = val;
-      }
+    const baseUrlInput = overlay.querySelector('[data-setting="jiraBaseUrl"]') as HTMLInputElement;
+    const emailInput = overlay.querySelector('[data-setting="jiraEmail"]') as HTMLInputElement;
+    const tokenInput = overlay.querySelector('[data-setting="jiraApiToken"]') as HTMLInputElement;
+
+    const baseUrl = baseUrlInput?.value.trim() || '';
+    const email = emailInput?.value.trim() || '';
+    const tokenVal = tokenInput?.value.trim() || '';
+
+    // Determine if a real token was entered (not the mask)
+    const hasNewToken = !!(tokenVal && tokenVal !== jiraTokenMask);
+
+    // Send to extension — empty token means "keep existing" in SecretStorage
+    vscode.postMessage({
+      type: 'saveJiraCredentials',
+      payload: {
+        baseUrl,
+        email,
+        token: hasNewToken ? tokenVal : '',
+      },
     });
 
-    // Update jiraConfigured locally
-    const baseUrl = (overlay.querySelector('[data-setting="jiraBaseUrl"]') as HTMLInputElement)?.value.trim() || '';
-    const email = (overlay.querySelector('[data-setting="jiraEmail"]') as HTMLInputElement)?.value.trim() || '';
-    const tokenInput = overlay.querySelector('[data-setting="jiraApiToken"]') as HTMLInputElement;
-    const tokenFilled = hasToken || extensionSettings.jiraConfigured;
+    // Update local state
+    extensionSettings.jiraBaseUrl = baseUrl;
+    if (email) { extensionSettings.jiraEmail = email; }
+    if (hasNewToken) {
+      jiraTokenMask = '\u2022'.repeat(tokenVal.length);
+      extensionSettings.jiraApiTokenLength = tokenVal.length;
+    }
+    const tokenFilled = hasNewToken || extensionSettings.jiraConfigured;
     extensionSettings.jiraConfigured = !!(baseUrl && email && tokenFilled);
 
     // Mask the token field after save
-    if (hasToken && tokenInput) {
+    if (hasNewToken && tokenInput) {
       tokenInput.value = jiraTokenMask;
     }
 
     // Show saved confirmation
     const status = document.getElementById('jira-save-status');
     if (status) {
-      status.textContent = '\u2713 Saved';
-      setTimeout(() => { status.textContent = ''; }, 2000);
+      status.textContent = '\u2713 Saved securely';
+      setTimeout(() => { status.textContent = ''; }, 2500);
     }
   });
 
@@ -2939,14 +2944,16 @@ function showJiraCredentialsPrompt(): void {
   overlay.setAttribute('aria-label', 'Jira Setup Required');
   overlay.innerHTML = `<div class="modal-card jira-dialog">
     <h3>&#127919; Jira Setup Required</h3>
-    <p>To export tasks to Jira, configure your credentials in VS Code settings:</p>
+    <p>To export tasks to Jira, configure your credentials in the <strong>Settings</strong> dialog (gear icon):</p>
     <ol class="jira-setup-steps">
-      <li>Open <strong>Settings</strong> (<kbd>Ctrl+,</kbd>)</li>
-      <li>Search for <strong>"Vibe Board Jira"</strong></li>
+      <li>Click the <strong>&#9881; gear icon</strong> at the top of Vibe Board</li>
+      <li>Scroll to the <strong>Jira Integration</strong> section</li>
       <li>Enter your <strong>Base URL</strong> (e.g. https://your-domain.atlassian.net)</li>
       <li>Enter your <strong>Email</strong></li>
       <li>Enter your <strong>API Token</strong> (<a href="https://id.atlassian.com/manage-profile/security/api-tokens" class="jira-link">generate one here</a>)</li>
+      <li>Click <strong>&#128274; Save Securely</strong></li>
     </ol>
+    <p class="settings-hint">&#128274; Your email and API token are encrypted via your OS keychain.</p>
     <div class="modal-actions">
       <button class="secondary" id="jira-setup-close">Close</button>
     </div>
@@ -4259,7 +4266,7 @@ function renderHelpContent(section: string): string {
         <h4>Jira Integration</h4>
         <p>Export tasks directly to Jira as issues. Each Vibe Board task becomes a Jira issue with auto-mapped fields.</p>
         <ul>
-          <li><strong>Setup</strong> &mdash; Configure your Jira credentials in VS Code settings: Base URL, Email, and API Token.</li>
+          <li><strong>Setup</strong> &mdash; Configure your Jira credentials in the Settings dialog (gear icon). Email and API token are stored securely in your OS keychain.</li>
           <li><strong>API Token</strong> &mdash; Generate one at <em>id.atlassian.com &rarr; Security &rarr; API tokens</em>.</li>
           <li><strong>Project Picker</strong> &mdash; The Jira button fetches your available projects and lets you choose where to create issues.</li>
           <li><strong>Task Selection</strong> &mdash; Pick which tasks to export &mdash; defaults to all tasks in the active session.</li>

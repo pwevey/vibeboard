@@ -6,6 +6,7 @@ import { StorageProvider } from '../storage/StorageProvider';
 import { CopilotAIService } from '../services/index';
 import { AutomationService } from '../services/AutomationService';
 import { JiraService } from '../services/JiraService';
+import { SecretStorageService } from '../services/SecretStorageService';
 import { generateId } from '../utils/uuid';
 
 /**
@@ -17,14 +18,17 @@ export class MessageHandler {
   private aiService: CopilotAIService;
   private automationService: AutomationService;
   private jiraService: JiraService;
+  private secretStorage: SecretStorageService;
 
   constructor(
     private storage: StorageProvider,
     private sessionManager: SessionManager,
-    private taskManager: TaskManager
+    private taskManager: TaskManager,
+    secretStorage: SecretStorageService
   ) {
+    this.secretStorage = secretStorage;
     this.aiService = new CopilotAIService();
-    this.jiraService = new JiraService();
+    this.jiraService = new JiraService(secretStorage);
     this.automationService = new AutomationService(storage, taskManager, this.aiService);
 
     // Wire automation progress to webview
@@ -748,10 +752,24 @@ export class MessageHandler {
 
       case 'updateSetting': {
         const { key, value } = message.payload as { key: string; value: unknown };
-        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl', 'jiraEmail', 'jiraApiToken'];
+        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl'];
         if (allowedKeys.includes(key)) {
           await vscode.workspace.getConfiguration('vibeboard').update(key, value, vscode.ConfigurationTarget.Global);
         }
+        break;
+      }
+
+      case 'saveJiraCredentials': {
+        const { baseUrl, email, token } = message.payload as { baseUrl: string; email: string; token: string };
+        await this.secretStorage.saveJiraCredentials(baseUrl, email, token);
+        // Send updated summary back so webview reflects the new state
+        this.sendStateUpdate();
+        break;
+      }
+
+      case 'clearJiraCredentials': {
+        await this.secretStorage.clearJiraCredentials();
+        this.sendStateUpdate();
         break;
       }
 
@@ -836,8 +854,17 @@ export class MessageHandler {
     }
     const data = this.storage.getData();
     this.webview.postMessage({ type: 'stateUpdate', payload: data });
-    // Send current settings to webview
+    // Send current settings to webview (async for SecretStorage)
+    this.sendSettingsUpdate();
+  }
+
+  /**
+   * Send settings (including Jira credential summary from SecretStorage) to webview.
+   */
+  private async sendSettingsUpdate(): Promise<void> {
+    if (!this.webview) { return; }
     const config = vscode.workspace.getConfiguration('vibeboard');
+    const jiraSummary = await this.secretStorage.getJiraSummary();
     this.webview.postMessage({
       type: 'settingsUpdate',
       payload: {
@@ -847,9 +874,9 @@ export class MessageHandler {
         autoPromptSession: config.get<boolean>('autoPromptSession', true),
         carryOverTasks: config.get<boolean>('carryOverTasks', true),
         jiraBaseUrl: config.get<string>('jiraBaseUrl', ''),
-        jiraEmail: config.get<string>('jiraEmail', ''),
-        jiraConfigured: !!(config.get<string>('jiraBaseUrl', '') && config.get<string>('jiraEmail', '') && config.get<string>('jiraApiToken', '')),
-        jiraApiTokenLength: (config.get<string>('jiraApiToken', '') || '').length,
+        jiraEmail: jiraSummary.email,
+        jiraConfigured: jiraSummary.configured,
+        jiraApiTokenLength: jiraSummary.tokenLength,
       },
     });
   }

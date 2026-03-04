@@ -199,6 +199,8 @@ export type WebviewToExtensionMessage =
   | { type: 'deleteProject'; payload: { projectId: string } }
   | { type: 'setActiveProject'; payload: { projectId: string | null } }
   | { type: 'updateSetting'; payload: { key: string; value: unknown } }
+  | { type: 'saveJiraCredentials'; payload: { baseUrl: string; email: string; token: string } }
+  | { type: 'clearJiraCredentials'; payload: Record<string, never> }
   | { type: 'getJiraProjects'; payload: Record<string, never> }
   | { type: 'getJiraStatuses'; payload: { projectKey: string } }
   | { type: 'exportToJira'; payload: { projectKey: string; taskIds?: string[]; issueType?: string; statusMapping?: Record<string, string> } }
