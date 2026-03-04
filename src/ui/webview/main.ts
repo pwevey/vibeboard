@@ -2133,6 +2133,7 @@ function showSettingsDialog(): void {
     </div>
     <div class="settings-section-divider"></div>
     <h4 class="settings-section-title">&#127919; Jira Integration</h4>
+    <p class="settings-section-desc">Export tasks as Jira issues. Enter your Atlassian credentials below, then use the <strong>Jira</strong> button in Export to send tasks.</p>
     <div class="start-settings">
       <label class="start-setting-row setting-text-row">
         <span class="start-setting-label">Base URL</span>

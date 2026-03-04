@@ -1400,8 +1400,15 @@ body.is-dragging .task-card:not(.dragging) {
 
 .settings-section-title {
   font-size: 12px;
-  margin: 0 0 6px;
+  margin: 0 0 2px;
   font-weight: 600;
+}
+
+.settings-section-desc {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin: 0 0 8px;
+  line-height: 1.4;
 }
 
 .setting-text-row {
