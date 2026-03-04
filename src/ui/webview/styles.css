@@ -1392,6 +1392,44 @@ body.is-dragging .task-card:not(.dragging) {
   border: 1px solid var(--vscode-keybindingLabel-border, rgba(128,128,128,0.3));
 }
 
+.settings-section-divider {
+  height: 1px;
+  background: var(--vscode-widget-border, rgba(128,128,128,0.2));
+  margin: 12px 0 8px;
+}
+
+.settings-section-title {
+  font-size: 12px;
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+.setting-text-row {
+  flex-direction: column;
+  align-items: stretch !important;
+  gap: 2px !important;
+}
+
+.setting-text {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-widget-border));
+  border-radius: 3px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.setting-text:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.setting-text::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
 .settings-btn {
   font-size: 15px !important;
   font-weight: 700;

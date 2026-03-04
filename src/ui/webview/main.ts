@@ -152,6 +152,8 @@ interface VBSettings {
   autoPromptSession: boolean;
   carryOverTasks: boolean;
   jiraConfigured: boolean;
+  jiraBaseUrl: string;
+  jiraEmail: string;
 }
 let extensionSettings: VBSettings = {
   autoBackup: true,
@@ -160,6 +162,8 @@ let extensionSettings: VBSettings = {
   autoPromptSession: true,
   carryOverTasks: true,
   jiraConfigured: false,
+  jiraBaseUrl: '',
+  jiraEmail: '',
 };
 
 // Automation state
@@ -2127,6 +2131,23 @@ function showSettingsDialog(): void {
         <span class="start-setting-desc">Carry over unfinished tasks to the next session</span>
       </label>
     </div>
+    <div class="settings-section-divider"></div>
+    <h4 class="settings-section-title">&#127919; Jira Integration</h4>
+    <div class="start-settings">
+      <label class="start-setting-row setting-text-row">
+        <span class="start-setting-label">Base URL</span>
+        <input type="text" class="setting-text" data-setting="jiraBaseUrl" value="${escapeHtml(extensionSettings.jiraBaseUrl)}" placeholder="https://your-domain.atlassian.net" />
+      </label>
+      <label class="start-setting-row setting-text-row">
+        <span class="start-setting-label">Email</span>
+        <input type="text" class="setting-text" data-setting="jiraEmail" value="${escapeHtml(extensionSettings.jiraEmail)}" placeholder="you@example.com" />
+      </label>
+      <label class="start-setting-row setting-text-row">
+        <span class="start-setting-label">API Token</span>
+        <input type="password" class="setting-text" data-setting="jiraApiToken" value="${extensionSettings.jiraConfigured ? '••••••••' : ''}" placeholder="Paste your API token" />
+      </label>
+      <p class="settings-hint" style="margin-top:4px;">Generate a token at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" class="jira-link">id.atlassian.com</a></p>
+    </div>
     <p class="settings-hint">These settings are also available in VS Code Settings (<kbd>Ctrl+,</kbd>) under <em>Vibe Board</em>.</p>
   </div>`;
   document.body.appendChild(overlay);
@@ -2175,6 +2196,33 @@ function showSettingsDialog(): void {
       vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
       (extensionSettings as Record<string, unknown>)[key] = val;
     });
+  });
+
+  // Jira text settings — save on blur
+  overlay.querySelectorAll<HTMLInputElement>('.setting-text').forEach((input) => {
+    input.addEventListener('blur', () => {
+      const key = input.dataset.setting;
+      if (!key) { return; }
+      const val = input.value.trim();
+      // For the token field, ignore the placeholder dots
+      if (key === 'jiraApiToken' && val === '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022') { return; }
+      if (key === 'jiraApiToken' && !val) { return; }
+      vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
+      if (key !== 'jiraApiToken') {
+        (extensionSettings as Record<string, unknown>)[key] = val;
+      }
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { input.blur(); }
+    });
+    // Clear placeholder dots when user focuses the token field
+    if (input.dataset.setting === 'jiraApiToken') {
+      input.addEventListener('focus', () => {
+        if (input.value === '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022') {
+          input.value = '';
+        }
+      });
+    }
   });
 }
 
