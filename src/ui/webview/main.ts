@@ -3253,12 +3253,12 @@ function renderHelpContent(section: string): string {
           <li><strong>Start a Session</strong> &mdash; Click the <em>Start Session</em> button to begin tracking your work. Sessions time your overall workflow.</li>
           <li><strong>Add Tasks</strong> &mdash; Type a rough idea and click <strong>AI Improve</strong> (&#10024;) to auto-classify, format, and template it &mdash; or add manually with a tag, priority, and column.</li>
           <li><strong>Send to Copilot</strong> &mdash; Click the <strong>rocket icon</strong> (&#128640;) on any task to send it to Copilot Chat. Follow up, attach screenshots, and mark complete &mdash; all from the card.</li>
-          <li><strong>Automate</strong> &mdash; Click the <strong>gear icon</strong> (&#9881;) to queue multiple tasks and let the automation engine send them to Copilot in sequence, verify changes via AI, and checkpoint for your approval.</li>
+          <li><strong>Automate</strong> &mdash; Click <strong>&#9654; Automate</strong> to queue multiple tasks and let the automation engine send them to Copilot in sequence, verify changes via AI, and checkpoint for your approval.</li>
           <li><strong>Organize &amp; Track</strong> &mdash; Drag tasks between columns, use per-task timers, and export your session as JSON, CSV, or Markdown.</li>
         </ol>
         <h4>Interface Overview</h4>
         <ul>
-          <li><strong>Session Bar</strong> &mdash; Top bar showing session timer, pause/resume, undo/redo, AI summary, automation (&#9881;), help, and end session.</li>
+          <li><strong>Session Bar</strong> &mdash; Top bar showing session timer, pause/resume, undo/redo, AI summary, &#9654; Automate, help, and end session.</li>
           <li><strong>Board Tabs</strong> &mdash; Below the session bar. Click to switch boards, <strong>&times;</strong> to close, double-click to rename, <strong>+</strong> to create a new board.</li>
           <li><strong>Automation Bar</strong> &mdash; Appears during automation, showing the current task, queue progress, and pause/skip/cancel controls.</li>
           <li><strong>Stats Bar</strong> &mdash; Live counts for total tasks, completed, in progress, up next, and high-priority items.</li>
@@ -3546,7 +3546,7 @@ function renderHelpContent(section: string): string {
         <p>Automate your workflow by sending multiple tasks to Copilot Chat in sequence, with automatic change detection and AI-powered verification.</p>
         <h4>How It Works</h4>
         <ol>
-          <li>Click the <strong>gear icon</strong> (&#9881;) in the session bar to open the automation task picker.</li>
+          <li>Click <strong>&#9654; Automate</strong> in the session bar to open the automation task picker.</li>
           <li>Select which incomplete tasks you want to automate, then click <strong>Start Automation</strong>.</li>
           <li>For each task, the automation engine will:
             <ol>
@@ -3729,7 +3729,7 @@ function renderHelpContent(section: string): string {
         <ul>
           <li><code>vibeboard.autoBackup</code> &mdash; Enable or disable auto-backups (default: <strong>on</strong>).</li>
           <li><code>vibeboard.autoBackupMaxCount</code> &mdash; Maximum number of backup files to keep (default: <strong>10</strong>, range: 1&ndash;100).</li>
-          <li>You can also configure these in the <strong>&#9881; Settings</strong> section on the start page.</li>
+          <li>You can also configure these in the <strong>&#9881; Settings</strong> dialog (click the gear icon in the toolbar).</li>
         </ul>
         <h4>Clear All Data</h4>
         <ul>
@@ -3790,7 +3790,7 @@ function renderHelpContent(section: string): string {
           <li><code>Vibe Board: Export Session as Markdown</code></li>
         </ul>
         <h4>Settings</h4>
-        <p>You can configure these in <strong>VS Code Settings</strong> (<kbd>Ctrl+,</kbd>) or in the <strong>&#9881; Settings</strong> section on the start page.</p>
+        <p>You can configure these in <strong>VS Code Settings</strong> (<kbd>Ctrl+,</kbd>) or by clicking the <strong>&#9881; Settings</strong> icon in the toolbar.</p>
         <ul>
           <li><code>vibeboard.autoPromptSession</code> &mdash; Prompt to start a session when VS Code opens (default: true).</li>
           <li><code>vibeboard.carryOverTasks</code> &mdash; Carry over unfinished tasks to the next session (default: true).</li>
