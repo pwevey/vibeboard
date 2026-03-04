@@ -3132,8 +3132,12 @@ textarea:focus-visible {
    ============================================================ */
 
 .jira-dialog {
-  max-width: 380px;
-  width: 90%;
+  max-width: 440px;
+  width: 95%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .jira-loading {
@@ -3203,7 +3207,8 @@ textarea:focus-visible {
 }
 
 .jira-task-list {
-  max-height: 200px;
+  max-height: 40vh;
+  min-height: 120px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -3211,6 +3216,7 @@ textarea:focus-visible {
   border: 1px solid var(--vscode-widget-border);
   border-radius: 4px;
   padding: 4px;
+  flex: 1;
 }
 
 .jira-task-option {
@@ -3251,6 +3257,57 @@ textarea:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+}
+
+.jira-exported-badge {
+  font-size: 10px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.jira-task-option.jira-task-exported {
+  opacity: 0.55;
+}
+
+.jira-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 4px 0 2px;
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+.jira-filter-row input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  width: 13px;
+  height: 13px;
+}
+
+.jira-project-mapping-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.jira-project-mapping-row label {
+  font-weight: 400 !important;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.jira-project-mapping-row .jira-select {
+  flex: 1;
+  font-size: 11px;
+  padding: 3px 6px;
 }
 
 .jira-status {

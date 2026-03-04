@@ -319,6 +319,7 @@ export class JiraService {
 
     const result = await response.json() as { key: string; self: string };
     return {
+      taskId: task.id,
       taskTitle: task.title,
       issueKey: result.key,
       issueUrl: `${cfg.baseUrl}/browse/${result.key}`,

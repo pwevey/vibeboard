@@ -52,6 +52,8 @@ export interface VBTask {
   attachments?: VBAttachment[]; // image/file attachments
   copilotLog?: { prompt: string; timestamp: string }[]; // log of follow-up prompts sent to Copilot
   sentToCopilot?: boolean; // true while awaiting Copilot completion
+  jiraIssueKey?: string;    // Jira issue key (e.g. SAM-123) if exported
+  jiraExportedAt?: string;  // ISO 8601 when task was exported to Jira
 }
 
 export interface VBSession {
@@ -95,6 +97,7 @@ export interface VBWorkspaceData {
   boards?: VBBoard[];
   projects?: VBProject[];
   activeProjectId?: string | null;
+  jiraProjectMapping?: Record<string, string>; // VB projectId → Jira project key
 }
 
 // === Multi-Board ===
@@ -194,13 +197,14 @@ export type WebviewToExtensionMessage =
   | { type: 'approveAutomationTask'; payload: Record<string, never> }
   | { type: 'rejectAutomationTask'; payload: Record<string, never> }
   | { type: 'retryAutomationTask'; payload: { queueIndex: number } }
-  | { type: 'createProject'; payload: { name: string; color?: string } }
+  | { type: 'createProject'; payload: { id?: string; name: string; color?: string } }
   | { type: 'renameProject'; payload: { projectId: string; name: string } }
   | { type: 'deleteProject'; payload: { projectId: string } }
   | { type: 'setActiveProject'; payload: { projectId: string | null } }
   | { type: 'updateSetting'; payload: { key: string; value: unknown } }
   | { type: 'saveJiraCredentials'; payload: { baseUrl: string; email: string; token: string } }
   | { type: 'clearJiraCredentials'; payload: Record<string, never> }
+  | { type: 'setJiraProjectMapping'; payload: { vbProjectId: string; jiraProjectKey: string } }
   | { type: 'getJiraProjects'; payload: Record<string, never> }
   | { type: 'getJiraStatuses'; payload: { projectKey: string } }
   | { type: 'exportToJira'; payload: { projectKey: string; taskIds?: string[]; issueType?: string; statusMapping?: Record<string, string> } }
@@ -234,6 +238,7 @@ export interface JiraStatus {
 }
 
 export interface JiraCreatedIssue {
+  taskId: string;
   taskTitle: string;
   issueKey: string;
   issueUrl: string;
@@ -253,6 +258,7 @@ export function createDefaultWorkspaceData(): VBWorkspaceData {
     boards: [{ id: 'default', name: 'Main Board', createdAt: new Date().toISOString(), pausedAt: null, totalPausedMs: 0 }],
     projects: [],
     activeProjectId: null,
+    jiraProjectMapping: {},
   };
 }
 

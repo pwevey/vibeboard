@@ -773,6 +773,20 @@ export class MessageHandler {
         break;
       }
 
+      case 'setJiraProjectMapping': {
+        const { vbProjectId, jiraProjectKey } = message.payload as { vbProjectId: string; jiraProjectKey: string };
+        const d = this.storage.getData();
+        if (!d.jiraProjectMapping) { d.jiraProjectMapping = {}; }
+        if (jiraProjectKey) {
+          d.jiraProjectMapping[vbProjectId] = jiraProjectKey;
+        } else {
+          delete d.jiraProjectMapping[vbProjectId];
+        }
+        this.storage.setData(d);
+        this.sendStateUpdate();
+        break;
+      }
+
       case 'getJiraProjects': {
         const result = await this.jiraService.getProjects();
         this.webview?.postMessage({ type: 'jiraProjects', payload: result });
@@ -822,6 +836,21 @@ export class MessageHandler {
         );
 
         const success = created.length > 0 && errors.length === 0;
+
+        // Stamp exported tasks with Jira issue keys
+        if (created.length > 0) {
+          const d = this.storage.getData();
+          const now = new Date().toISOString();
+          for (const issue of created) {
+            const task = d.tasks.find((t) => t.id === issue.taskId);
+            if (task) {
+              task.jiraIssueKey = issue.issueKey;
+              task.jiraExportedAt = now;
+            }
+          }
+          this.storage.setData(d);
+        }
+
         this.webview?.postMessage({
           type: 'jiraExportResult',
           payload: {
@@ -837,6 +866,8 @@ export class MessageHandler {
           vscode.window.showInformationMessage(
             `Vibe Board: Created ${created.length} Jira issue${created.length === 1 ? '' : 's'}${errors.length > 0 ? ` (${errors.length} failed)` : ''}.`
           );
+          // Refresh webview state so exported badges appear
+          this.sendStateUpdate();
         } else {
           vscode.window.showErrorMessage('Vibe Board: Failed to create Jira issues. Check the export results for details.');
         }

@@ -2965,6 +2965,7 @@ function showJiraCredentialsPrompt(): void {
 
 /**
  * Replace the loading overlay with the project + task picker.
+ * Features: VB→Jira project mapping, exported task exclusion, taller scrollable list.
  */
 function showJiraProjectAndTaskPicker(
   overlay: HTMLDivElement,
@@ -2993,18 +2994,47 @@ function showJiraProjectAndTaskPicker(
     return;
   }
 
+  // Determine active VB project and its mapped Jira project
+  const activeVBProjectId = (state as Record<string, unknown>)?.activeProjectId as string | null || null;
+  const jiraProjectMapping = (state as Record<string, unknown>)?.jiraProjectMapping as Record<string, string> || {};
+  const mappedJiraKey = activeVBProjectId ? (jiraProjectMapping[activeVBProjectId] || '') : '';
+  const activeVBProject = activeVBProjectId
+    ? ((state as Record<string, unknown>)?.projects as { id: string; name: string }[] || []).find(
+        (p) => p.id === activeVBProjectId
+      )
+    : null;
+
   const projectOptions = jiraProjects.map((p) =>
-    `<option value="${escapeHtml(p.key)}">${escapeHtml(p.name)} (${escapeHtml(p.key)})</option>`
+    `<option value="${escapeHtml(p.key)}" ${p.key === mappedJiraKey ? 'selected' : ''}>${escapeHtml(p.name)} (${escapeHtml(p.key)})</option>`
   ).join('');
 
-  const taskRows = exportableTasks.map((t: { id: string; title: string; tag: string; priority: string; status: string }) => {
+  // Separate exported and non-exported tasks
+  const exportedCount = exportableTasks.filter((t: { jiraIssueKey?: string }) => t.jiraIssueKey).length;
+  const hasExported = exportedCount > 0;
+
+  const taskRows = exportableTasks.map((t: { id: string; title: string; tag: string; priority: string; status: string; jiraIssueKey?: string; jiraExportedAt?: string }) => {
     const tagClass = `tag-${t.tag}`;
-    return `<label class="jira-task-option">
-      <input type="checkbox" name="jira-task" value="${t.id}" checked />
+    const isExported = !!t.jiraIssueKey;
+    const exportedClass = isExported ? ' jira-task-exported' : '';
+    const checkedAttr = isExported ? '' : 'checked';
+    const badge = isExported ? `<span class="jira-exported-badge" title="Exported as ${escapeHtml(t.jiraIssueKey || '')}">${escapeHtml(t.jiraIssueKey || '')}</span>` : '';
+    return `<label class="jira-task-option${exportedClass}" data-exported="${isExported}">
+      <input type="checkbox" name="jira-task" value="${t.id}" ${checkedAttr} />
       <span class="task-tag ${tagClass}">${t.tag}</span>
       <span class="jira-task-title">${escapeHtml(t.title)}</span>
+      ${badge}
     </label>`;
   }).join('');
+
+  const nonExportedCount = exportableTasks.length - exportedCount;
+
+  // Project mapping row (only show when a VB project is active)
+  const mappingRow = activeVBProject
+    ? `<label class="jira-project-mapping-row">
+         <input type="checkbox" id="jira-save-mapping" ${mappedJiraKey ? 'checked' : ''} />
+         <label>Remember for <strong>${escapeHtml(activeVBProject.name)}</strong></label>
+       </label>`
+    : '';
 
   overlay.querySelector('.jira-dialog')!.innerHTML = `
     <h3>&#127919; Export to Jira</h3>
@@ -3012,9 +3042,14 @@ function showJiraProjectAndTaskPicker(
       <div class="jira-field">
         <label for="jira-project-select">Jira Project</label>
         <select id="jira-project-select" class="jira-select">${projectOptions}</select>
+        ${mappingRow}
       </div>
       <div class="jira-field">
-        <label>Tasks to Export <span class="jira-task-count">(${exportableTasks.length} selected)</span></label>
+        <label>Tasks to Export <span class="jira-task-count">(${nonExportedCount} selected)</span></label>
+        ${hasExported ? `<label class="jira-filter-row">
+          <input type="checkbox" id="jira-hide-exported" checked />
+          Hide ${exportedCount} already exported task${exportedCount === 1 ? '' : 's'}
+        </label>` : ''}
         <div class="jira-task-list">
           <label class="jira-task-option jira-select-all">
             <input type="checkbox" id="jira-select-all" checked />
@@ -3041,19 +3076,68 @@ function showJiraProjectAndTaskPicker(
   };
 
   selectAllCb.addEventListener('change', () => {
-    taskCbs.forEach((cb) => { cb.checked = selectAllCb.checked; });
+    // Only toggle visible (non-hidden) checkboxes
+    taskCbs.forEach((cb) => {
+      const row = cb.closest('.jira-task-option') as HTMLElement;
+      if (row && row.style.display !== 'none') {
+        cb.checked = selectAllCb.checked;
+      }
+    });
     updateCount();
   });
 
   taskCbs.forEach((cb) => {
     cb.addEventListener('change', () => {
-      const allChecked = Array.from(taskCbs).every((c) => c.checked);
-      const noneChecked = !Array.from(taskCbs).some((c) => c.checked);
+      const visibleCbs = Array.from(taskCbs).filter((c) => {
+        const row = c.closest('.jira-task-option') as HTMLElement;
+        return row && row.style.display !== 'none';
+      });
+      const allChecked = visibleCbs.every((c) => c.checked);
+      const noneChecked = !visibleCbs.some((c) => c.checked);
       selectAllCb.checked = allChecked;
       selectAllCb.indeterminate = !allChecked && !noneChecked;
       updateCount();
     });
   });
+
+  // Hide/show exported tasks toggle
+  const hideExportedCb = overlay.querySelector('#jira-hide-exported') as HTMLInputElement | null;
+  if (hideExportedCb) {
+    const applyFilter = () => {
+      const hide = hideExportedCb.checked;
+      overlay.querySelectorAll<HTMLElement>('.jira-task-option[data-exported="true"]').forEach((row) => {
+        row.style.display = hide ? 'none' : '';
+      });
+      updateCount();
+    };
+    applyFilter(); // Apply initial state
+    hideExportedCb.addEventListener('change', applyFilter);
+  }
+
+  // Project mapping save
+  const saveMappingCb = overlay.querySelector('#jira-save-mapping') as HTMLInputElement | null;
+  const projectSelect = overlay.querySelector('#jira-project-select') as HTMLSelectElement;
+
+  // If project select changes while "remember" is checked, update mapping
+  if (saveMappingCb && activeVBProjectId) {
+    projectSelect.addEventListener('change', () => {
+      if (saveMappingCb.checked) {
+        vscode.postMessage({
+          type: 'setJiraProjectMapping',
+          payload: { vbProjectId: activeVBProjectId, jiraProjectKey: projectSelect.value },
+        });
+      }
+    });
+    saveMappingCb.addEventListener('change', () => {
+      vscode.postMessage({
+        type: 'setJiraProjectMapping',
+        payload: {
+          vbProjectId: activeVBProjectId,
+          jiraProjectKey: saveMappingCb.checked ? projectSelect.value : '',
+        },
+      });
+    });
+  }
 
   // Cancel
   overlay.querySelector('#jira-cancel')!.addEventListener('click', () => overlay.remove());
@@ -3063,7 +3147,7 @@ function showJiraProjectAndTaskPicker(
     const selectedIds = Array.from(taskCbs).filter((cb) => cb.checked).map((cb) => cb.value);
     if (selectedIds.length === 0) { return; }
 
-    const projectKey = (overlay.querySelector('#jira-project-select') as HTMLSelectElement).value;
+    const projectKey = projectSelect.value;
 
     // Determine which VB statuses are present in the selected tasks
     const selectedTasks = exportableTasks.filter((t: { id: string }) => selectedIds.includes(t.id));
