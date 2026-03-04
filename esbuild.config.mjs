@@ -16,6 +16,7 @@ const extensionConfig = {
   target: 'node18',
   sourcemap: true,
   minify: !isWatch,
+  treeShaking: true,
 };
 
 // === Webview bundle (Browser/IIFE) ===

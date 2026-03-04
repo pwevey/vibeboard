@@ -6,48 +6,63 @@ import { TaskManager } from './tasks/TaskManager';
 import { MessageHandler } from './ui/MessageHandler';
 import { WebviewProvider } from './ui/WebviewProvider';
 
-let storageProvider: StorageProvider;
+let storageProvider: StorageProvider | null = null;
+let sessionManager: SessionManager | null = null;
+let taskManager: TaskManager | null = null;
+let messageHandler: MessageHandler | null = null;
+let webviewProvider: WebviewProvider | null = null;
+let initPromise: Promise<boolean> | null = null;
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  // Initialize storage
-  storageProvider = new StorageProvider();
+/**
+ * Lazy initialization — called on first use (command or webview resolve).
+ * Returns true if initialization succeeded, false otherwise.
+ * Multiple callers safely share the same promise.
+ */
+function ensureInitialized(): Promise<boolean> {
+  if (initPromise) { return initPromise; }
+  initPromise = (async () => {
+    storageProvider = new StorageProvider();
+    try {
+      await storageProvider.initialize();
+    } catch (err) {
+      console.error('[VB] Failed to initialize storage:', err);
+      vscode.window.showErrorMessage('Vibe Board: Failed to initialize storage. Make sure a workspace folder is open.');
+      return false;
+    }
+    sessionManager = new SessionManager(storageProvider);
+    taskManager = new TaskManager(storageProvider);
+    messageHandler = new MessageHandler(storageProvider, sessionManager, taskManager);
+    if (webviewProvider) {
+      webviewProvider.setMessageHandler(messageHandler);
+    }
+    return true;
+  })();
+  return initPromise;
+}
 
-  try {
-    await storageProvider.initialize();
-  } catch (err) {
-    console.error('[VB] Failed to initialize storage:', err);
-    vscode.window.showErrorMessage('Vibe Board: Failed to initialize storage. Make sure a workspace folder is open.');
-    return;
-  }
-
-  // Create managers
-  const sessionManager = new SessionManager(storageProvider);
-  const taskManager = new TaskManager(storageProvider);
-  const messageHandler = new MessageHandler(storageProvider, sessionManager, taskManager);
-
-  // Register the sidebar webview provider (retainContextWhenHidden keeps the
-  // webview alive when the user switches to another sidebar panel)
-  const webviewProvider = new WebviewProvider(context.extensionUri, messageHandler);
+export function activate(context: vscode.ExtensionContext): void {
+  // Register the sidebar webview provider immediately (lightweight — no I/O).
+  // Actual storage init happens lazily when the webview resolves or a command runs.
+  webviewProvider = new WebviewProvider(context.extensionUri, ensureInitialized);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(WebviewProvider.viewType, webviewProvider, {
       webviewOptions: { retainContextWhenHidden: true },
     })
   );
 
-  // Register commands
+  // Register commands (handlers call ensureInitialized on demand)
   context.subscriptions.push(
-    vscode.commands.registerCommand('vibeboard.startSession', () => {
+    vscode.commands.registerCommand('vibeboard.startSession', async () => {
+      if (!(await ensureInitialized())) { return; }
       const projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
       const config = vscode.workspace.getConfiguration('vibeboard');
       const carryOver = config.get<boolean>('carryOverTasks', true);
 
-      // startSession() internally ends the active session first
-      const newSession = sessionManager.startSession(projectPath);
+      const newSession = sessionManager!.startSession(projectPath);
 
-      // Carry over incomplete tasks from ended sessions (scoped to project if set)
-      const activeProjectId = storageProvider.getData().activeProjectId;
+      const activeProjectId = storageProvider!.getData().activeProjectId;
       if (carryOver) {
-        const carried = taskManager.carryOverAllTasks(newSession.id, activeProjectId ?? undefined);
+        const carried = taskManager!.carryOverAllTasks(newSession.id, activeProjectId ?? undefined);
         if (carried > 0) {
           vscode.window.showInformationMessage(
             `Vibe Board: Session started! ${carried} task${carried === 1 ? '' : 's'} carried over.`
@@ -59,13 +74,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.showInformationMessage('Vibe Board: Session started!');
       }
 
-      webviewProvider.refresh();
+      webviewProvider!.refresh();
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('vibeboard.endSession', () => {
-      const summary = sessionManager.endSession();
+    vscode.commands.registerCommand('vibeboard.endSession', async () => {
+      if (!(await ensureInitialized())) { return; }
+      const summary = sessionManager!.endSession();
       if (summary) {
         const duration = formatDuration(summary.duration);
         vscode.window.showInformationMessage(
@@ -74,13 +90,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       } else {
         vscode.window.showInformationMessage('Vibe Board: No active session.');
       }
-      webviewProvider.refresh();
+      webviewProvider!.refresh();
     })
   );
 
   context.subscriptions.push(
     vscode.commands.registerCommand('vibeboard.addTask', async () => {
-      if (!sessionManager.hasActiveSession()) {
+      if (!(await ensureInitialized())) { return; }
+      if (!sessionManager!.hasActiveSession()) {
         const start = await vscode.window.showInformationMessage(
           'No active session. Start one?',
           'Start Session'
@@ -114,49 +131,53 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       const tag = (tagPick?.value ?? 'feature') as TaskTag;
 
-      const session = sessionManager.getActiveSession()!;
-      taskManager.addTask({
+      const session = sessionManager!.getActiveSession()!;
+      taskManager!.addTask({
         title,
         tag,
         status: 'up-next',
         sessionId: session.id,
       });
 
-      webviewProvider.refresh();
+      webviewProvider!.refresh();
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('vibeboard.exportMarkdown', () => {
-      // Trigger export through message handler
-      messageHandler.handleMessage({ type: 'exportData', payload: { format: 'markdown' } });
+    vscode.commands.registerCommand('vibeboard.exportMarkdown', async () => {
+      if (!(await ensureInitialized())) { return; }
+      messageHandler!.handleMessage({ type: 'exportData', payload: { format: 'markdown' } });
     })
   );
 
   // Cleanup
   context.subscriptions.push({
     dispose: () => {
-      storageProvider.flush();
-      storageProvider.dispose();
+      if (storageProvider) {
+        storageProvider.flush();
+        storageProvider.dispose();
+      }
     },
   });
 
-  // Auto-prompt for session on startup (non-blocking — don't await so
-  // activate() returns immediately and VS Code doesn't show a slow-load warning)
-  const config = vscode.workspace.getConfiguration('vibeboard');
-  const autoPrompt = config.get<boolean>('autoPromptSession', true);
+  // Auto-prompt for session on startup (non-blocking, after lazy init)
+  ensureInitialized().then((ok) => {
+    if (!ok) { return; }
+    const config = vscode.workspace.getConfiguration('vibeboard');
+    const autoPrompt = config.get<boolean>('autoPromptSession', true);
 
-  if (autoPrompt && !sessionManager.hasActiveSession()) {
-    vscode.window.showInformationMessage(
-      'Vibe Board: Start a new session?',
-      'Start Session',
-      'Not Now'
-    ).then((action) => {
-      if (action === 'Start Session') {
-        vscode.commands.executeCommand('vibeboard.startSession');
-      }
-    });
-  }
+    if (autoPrompt && !sessionManager!.hasActiveSession()) {
+      vscode.window.showInformationMessage(
+        'Vibe Board: Start a new session?',
+        'Start Session',
+        'Not Now'
+      ).then((action) => {
+        if (action === 'Start Session') {
+          vscode.commands.executeCommand('vibeboard.startSession');
+        }
+      });
+    }
+  });
 }
 
 export function deactivate(): void {

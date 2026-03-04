@@ -4,16 +4,30 @@ import { WebviewToExtensionMessage } from '../storage/models';
 
 /**
  * WebviewProvider implements WebviewViewProvider for the sidebar panel.
+ * Supports lazy initialization — the MessageHandler is set after storage loads.
  */
 export class WebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'vibeboard.boardView';
 
   private view: vscode.WebviewView | undefined;
+  private messageHandler: MessageHandler | null = null;
+  private ensureInit: () => Promise<boolean>;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
-    private readonly messageHandler: MessageHandler
-  ) {}
+    ensureInitialized: () => Promise<boolean>
+  ) {
+    this.ensureInit = ensureInitialized;
+  }
+
+  /** Called by the lazy init in extension.ts once the handler is ready. */
+  setMessageHandler(handler: MessageHandler): void {
+    this.messageHandler = handler;
+    if (this.view) {
+      handler.setWebview(this.view.webview);
+      handler.sendStateUpdate();
+    }
+  }
 
   /**
    * Called when the webview view is first shown.
@@ -33,25 +47,33 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
       ],
     };
 
-    // Bind the message handler to this webview
-    this.messageHandler.setWebview(webviewView.webview);
+    // Set the HTML content immediately (shows the UI shell before data loads)
+    webviewView.webview.html = this.getHtmlContent(webviewView.webview);
 
-    // Listen for messages from the webview
+    // Listen for messages — queue or forward to handler
     webviewView.webview.onDidReceiveMessage(
       (message: WebviewToExtensionMessage) => {
-        this.messageHandler.handleMessage(message);
+        if (this.messageHandler) {
+          this.messageHandler.handleMessage(message);
+        }
       }
     );
 
     // Re-send state when the view becomes visible again
     webviewView.onDidChangeVisibility(() => {
-      if (webviewView.visible) {
+      if (webviewView.visible && this.messageHandler) {
         this.messageHandler.sendStateUpdate();
       }
     });
 
-    // Set the HTML content
-    webviewView.webview.html = this.getHtmlContent(webviewView.webview);
+    // If handler is already set (unlikely on first open), bind it now
+    if (this.messageHandler) {
+      this.messageHandler.setWebview(webviewView.webview);
+      this.messageHandler.sendStateUpdate();
+    } else {
+      // Kick off lazy init — once done, setMessageHandler will be called
+      this.ensureInit();
+    }
   }
 
   /**
@@ -87,7 +109,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
    * Trigger a state update to the webview (called externally).
    */
   refresh(): void {
-    if (this.view?.visible) {
+    if (this.view?.visible && this.messageHandler) {
       this.messageHandler.sendStateUpdate();
     }
   }
