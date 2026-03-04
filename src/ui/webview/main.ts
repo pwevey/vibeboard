@@ -3585,6 +3585,7 @@ const helpTabLabels: Record<string, string> = {
   'tasks': 'Tasks',
   'board': 'Board',
   'sessions': 'Sessions',
+  'projects': 'Projects',
   'timers': 'Timers',
   'templates': 'Templates',
   'ai': 'AI Features',
@@ -4350,15 +4351,34 @@ function renderHelpContent(section: string): string {
         <h4>Jira Integration</h4>
         <p>Export tasks directly to Jira as issues. Each Vibe Board task becomes a Jira issue with auto-mapped fields.</p>
         <ul>
-          <li><strong>Setup</strong> &mdash; Configure your Jira credentials in the Settings dialog (gear icon). Email and API token are stored securely in your OS keychain.</li>
+          <li><strong>Setup</strong> &mdash; Configure your Jira credentials in the Settings dialog (gear icon). Email and API token are stored securely in your OS keychain &mdash; never in plain text.</li>
           <li><strong>API Token</strong> &mdash; Generate one at <em>id.atlassian.com &rarr; Security &rarr; API tokens</em>.</li>
-          <li><strong>Project Picker</strong> &mdash; The Jira button fetches your available projects and lets you choose where to create issues.</li>
-          <li><strong>Task Selection</strong> &mdash; Pick which tasks to export &mdash; defaults to all tasks in the active session.</li>
+          <li><strong>Export Dialog</strong> &mdash; Click the Jira button on the start page to open a full-screen picker showing your Jira projects and session tasks.</li>
+        </ul>
+        <h4>Project Mapping</h4>
+        <ul>
+          <li>The export dialog lets you pick which <strong>Jira project</strong> to create issues in.</li>
+          <li>Check <strong>&ldquo;Remember for [Project]&rdquo;</strong> to save the mapping between your active Vibe Board project and the selected Jira project.</li>
+          <li>Next time you export from the same Vibe Board project, the mapped Jira project is <strong>pre-selected automatically</strong>.</li>
+          <li>Change the Jira project or uncheck the checkbox to update or clear the mapping.</li>
+        </ul>
+        <h4>Duplicate Prevention</h4>
+        <ul>
+          <li>Tasks that have already been exported to Jira are tracked automatically &mdash; the Jira issue key (e.g. <strong>PROJ-42</strong>) and export timestamp are saved on the task.</li>
+          <li>Already-exported tasks are <strong>hidden by default</strong> in the export dialog to prevent duplicate issues.</li>
+          <li>Toggle <strong>&ldquo;Hide N already exported tasks&rdquo;</strong> to show or hide them. When visible, exported tasks appear dimmed with a Jira issue key badge and are unchecked by default.</li>
+          <li><strong>Select All</strong> only toggles visible (non-hidden) tasks, so hidden exported tasks are never accidentally re-exported.</li>
+        </ul>
+        <h4>Status Mapping</h4>
+        <ul>
+          <li>After selecting tasks, a <strong>status mapping step</strong> lets you map each Vibe Board column (In Progress, Up Next, Backlog, Completed, Notes) to a Jira status in the target project.</li>
+          <li>Jira statuses are fetched from yor project automatically.</li>
+          <li>After issues are created, Vibe Board <strong>transitions</strong> each issue to the mapped Jira status so they land in the correct workflow state.</li>
         </ul>
         <h4>Jira Field Mapping</h4>
         <ul>
           <li><strong>Title</strong> &rarr; Issue Summary</li>
-          <li><strong>Description</strong> &rarr; Issue Description (with metadata footer)</li>
+          <li><strong>Description</strong> &rarr; Issue Description (ADF format, with metadata footer)</li>
           <li><strong>Tag</strong> &rarr; Label (feature, bug, refactor, etc.)</li>
           <li><strong>Priority</strong> &rarr; Issue Priority (High, Medium, Low)</li>
           <li><strong>Issue Type</strong> &rarr; Task (default)</li>
@@ -4423,6 +4443,7 @@ function renderHelpContent(section: string): string {
           <li><code>vibeboard.autoBackup</code> &mdash; Automatically back up data (default: true).</li>
           <li><code>vibeboard.autoBackupMaxCount</code> &mdash; Maximum backup files to keep (default: 10).</li>
           <li><code>vibeboard.autoBackupIntervalMin</code> &mdash; Minutes between backups (default: 5, range: 1&ndash;60).</li>
+          <li><code>vibeboard.jiraBaseUrl</code> &mdash; Your Jira Cloud base URL (e.g. <em>https://yourteam.atlassian.net</em>). Email and API token are stored in the OS keychain via the Settings dialog.</li>
         </ul>`;
 
     default:
