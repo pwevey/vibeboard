@@ -1387,7 +1387,21 @@ body.is-dragging .task-card:not(.dragging) {
 }
 
 .settings-btn {
-  font-size: 14px !important;
+  font-size: 15px !important;
+  font-weight: 700;
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  text-align: center;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  border: 1px solid var(--vscode-foreground) !important;
+  opacity: 0.55;
+}
+
+.settings-btn:hover {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground) !important;
 }
 
 /* Empty state (for when there's really no data) */

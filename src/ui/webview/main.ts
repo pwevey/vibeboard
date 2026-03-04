@@ -140,8 +140,9 @@ let quickAddTag: string = 'feature';
 let quickAddPriority: string = 'medium';
 let quickAddCol: string = 'up-next';
 
-// Pre-AI form snapshot for undo support
+// Pre-AI form snapshot for undo/redo support
 let preAIFormSnapshot: { text: string; tag: string; priority: string; col: string } | null = null;
+let redoAIFormSnapshot: { text: string; tag: string; priority: string; col: string } | null = null;
 
 // Settings (synced from extension)
 interface VBSettings {
@@ -246,6 +247,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
     e.preventDefault();
+    if (redoAIImprove()) { return; }
     vscode.postMessage({ type: 'redo', payload: {} });
     return;
   }
@@ -373,7 +375,7 @@ function renderSessionBar(session: VBSession | null): string {
   if (!session) {
     return `<div class="session-bar" role="toolbar" aria-label="Session controls">
       <div class="session-info"><span style="font-size:12px;font-weight:600;">Vibe Board</span></div>
-      <div class="session-actions">${settingsBtn}<button class="btn-start-session">Start Session</button>${helpBtn}</div>
+      <div class="session-actions"><button class="btn-start-session">Start Session</button>${settingsBtn}${helpBtn}</div>
     </div>`;
   }
 
@@ -397,7 +399,7 @@ function renderSessionBar(session: VBSession | null): string {
       <span class="${timerClass}" id="session-timer" aria-live="polite">00:00:00</span>
       ${pausePlayBtn}
     </div>
-    <div class="session-actions">${aiBtn}${autoBtn}${undoBtn}${redoBtn}<button class="secondary" id="btn-end-session">End Session</button>${helpBtn}</div>
+    <div class="session-actions">${aiBtn}${autoBtn}${undoBtn}${redoBtn}<button class="secondary" id="btn-end-session">End Session</button>${settingsBtn}${helpBtn}</div>
   </div>
   ${boardSwitcher}`;
 }
@@ -1157,6 +1159,7 @@ function bindEvents(): void {
 
   // Redo
   document.getElementById('btn-redo')?.addEventListener('click', () => {
+    if (redoAIImprove()) { return; }
     vscode.postMessage({ type: 'redo', payload: {} });
   });
 
@@ -2808,6 +2811,7 @@ function renderHistory(): void {
       ${getActiveSession()
     ? '<button class="secondary" id="btn-end-session">End Session</button>'
     : '<button class="btn-start-session">Start Session</button>'}
+      <button class="icon-btn settings-btn" id="btn-settings" title="Settings" aria-label="Open settings">&#9881;</button>
       <button class="icon-btn help-btn" id="btn-help" title="Help (F1)" aria-label="Open help">&#63;</button>
     </div>
   </div>`;
@@ -2841,6 +2845,7 @@ function renderHistory(): void {
 
   app.innerHTML = html;
   document.getElementById('btn-toggle-view')?.addEventListener('click', () => toggleView());
+  document.getElementById('btn-settings')?.addEventListener('click', () => showSettingsDialog());
   document.getElementById('btn-help')?.addEventListener('click', () => showHelp());
   document.querySelectorAll<HTMLElement>('.btn-start-session').forEach((el) => {
     el.addEventListener('click', () => { showStartSessionDialog(); activeView = 'board'; });
@@ -3970,6 +3975,14 @@ function undoAIImprove(): boolean {
   const prioSelect = document.getElementById('quick-add-priority') as HTMLSelectElement | null;
   const colSelect = document.getElementById('quick-add-col') as HTMLSelectElement | null;
 
+  // Save current (AI) state so redo can restore it
+  redoAIFormSnapshot = {
+    text: input?.value || '',
+    tag: tagSelect?.value || quickAddTag,
+    priority: prioSelect?.value || quickAddPriority,
+    col: colSelect?.value || quickAddCol,
+  };
+
   if (input) {
     input.value = snapshot.text;
     input.style.height = 'auto';
@@ -3988,6 +4001,47 @@ function undoAIImprove(): boolean {
   pendingAIDescription = '';
 
   showAIToast('AI Improve undone', false);
+  return true;
+}
+
+/**
+ * Redo an AI Improve rewrite that was previously undone.
+ * Returns true if there was an AI redo to apply, false otherwise.
+ */
+function redoAIImprove(): boolean {
+  if (!redoAIFormSnapshot) { return false; }
+  const snapshot = redoAIFormSnapshot;
+  redoAIFormSnapshot = null;
+
+  const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+  const tagSelect = document.getElementById('quick-add-tag') as HTMLSelectElement | null;
+  const prioSelect = document.getElementById('quick-add-priority') as HTMLSelectElement | null;
+  const colSelect = document.getElementById('quick-add-col') as HTMLSelectElement | null;
+
+  // Save current state so undo can reverse this redo
+  preAIFormSnapshot = {
+    text: input?.value || '',
+    tag: tagSelect?.value || quickAddTag,
+    priority: prioSelect?.value || quickAddPriority,
+    col: colSelect?.value || quickAddCol,
+  };
+
+  if (input) {
+    input.value = snapshot.text;
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+    input.focus();
+  }
+  if (tagSelect) { tagSelect.value = snapshot.tag; }
+  if (prioSelect) { prioSelect.value = snapshot.priority; }
+  if (colSelect) { colSelect.value = snapshot.col; }
+
+  quickAddTag = snapshot.tag;
+  quickAddPriority = snapshot.priority;
+  quickAddCol = snapshot.col;
+  pendingAIClassification = { tag: snapshot.tag, priority: snapshot.priority, status: snapshot.col };
+
+  showAIToast('AI Improve redone', false);
   return true;
 }
 
