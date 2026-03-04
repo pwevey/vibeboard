@@ -742,6 +742,15 @@ export class MessageHandler {
         this.sendStateUpdate();
         break;
       }
+
+      case 'updateSetting': {
+        const { key, value } = message.payload as { key: string; value: unknown };
+        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoPromptSession', 'carryOverTasks'];
+        if (allowedKeys.includes(key)) {
+          await vscode.workspace.getConfiguration('vibeboard').update(key, value, vscode.ConfigurationTarget.Global);
+        }
+        break;
+      }
     }
   }
 
@@ -754,6 +763,17 @@ export class MessageHandler {
     }
     const data = this.storage.getData();
     this.webview.postMessage({ type: 'stateUpdate', payload: data });
+    // Send current settings to webview
+    const config = vscode.workspace.getConfiguration('vibeboard');
+    this.webview.postMessage({
+      type: 'settingsUpdate',
+      payload: {
+        autoBackup: config.get<boolean>('autoBackup', true),
+        autoBackupMaxCount: config.get<number>('autoBackupMaxCount', 10),
+        autoPromptSession: config.get<boolean>('autoPromptSession', true),
+        carryOverTasks: config.get<boolean>('carryOverTasks', true),
+      },
+    });
   }
 
   /**

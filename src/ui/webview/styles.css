@@ -1299,6 +1299,58 @@ body.is-dragging .task-card:not(.dragging) {
   background: var(--vscode-inputValidation-errorBackground) !important;
 }
 
+/* Settings section on start page */
+.start-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.start-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.start-setting-row:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.start-setting-row input[type="checkbox"] {
+  accent-color: var(--vscode-checkbox-background);
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.start-setting-label {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.start-setting-desc {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  flex: 1;
+}
+
+.start-setting-row .setting-number {
+  width: 56px;
+  padding: 2px 6px;
+  font-size: 12px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 3px;
+  text-align: center;
+}
+
 /* Empty state (for when there's really no data) */
 
 .empty-state {

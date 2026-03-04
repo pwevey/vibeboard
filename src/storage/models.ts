@@ -198,6 +198,7 @@ export type WebviewToExtensionMessage =
   | { type: 'renameProject'; payload: { projectId: string; name: string } }
   | { type: 'deleteProject'; payload: { projectId: string } }
   | { type: 'setActiveProject'; payload: { projectId: string | null } }
+  | { type: 'updateSetting'; payload: { key: string; value: unknown } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
@@ -208,7 +209,8 @@ export type ExtensionToWebviewMessage =
   | { type: 'quickAddFiles'; payload: { files: VBAttachment[] } }
   | { type: 'showFollowUp'; payload: { taskId: string } }
   | { type: 'followUpFiles'; payload: { taskId: string; files: VBAttachment[] } }
-  | { type: 'automationProgress'; payload: AutomationProgress };
+  | { type: 'automationProgress'; payload: AutomationProgress }
+  | { type: 'settingsUpdate'; payload: Record<string, unknown> };
 
 // === Factory Functions ===
 

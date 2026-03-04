@@ -139,6 +139,20 @@ let quickAddTag: string = 'feature';
 let quickAddPriority: string = 'medium';
 let quickAddCol: string = 'up-next';
 
+// Settings (synced from extension)
+interface VBSettings {
+  autoBackup: boolean;
+  autoBackupMaxCount: number;
+  autoPromptSession: boolean;
+  carryOverTasks: boolean;
+}
+let extensionSettings: VBSettings = {
+  autoBackup: true,
+  autoBackupMaxCount: 10,
+  autoPromptSession: true,
+  carryOverTasks: true,
+};
+
 // Automation state
 interface AutomationProgress {
   state: 'idle' | 'running' | 'paused' | 'reviewing';
@@ -196,6 +210,10 @@ window.addEventListener('message', (event) => {
       if (automationProgress && automationProgress.queue.every(
         (q: { status: string }) => q.status === 'done' || q.status === 'skipped' || q.status === 'failed'
       )) { automationProgress = null; }
+      render();
+      break;
+    case 'settingsUpdate':
+      extensionSettings = message.payload as VBSettings;
       render();
       break;
   }
@@ -1082,6 +1100,31 @@ function renderNoSessionState(): string {
     }
   }
 
+  // Settings section
+  html += `<div class="start-section"><div class="start-section-header"><h3>&#9881; Settings</h3></div>
+    <div class="start-settings">
+      <label class="start-setting-row">
+        <input type="checkbox" class="setting-checkbox" data-setting="autoBackup" ${extensionSettings.autoBackup ? 'checked' : ''} />
+        <span class="start-setting-label">Auto-Backup</span>
+        <span class="start-setting-desc">Automatically back up data to .vibeboard/backups/</span>
+      </label>
+      <label class="start-setting-row" id="setting-row-backup-count" style="${extensionSettings.autoBackup ? '' : 'opacity:0.5;pointer-events:none;'}">
+        <span class="start-setting-label">Max Backup Files</span>
+        <input type="number" class="setting-number" data-setting="autoBackupMaxCount" value="${extensionSettings.autoBackupMaxCount}" min="1" max="100" />
+      </label>
+      <label class="start-setting-row">
+        <input type="checkbox" class="setting-checkbox" data-setting="autoPromptSession" ${extensionSettings.autoPromptSession ? 'checked' : ''} />
+        <span class="start-setting-label">Auto-Prompt Session</span>
+        <span class="start-setting-desc">Prompt to start a session when VS Code opens</span>
+      </label>
+      <label class="start-setting-row">
+        <input type="checkbox" class="setting-checkbox" data-setting="carryOverTasks" ${extensionSettings.carryOverTasks ? 'checked' : ''} />
+        <span class="start-setting-label">Carry-Over Tasks</span>
+        <span class="start-setting-desc">Carry over unfinished tasks to the next session</span>
+      </label>
+    </div>
+  </div>`;
+
   // Clear all data (shown when there's data to clear)
   if (state && (state.sessions.length > 0 || state.tasks.length > 0)) {
     html += `<div class="start-section"><div class="start-section-header"><h3>&#128465; Danger Zone</h3></div>
@@ -1291,6 +1334,35 @@ function bindEvents(): void {
 
   // Clear all data
   document.getElementById('btn-clear-all-data')?.addEventListener('click', () => vscode.postMessage({ type: 'clearAllData', payload: {} }));
+
+  // Settings toggles
+  document.querySelectorAll<HTMLInputElement>('.setting-checkbox').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const key = cb.dataset.setting;
+      if (!key) { return; }
+      vscode.postMessage({ type: 'updateSetting', payload: { key, value: cb.checked } });
+      // Locally update for instant feedback
+      (extensionSettings as Record<string, unknown>)[key] = cb.checked;
+      // Toggle backup count row availability
+      if (key === 'autoBackup') {
+        const countRow = document.getElementById('setting-row-backup-count');
+        if (countRow) {
+          countRow.style.opacity = cb.checked ? '1' : '0.5';
+          countRow.style.pointerEvents = cb.checked ? 'auto' : 'none';
+        }
+      }
+    });
+  });
+  document.querySelectorAll<HTMLInputElement>('.setting-number').forEach((input) => {
+    input.addEventListener('change', () => {
+      const key = input.dataset.setting;
+      if (!key) { return; }
+      const val = Math.max(Number(input.min) || 1, Math.min(Number(input.max) || 100, parseInt(input.value, 10) || 10));
+      input.value = String(val);
+      vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
+      (extensionSettings as Record<string, unknown>)[key] = val;
+    });
+  });
 
   // Templates — populate quick-add textarea instead of auto-creating
   document.querySelectorAll<HTMLElement>('[data-template]').forEach((el) => {
@@ -2798,8 +2870,8 @@ interface FuzzyMatchResult {
 }
 
 function fuzzyMatch(query: string, text: string): FuzzyMatchResult | null {
-  const lowerQuery = query.toLowerCase();
-  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase().replace(/-/g, ' ');
+  const lowerText = text.toLowerCase().replace(/-/g, ' ');
 
   // Exact substring match gets highest score
   const exactIdx = lowerText.indexOf(lowerQuery);
@@ -3618,6 +3690,7 @@ function renderHelpContent(section: string): string {
         <ul>
           <li><code>vibeboard.autoBackup</code> &mdash; Enable or disable auto-backups (default: <strong>on</strong>).</li>
           <li><code>vibeboard.autoBackupMaxCount</code> &mdash; Maximum number of backup files to keep (default: <strong>10</strong>, range: 1&ndash;100).</li>
+          <li>You can also configure these in the <strong>&#9881; Settings</strong> section on the start page.</li>
         </ul>
         <h4>Clear All Data</h4>
         <ul>
@@ -3678,9 +3751,12 @@ function renderHelpContent(section: string): string {
           <li><code>Vibe Board: Export Session as Markdown</code></li>
         </ul>
         <h4>Settings</h4>
+        <p>You can configure these in <strong>VS Code Settings</strong> (<kbd>Ctrl+,</kbd>) or in the <strong>&#9881; Settings</strong> section on the start page.</p>
         <ul>
           <li><code>vibeboard.autoPromptSession</code> &mdash; Prompt to start a session when VS Code opens (default: true).</li>
           <li><code>vibeboard.carryOverTasks</code> &mdash; Carry over unfinished tasks to the next session (default: true).</li>
+          <li><code>vibeboard.autoBackup</code> &mdash; Automatically back up data (default: true).</li>
+          <li><code>vibeboard.autoBackupMaxCount</code> &mdash; Maximum backup files to keep (default: 10).</li>
         </ul>`;
 
     default:
