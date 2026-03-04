@@ -3965,6 +3965,18 @@ function showBoardManager(): void {
 // AI Result Handling
 // ============================================================
 
+/** Sync undo/redo button disabled state with current snapshot + stack state */
+function syncUndoRedoButtons(): void {
+  const undoBtn = document.getElementById('btn-undo') as HTMLButtonElement | null;
+  const redoBtn = document.getElementById('btn-redo') as HTMLButtonElement | null;
+  if (undoBtn) {
+    undoBtn.disabled = !(preAIFormSnapshot || (state?.undoStack && state.undoStack.length > 0));
+  }
+  if (redoBtn) {
+    redoBtn.disabled = !(redoAIFormSnapshot || (state?.redoStack && state.redoStack.length > 0));
+  }
+}
+
 /**
  * Undo an AI Improve rewrite by restoring the pre-AI form state.
  * Returns true if there was an AI rewrite to undo, false otherwise.
@@ -4005,6 +4017,7 @@ function undoAIImprove(): boolean {
   pendingAIDescription = '';
 
   showAIToast('AI Improve undone', false);
+  syncUndoRedoButtons();
   return true;
 }
 
@@ -4046,6 +4059,7 @@ function redoAIImprove(): boolean {
   pendingAIClassification = { tag: snapshot.tag, priority: snapshot.priority, status: snapshot.col };
 
   showAIToast('AI Improve redone', false);
+  syncUndoRedoButtons();
   return true;
 }
 
@@ -4111,6 +4125,7 @@ function handleAIResult(payload: { action: string; result: string | string[]; ta
 
           const tagLabel = parsed.tag ? TAG_LABELS[parsed.tag as TaskTag] || parsed.tag : '';
           showAIToast(`Classified as ${tagLabel} — review & edit, then click Add`, false);
+          syncUndoRedoButtons();
         }
       } catch {
         // Fallback if not JSON
@@ -4128,6 +4143,7 @@ function handleAIResult(payload: { action: string; result: string | string[]; ta
           input.value = raw;
           input.focus();
           showAIToast('Title improved by AI', false);
+          syncUndoRedoButtons();
         }
       }
       break;
