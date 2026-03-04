@@ -89,7 +89,7 @@ export class CopilotAIService implements IAIService {
 
 Given the user's raw input, do the following:
 
-1. CLASSIFY the input into exactly one category: bug, feature, refactor, note, or plan.
+1. CLASSIFY the input into exactly one category: bug, feature, refactor, note, plan, or todo.
 2. Based on the category, FORMAT the task using the exact template below.
 3. Write a clear, concise title with the appropriate prefix.
 4. Fill in the template description sections using information from the user's input. Be specific and actionable.
@@ -98,8 +98,11 @@ Classification guidance:
 - "feature" = any actionable work: building, testing, validating, implementing, investigating, spiking, researching, writing, creating, setting up, configuring, adding, integrating, or exploring something. When in doubt between feature and note, choose feature.
 - "bug" = something is broken, wrong, or not working as expected.
 - "refactor" = restructuring, cleaning up, or improving existing code without changing behavior.
-- "plan" = strategic planning, multi-step implementation plans, architecture decisions, or workflows meant to be handed to Copilot for execution. Use when the user describes a goal that needs a step-by-step plan.
+- "plan" = strategic planning, architecture decisions, or workflows that need a step-by-step implementation plan before coding begins.
+- "todo" = multiple discrete items or actions grouped together. Use when the user lists 2+ things to do, mentions "multiple things", or describes a batch of related tasks. Also use when the input naturally maps to a checklist.
 - "note" = ONLY for passive information, reminders, ideas with no immediate action, or reference material. Do NOT classify actionable tasks as notes.
+
+IMPORTANT: If the user mentions doing multiple things, lists several actions, or says something like "I want to do X things" or "first... then...", ALWAYS classify as "todo" not "plan". Plans are for architecture/strategy, todos are for batches of concrete actions.
 
 Templates by category:
 
@@ -160,6 +163,15 @@ plan:
 
     Success criteria:
     [how we know it's done]
+
+todo:
+  Title prefix: "Todo: "
+  Priority: medium
+  Column: up-next
+  Description format:
+    1. [first item]
+    2. [second item]
+    3. [third item]
 
 note:
   Title prefix: ""

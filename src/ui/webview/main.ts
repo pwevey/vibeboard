@@ -362,8 +362,12 @@ function findTask(id: string): VBTask | undefined {
 // ============================================================
 
 function renderSessionBar(session: VBSession | null): string {
-  const undoBtn = `<button class="icon-btn" id="btn-undo" title="Undo (Ctrl+Z)" aria-label="Undo last action">&#8630;</button>`;
-  const redoBtn = `<button class="icon-btn" id="btn-redo" title="Redo (Ctrl+Y)" aria-label="Redo last action">&#8631;</button>`;
+  const hasUndo = !!(preAIFormSnapshot || (state?.undoStack && state.undoStack.length > 0));
+  const hasRedo = !!(redoAIFormSnapshot || (state?.redoStack && state.redoStack.length > 0));
+  const undoDisabled = hasUndo ? '' : ' disabled';
+  const redoDisabled = hasRedo ? '' : ' disabled';
+  const undoBtn = `<button class="icon-btn undo-redo-btn" id="btn-undo" title="Undo (Ctrl+Z)" aria-label="Undo last action"${undoDisabled}>&#8630;</button>`;
+  const redoBtn = `<button class="icon-btn undo-redo-btn" id="btn-redo" title="Redo (Ctrl+Y)" aria-label="Redo last action"${redoDisabled}>&#8631;</button>`;
   const helpBtn = `<button class="icon-btn help-btn" id="btn-help" title="Help (F1)" aria-label="Open help">&#63;</button>`;
   const aiBtn = session ? `<button class="icon-btn ai-btn" id="btn-ai-summarize" title="AI Summarize Session" aria-label="AI summarize session">&#10024;</button>` : '';
   const autoBtn = session ? `<button class="auto-btn" id="btn-start-automation" title="Run Automation (process tasks via Copilot)" aria-label="Start automation">&#9654; Automate</button>` : '';

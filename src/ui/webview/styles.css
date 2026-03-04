@@ -153,6 +153,12 @@ button.icon-btn:hover {
   opacity: 1;
 }
 
+button.icon-btn.undo-redo-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+  pointer-events: none;
+}
+
 button.icon-btn.view-toggle {
   font-size: 16px;
 }
