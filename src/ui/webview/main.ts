@@ -357,7 +357,7 @@ function renderSessionBar(session: VBSession | null): string {
   const redoBtn = `<button class="icon-btn" id="btn-redo" title="Redo (Ctrl+Y)" aria-label="Redo last action">&#8631;</button>`;
   const helpBtn = `<button class="icon-btn help-btn" id="btn-help" title="Help (F1)" aria-label="Open help">&#63;</button>`;
   const aiBtn = session ? `<button class="icon-btn ai-btn" id="btn-ai-summarize" title="AI Summarize Session" aria-label="AI summarize session">&#10024;</button>` : '';
-  const autoBtn = session ? `<button class="auto-btn" id="btn-start-automation" title="Run Automation (process tasks via Copilot)" aria-label="Start automation">&#9881; Automate</button>` : '';
+  const autoBtn = session ? `<button class="auto-btn" id="btn-start-automation" title="Run Automation (process tasks via Copilot)" aria-label="Start automation">&#9654; Automate</button>` : '';
 
   const boardSwitcher = session ? renderBoardSwitcher() : '';
 
