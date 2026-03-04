@@ -835,6 +835,7 @@ export class MessageHandler {
         jiraBaseUrl: config.get<string>('jiraBaseUrl', ''),
         jiraEmail: config.get<string>('jiraEmail', ''),
         jiraConfigured: !!(config.get<string>('jiraBaseUrl', '') && config.get<string>('jiraEmail', '') && config.get<string>('jiraApiToken', '')),
+        jiraApiTokenLength: (config.get<string>('jiraApiToken', '') || '').length,
       },
     });
   }

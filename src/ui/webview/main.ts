@@ -154,6 +154,7 @@ interface VBSettings {
   jiraConfigured: boolean;
   jiraBaseUrl: string;
   jiraEmail: string;
+  jiraApiTokenLength: number;
 }
 let extensionSettings: VBSettings = {
   autoBackup: true,
@@ -164,6 +165,7 @@ let extensionSettings: VBSettings = {
   jiraConfigured: false,
   jiraBaseUrl: '',
   jiraEmail: '',
+  jiraApiTokenLength: 0,
 };
 
 // Automation state
@@ -2145,7 +2147,7 @@ function showSettingsDialog(): void {
       </label>
       <label class="start-setting-row setting-text-row">
         <span class="start-setting-label">API Token</span>
-        <input type="password" class="setting-text jira-setting" data-setting="jiraApiToken" value="${extensionSettings.jiraConfigured ? '••••••••' : ''}" placeholder="Paste your API token" />
+        <input type="password" class="setting-text jira-setting" data-setting="jiraApiToken" value="${extensionSettings.jiraConfigured ? '\u2022'.repeat(extensionSettings.jiraApiTokenLength || 8) : ''}" placeholder="Paste your API token" />
       </label>
       <p class="settings-hint" style="margin-top:4px;">Generate a token at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" class="jira-link">id.atlassian.com</a></p>
       <div class="jira-save-row">
@@ -2204,7 +2206,7 @@ function showSettingsDialog(): void {
   });
 
   // Jira Save button
-  let jiraTokenMask = '\u2022'.repeat(8); // default mask length
+  let jiraTokenMask = '\u2022'.repeat(extensionSettings.jiraApiTokenLength || 8); // match real token length
   document.getElementById('jira-save-btn')?.addEventListener('click', () => {
     const fields = overlay.querySelectorAll<HTMLInputElement>('.jira-setting');
     let hasToken = false;
