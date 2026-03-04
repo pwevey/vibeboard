@@ -540,6 +540,7 @@ body.is-dragging .task-card:not(.dragging) {
 .task-tag.refactor { background: #2196F333; color: #2196F3; }
 .task-tag.note    { background: #FF980033; color: #FF9800; }
 .task-tag.plan    { background: #9C27B033; color: #9C27B0; }
+.task-tag.todo    { background: #00BCD433; color: #00BCD4; }
 
 .task-card .task-actions {
   display: none;

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { StorageProvider } from './storage/StorageProvider';
+import { TaskTag } from './storage/models';
 import { SessionManager } from './session/SessionManager';
 import { TaskManager } from './tasks/TaskManager';
 import { MessageHandler } from './ui/MessageHandler';
@@ -105,11 +106,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           { label: 'Bug', value: 'bug' },
           { label: 'Refactor', value: 'refactor' },
           { label: 'Note', value: 'note' },
+          { label: 'Plan', value: 'plan' },
+          { label: 'Todo', value: 'todo' },
         ],
         { placeHolder: 'Select a tag' }
       );
 
-      const tag = (tagPick?.value ?? 'feature') as 'feature' | 'bug' | 'refactor' | 'note';
+      const tag = (tagPick?.value ?? 'feature') as TaskTag;
 
       const session = sessionManager.getActiveSession()!;
       taskManager.addTask({

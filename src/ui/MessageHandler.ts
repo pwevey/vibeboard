@@ -1217,7 +1217,7 @@ export class MessageHandler {
 
     const totalTasks = allTasks.length;
     const byStatus: Record<string, number> = { 'in-progress': 0, 'up-next': 0, backlog: 0, completed: 0, notes: 0 };
-    const byTag: Record<string, number> = { feature: 0, bug: 0, refactor: 0, note: 0, plan: 0 };
+    const byTag: Record<string, number> = { feature: 0, bug: 0, refactor: 0, note: 0, plan: 0, todo: 0 };
     const byPriority: Record<string, number> = { low: 0, medium: 0, high: 0 };
     let totalTimeMs = 0;
     let carriedOverCount = 0;
@@ -1377,6 +1377,7 @@ export class MessageHandler {
     lines.push(`Refactors,${totals.byTag['refactor'] || 0}`);
     lines.push(`Notes,${totals.byTag['note'] || 0}`);
     lines.push(`Plans,${totals.byTag['plan'] || 0}`);
+    lines.push(`Todos,${totals.byTag['todo'] || 0}`);
     lines.push('');
     lines.push('By Priority');
     lines.push(`High,${totals.byPriority['high'] || 0}`);
@@ -1399,6 +1400,7 @@ export class MessageHandler {
       { tag: 'refactor', label: 'REFACTORS' },
       { tag: 'note', label: 'NOTES' },
       { tag: 'plan', label: 'PLANS' },
+      { tag: 'todo', label: 'TODOS' },
     ];
 
     const csvTaskRow = (task: VBTask) => {
@@ -1566,7 +1568,7 @@ export class MessageHandler {
     }
 
     lines.push('**By Tag:** ');
-    lines.push(`Feature: ${totals.byTag['feature'] || 0} · Bug: ${totals.byTag['bug'] || 0} · Refactor: ${totals.byTag['refactor'] || 0} · Note: ${totals.byTag['note'] || 0} · Plan: ${totals.byTag['plan'] || 0}`);
+    lines.push(`Feature: ${totals.byTag['feature'] || 0} · Bug: ${totals.byTag['bug'] || 0} · Refactor: ${totals.byTag['refactor'] || 0} · Note: ${totals.byTag['note'] || 0} · Plan: ${totals.byTag['plan'] || 0} · Todo: ${totals.byTag['todo'] || 0}`);
     lines.push('');
     lines.push('**By Priority:** ');
     lines.push(`High: ${totals.byPriority['high'] || 0} · Medium: ${totals.byPriority['medium'] || 0} · Low: ${totals.byPriority['low'] || 0}`);
@@ -1677,6 +1679,7 @@ export class MessageHandler {
       { tag: 'refactor', label: 'Refactors' },
       { tag: 'note', label: 'Notes' },
       { tag: 'plan', label: 'Plans' },
+      { tag: 'todo', label: 'Todos' },
     ];
 
     const renderTaskLine = (t: VBTask) => {

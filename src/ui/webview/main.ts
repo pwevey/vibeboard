@@ -13,7 +13,7 @@ interface VBTask {
   id: string;
   title: string;
   description: string;
-  tag: 'feature' | 'bug' | 'refactor' | 'note' | 'plan';
+  tag: 'feature' | 'bug' | 'refactor' | 'note' | 'plan' | 'todo';
   priority: 'high' | 'medium' | 'low';
   status: 'in-progress' | 'up-next' | 'backlog' | 'completed' | 'notes';
   createdAt: string;
@@ -95,8 +95,8 @@ const COLUMNS: { id: TaskStatus; label: string }[] = [
   { id: 'notes', label: 'Notes' },
 ];
 
-const TAG_LABELS: Record<TaskTag, string> = { feature: 'Feature', bug: 'Bug', refactor: 'Refactor', note: 'Note', plan: 'Plan' };
-const TAG_OPTIONS: TaskTag[] = ['feature', 'bug', 'refactor', 'note', 'plan'];
+const TAG_LABELS: Record<TaskTag, string> = { feature: 'Feature', bug: 'Bug', refactor: 'Refactor', note: 'Note', plan: 'Plan', todo: 'Todo' };
+const TAG_OPTIONS: TaskTag[] = ['feature', 'bug', 'refactor', 'note', 'plan', 'todo'];
 const PRIORITY_LABELS: Record<TaskPriority, string> = { high: 'High', medium: 'Medium', low: 'Low' };
 const PRIORITY_OPTIONS: TaskPriority[] = ['high', 'medium', 'low'];
 
@@ -107,6 +107,7 @@ const TEMPLATES = [
   { name: 'Quick Note', icon: '📝', title: '', description: '', tag: 'note', priority: 'low', col: 'notes' },
   { name: 'AI Prompt Idea', icon: '🤖', title: 'Prompt: ', description: 'Context:\n\nPrompt:\n\nExpected output:', tag: 'note', priority: 'medium', col: 'notes' },
   { name: 'Plan', icon: '📋', title: 'Plan: ', description: 'Objective:\n\nSteps:\n1. \n2. \n3. \n\nSuccess criteria:', tag: 'plan', priority: 'medium', col: 'up-next' },
+  { name: 'Todo List', icon: '✅', title: 'Todo: ', description: '1. \n2. \n3. ', tag: 'todo', priority: 'medium', col: 'up-next' },
 ];
 
 // ============================================================
@@ -787,6 +788,7 @@ function renderQuickAdd(): string {
         <option value="feature" ${quickAddTag === 'feature' ? 'selected' : ''}>Feature</option><option value="bug" ${quickAddTag === 'bug' ? 'selected' : ''}>Bug</option>
         <option value="refactor" ${quickAddTag === 'refactor' ? 'selected' : ''}>Refactor</option><option value="note" ${quickAddTag === 'note' ? 'selected' : ''}>Note</option>
         <option value="plan" ${quickAddTag === 'plan' ? 'selected' : ''}>Plan</option>
+        <option value="todo" ${quickAddTag === 'todo' ? 'selected' : ''}>Todo</option>
       </select>
       <select id="quick-add-priority" aria-label="Task priority">
         <option value="medium" ${quickAddPriority === 'medium' ? 'selected' : ''}>Medium</option><option value="high" ${quickAddPriority === 'high' ? 'selected' : ''}>High</option><option value="low" ${quickAddPriority === 'low' ? 'selected' : ''}>Low</option>
@@ -2353,7 +2355,7 @@ function showEndSessionPicker(): void {
   );
 
   const TAG_COLORS: Record<string, string> = {
-    feature: '#4CAF50', bug: '#F44336', refactor: '#2196F3', note: '#FF9800', plan: '#9C27B0'
+    feature: '#4CAF50', bug: '#F44336', refactor: '#2196F3', note: '#FF9800', plan: '#9C27B0', todo: '#00BCD4'
   };
 
   // Build carry-over section
@@ -2763,6 +2765,7 @@ function showSummary(summary: VBSessionSummary): void {
       <div class="stat"><span>Bugs Fixed</span><span class="stat-value">${summary.tasksByTag['bug'] ?? 0}</span></div>
       <div class="stat"><span>Refactors</span><span class="stat-value">${summary.tasksByTag['refactor'] ?? 0}</span></div>
       <div class="stat"><span>Plans</span><span class="stat-value">${summary.tasksByTag['plan'] ?? 0}</span></div>
+      <div class="stat"><span>Todos</span><span class="stat-value">${summary.tasksByTag['todo'] ?? 0}</span></div>
       <div class="stat"><span>Carried Over</span><span class="stat-value">${summary.tasksCarriedOver}</span></div>
     </div>
     <button id="btn-dismiss-summary" style="width:100%;margin-top:12px;">Close</button>
@@ -2824,6 +2827,7 @@ function renderHistory(): void {
           ${sum.tasksByTag['bug'] ? `<span class="task-tag bug">${sum.tasksByTag['bug']} bug</span>` : ''}
           ${sum.tasksByTag['refactor'] ? `<span class="task-tag refactor">${sum.tasksByTag['refactor']} refactor</span>` : ''}
           ${sum.tasksByTag['plan'] ? `<span class="task-tag plan">${sum.tasksByTag['plan']} plan</span>` : ''}
+          ${sum.tasksByTag['todo'] ? `<span class="task-tag todo">${sum.tasksByTag['todo']} todo</span>` : ''}
         </div>
       </div>`;
     }
@@ -3284,7 +3288,7 @@ function renderHelpContent(section: string): string {
         <h4>Creating Tasks</h4>
         <ul>
           <li>Type in the quick-add area and press <kbd>Enter</kbd> (or click <em>Add</em>).</li>
-          <li>Select a <strong>tag</strong> (Feature, Bug, Refactor, Note, Plan), <strong>priority</strong> (High, Medium, Low), and <strong>column</strong> before adding.</li>
+          <li>Select a <strong>tag</strong> (Feature, Bug, Refactor, Note, Plan, Todo), <strong>priority</strong> (High, Medium, Low), and <strong>column</strong> before adding.</li>
           <li>Use <kbd>Ctrl+N</kbd> to focus the quick-add input from anywhere.</li>
           <li>Use template buttons (emoji row) for pre-filled task types.</li>
         </ul>
@@ -3535,7 +3539,7 @@ function renderHelpContent(section: string): string {
         <h4>AI Improve Task</h4>
         <ul>
           <li>Type a rough idea in the quick-add input, then click the <strong>sparkle icon</strong> (&#10024;) next to the Add button.</li>
-          <li>AI automatically <strong>classifies</strong> your input into the right category (Feature, Bug, Refactor, Note, or Plan) and sets the tag, priority, and column dropdowns accordingly.</li>
+          <li>AI automatically <strong>classifies</strong> your input into the right category (Feature, Bug, Refactor, Note, Plan, or Todo) and sets the tag, priority, and column dropdowns accordingly.</li>
           <li>AI then <strong>formats</strong> the task using the matching template structure:
             <ul>
               <li><strong>Bug</strong> &mdash; Title prefixed with "Bug:", description with Steps to reproduce, Expected, Actual</li>
@@ -3543,6 +3547,7 @@ function renderHelpContent(section: string): string {
               <li><strong>Refactor</strong> &mdash; Title prefixed with "Refactor:", description with Current state, Desired state, Risks</li>
               <li><strong>Note</strong> &mdash; Clear note text</li>
               <li><strong>Plan</strong> &mdash; Title prefixed with "Plan:", description with Objective, Steps, Success criteria</li>
+              <li><strong>Todo</strong> &mdash; Title prefixed with "Todo:", description with numbered list items</li>
             </ul>
           </li>
           <li>The full result (title on the first line, structured description below) appears in the <strong>quick-add textarea</strong> for you to review and edit. The tag, priority, and column dropdowns are set automatically.</li>

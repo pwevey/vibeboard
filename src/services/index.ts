@@ -200,10 +200,11 @@ User input: ${input}`;
         else if (lowerTitle.startsWith('spike:')) { tag = 'feature'; }
         else if (lowerTitle.startsWith('refactor:')) { tag = 'refactor'; }
         else if (lowerTitle.startsWith('plan:')) { tag = 'plan'; }
+        else if (lowerTitle.startsWith('todo:')) { tag = 'todo'; }
 
         // Fall back to the model's explicit category if title prefix didn't match
         if (!tag) {
-          const validTags = ['bug', 'feature', 'refactor', 'note', 'plan'];
+          const validTags = ['bug', 'feature', 'refactor', 'note', 'plan', 'todo'];
           tag = validTags.includes(rawTag) ? rawTag : '';
           if (!tag) {
             for (const vt of validTags) {
@@ -219,6 +220,7 @@ User input: ${input}`;
           else if (lowerDesc.includes('goal:') || lowerDesc.includes('approach:')) { tag = 'feature'; }
           else if (lowerDesc.includes('current state:') || lowerDesc.includes('desired state:')) { tag = 'refactor'; }
           else if (lowerDesc.includes('objective:') || lowerDesc.includes('success criteria:')) { tag = 'plan'; }
+          else if (/^\d+\.\s/.test(description.trim()) || lowerDesc.includes('- [ ]')) { tag = 'todo'; }
           else { tag = 'note'; }
         }
         if (!tag) { tag = 'note'; }
@@ -229,6 +231,7 @@ User input: ${input}`;
           refactor: { priority: 'medium', status: 'backlog' },
           note: { priority: 'low', status: 'notes' },
           plan: { priority: 'medium', status: 'up-next' },
+          todo: { priority: 'medium', status: 'up-next' },
         };
         const defaults = tagDefaults[tag] || tagDefaults['note'];
 

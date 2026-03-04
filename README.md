@@ -8,7 +8,7 @@ A lightweight Kanban-style sidebar for developers who work with AI assistants. C
 
 - **Session-based workflow** — Start a session when you sit down, end it when you're done. Automatic timer tracks how long you've been going.
 - **Kanban columns** — Organize tasks across Up Next, Backlog, Completed, and Notes.
-- **Quick add** — Add tasks instantly with customizable tags (Feature, Bug, Refactor, Note) and target columns.
+- **Quick add** — Add tasks instantly with customizable tags (Feature, Bug, Refactor, Note, Plan, Todo) and target columns.
 - **Inline editing** — Double-click any task title or hit the edit button to update title, description, and tag in-place.
 - **Drag & drop** — Move tasks between columns with visual insertion indicators.
 - **Context menus** — Right-click any task card for quick actions: edit, move, complete, or delete.

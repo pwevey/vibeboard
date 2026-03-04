@@ -19,6 +19,7 @@ export const TAGS: { id: TaskTag; label: string; color: string }[] = [
   { id: 'refactor', label: 'Refactor', color: '#2196F3' },
   { id: 'note', label: 'Note', color: '#FF9800' },
   { id: 'plan', label: 'Plan', color: '#9C27B0' },
+  { id: 'todo', label: 'Todo', color: '#00BCD4' },
 ];
 
 /**
