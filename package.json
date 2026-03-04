@@ -22,8 +22,7 @@
     "planning"
   ],
   "activationEvents": [
-    "onView:vibeboard.boardView",
-    "onStartupFinished"
+    "onView:vibeboard.boardView"
   ],
   "main": "./dist/extension.js",
   "contributes": {

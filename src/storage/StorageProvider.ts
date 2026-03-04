@@ -31,15 +31,9 @@ export class StorageProvider {
     this.storageUri = vscode.Uri.joinPath(dirUri, STORAGE_FILE);
     this.backupDirUri = vscode.Uri.joinPath(dirUri, BACKUP_DIR);
 
+    // Ensure data directory exists (backup dir created lazily on first backup)
     try {
-      // Ensure directory exists
       await vscode.workspace.fs.createDirectory(dirUri);
-    } catch {
-      // Directory may already exist
-    }
-
-    try {
-      await vscode.workspace.fs.createDirectory(this.backupDirUri);
     } catch {
       // Directory may already exist
     }
@@ -140,6 +134,9 @@ export class StorageProvider {
     this.lastBackupTime = now;
 
     try {
+      // Ensure backup directory exists (created lazily, not during activation)
+      try { await vscode.workspace.fs.createDirectory(this.backupDirUri); } catch { /* exists */ }
+
       // Create timestamped backup file
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const backupFileName = `data-backup-${ts}.json`;

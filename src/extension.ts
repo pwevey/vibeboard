@@ -45,7 +45,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const newSession = sessionManager.startSession(projectPath);
 
       // Carry over incomplete tasks from ended sessions (scoped to project if set)
-      const activeProjectId = storage.getData().activeProjectId;
+      const activeProjectId = storageProvider.getData().activeProjectId;
       if (carryOver) {
         const carried = taskManager.carryOverAllTasks(newSession.id, activeProjectId ?? undefined);
         if (carried > 0) {
@@ -141,19 +141,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
   });
 
-  // Auto-prompt for session on startup
+  // Auto-prompt for session on startup (non-blocking — don't await so
+  // activate() returns immediately and VS Code doesn't show a slow-load warning)
   const config = vscode.workspace.getConfiguration('vibeboard');
   const autoPrompt = config.get<boolean>('autoPromptSession', true);
 
   if (autoPrompt && !sessionManager.hasActiveSession()) {
-    const action = await vscode.window.showInformationMessage(
+    vscode.window.showInformationMessage(
       'Vibe Board: Start a new session?',
       'Start Session',
       'Not Now'
-    );
-    if (action === 'Start Session') {
-      await vscode.commands.executeCommand('vibeboard.startSession');
-    }
+    ).then((action) => {
+      if (action === 'Start Session') {
+        vscode.commands.executeCommand('vibeboard.startSession');
+      }
+    });
   }
 }
 
