@@ -1,15 +1,18 @@
 import * as vscode from 'vscode';
 import { VBWorkspaceData, createDefaultWorkspaceData } from './models';
-import { STORAGE_DIR, STORAGE_FILE, STORAGE_WRITE_DEBOUNCE_MS } from '../utils/constants';
+import { STORAGE_DIR, STORAGE_FILE, STORAGE_WRITE_DEBOUNCE_MS, BACKUP_DIR, AUTO_BACKUP_MIN_INTERVAL_MS } from '../utils/constants';
 
 /**
  * StorageProvider handles reading/writing the workspace JSON data file.
  * Uses vscode.workspace.fs for remote workspace compatibility.
+ * Includes automatic background backups to .vibeboard/backups/.
  */
 export class StorageProvider {
   private data: VBWorkspaceData;
   private writeTimer: ReturnType<typeof setTimeout> | null = null;
   private storageUri: vscode.Uri | null = null;
+  private backupDirUri: vscode.Uri | null = null;
+  private lastBackupTime: number = 0;
 
   constructor() {
     this.data = createDefaultWorkspaceData();
@@ -26,10 +29,17 @@ export class StorageProvider {
 
     const dirUri = vscode.Uri.joinPath(workspaceFolder.uri, STORAGE_DIR);
     this.storageUri = vscode.Uri.joinPath(dirUri, STORAGE_FILE);
+    this.backupDirUri = vscode.Uri.joinPath(dirUri, BACKUP_DIR);
 
     try {
       // Ensure directory exists
       await vscode.workspace.fs.createDirectory(dirUri);
+    } catch {
+      // Directory may already exist
+    }
+
+    try {
+      await vscode.workspace.fs.createDirectory(this.backupDirUri);
     } catch {
       // Directory may already exist
     }
@@ -108,6 +118,65 @@ export class StorageProvider {
     const content = JSON.stringify(this.data, null, 2);
     const bytes = Buffer.from(content, 'utf-8');
     await vscode.workspace.fs.writeFile(this.storageUri, bytes);
+
+    // Trigger auto-backup in background (non-blocking)
+    this.maybeAutoBackup(content).catch(() => { /* silently ignore backup errors */ });
+  }
+
+  /**
+   * Create an auto-backup if enough time has elapsed since the last one.
+   */
+  private async maybeAutoBackup(content: string): Promise<void> {
+    if (!this.backupDirUri) { return; }
+
+    const config = vscode.workspace.getConfiguration('vibeboard');
+    const enabled = config.get<boolean>('autoBackup', true);
+    if (!enabled) { return; }
+
+    const now = Date.now();
+    if (now - this.lastBackupTime < AUTO_BACKUP_MIN_INTERVAL_MS) { return; }
+    this.lastBackupTime = now;
+
+    try {
+      // Create timestamped backup file
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const backupFileName = `data-backup-${ts}.json`;
+      const backupUri = vscode.Uri.joinPath(this.backupDirUri, backupFileName);
+      await vscode.workspace.fs.writeFile(backupUri, Buffer.from(content, 'utf-8'));
+
+      // Rotate old backups
+      await this.rotateBackups();
+    } catch (err) {
+      console.warn('[VB] Auto-backup failed:', err);
+    }
+  }
+
+  /**
+   * Delete the oldest backup files when exceeding the configured max count.
+   */
+  private async rotateBackups(): Promise<void> {
+    if (!this.backupDirUri) { return; }
+
+    const config = vscode.workspace.getConfiguration('vibeboard');
+    const maxCount = config.get<number>('autoBackupMaxCount', 10);
+
+    try {
+      const entries = await vscode.workspace.fs.readDirectory(this.backupDirUri);
+      const backupFiles = entries
+        .filter(([name, type]) => type === vscode.FileType.File && name.startsWith('data-backup-') && name.endsWith('.json'))
+        .map(([name]) => name)
+        .sort(); // Lexicographic sort works because the timestamp format is consistent
+
+      if (backupFiles.length > maxCount) {
+        const toDelete = backupFiles.slice(0, backupFiles.length - maxCount);
+        for (const file of toDelete) {
+          const fileUri = vscode.Uri.joinPath(this.backupDirUri, file);
+          await vscode.workspace.fs.delete(fileUri);
+        }
+      }
+    } catch {
+      // Silently ignore rotation errors
+    }
   }
 
   /**

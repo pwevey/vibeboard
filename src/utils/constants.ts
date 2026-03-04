@@ -26,8 +26,14 @@ export const TAGS: { id: TaskTag; label: string; color: string }[] = [
  */
 export const STORAGE_DIR = '.vibeboard';
 export const STORAGE_FILE = 'data.json';
+export const BACKUP_DIR = 'backups';
 
 /**
  * Debounce delay for storage writes (ms).
  */
 export const STORAGE_WRITE_DEBOUNCE_MS = 300;
+
+/**
+ * Minimum interval between auto-backups (ms). Default: 5 minutes.
+ */
+export const AUTO_BACKUP_MIN_INTERVAL_MS = 5 * 60 * 1000;

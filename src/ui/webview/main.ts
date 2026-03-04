@@ -3606,6 +3606,19 @@ function renderHelpContent(section: string): string {
           <li>Data is auto-saved with a 300ms debounce after each change.</li>
           <li>No data is sent to external servers.</li>
         </ul>
+        <h4>Auto-Backup</h4>
+        <p>Vibe Board automatically creates backup copies of your data in the background so you never lose work.</p>
+        <ul>
+          <li>Backups are saved to <code>.vibeboard/backups/</code> as timestamped JSON files (e.g. <code>data-backup-2026-03-04T10-30-00.json</code>).</li>
+          <li>A new backup is created at most every <strong>5 minutes</strong> when data changes.</li>
+          <li>Old backups are automatically rotated &mdash; only the most recent files are kept (default: 10).</li>
+          <li>To restore from a backup, use <strong>Import JSON</strong> on the start page and select a backup file, or copy it over <code>.vibeboard/data.json</code>.</li>
+        </ul>
+        <h4>Auto-Backup Settings</h4>
+        <ul>
+          <li><code>vibeboard.autoBackup</code> &mdash; Enable or disable auto-backups (default: <strong>on</strong>).</li>
+          <li><code>vibeboard.autoBackupMaxCount</code> &mdash; Maximum number of backup files to keep (default: <strong>10</strong>, range: 1&ndash;100).</li>
+        </ul>
         <h4>Clear All Data</h4>
         <ul>
           <li>The <strong>Danger Zone</strong> section on the start page lets you permanently delete all sessions, tasks, and boards.</li>

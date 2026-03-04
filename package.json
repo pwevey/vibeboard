@@ -89,6 +89,18 @@
           "minimum": 0,
           "maximum": 100,
           "description": "Minimum AI confidence percentage (0-100) to auto-approve a task without requiring manual review. Set to 100 to always require manual approval."
+        },
+        "vibeboard.autoBackup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically back up data to .vibeboard/backups/ in the background"
+        },
+        "vibeboard.autoBackupMaxCount": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Maximum number of auto-backup files to keep. Oldest backups are deleted when the limit is exceeded."
         }
       }
     }
