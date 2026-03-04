@@ -50,6 +50,11 @@ export class SessionManager {
 
     data.sessions.push(session);
     data.activeSessionId = session.id;
+
+    // Clear undo/redo stacks — each session starts with a clean history
+    data.undoStack = [];
+    data.redoStack = [];
+
     this.storage.setData(data);
 
     return session;

@@ -140,6 +140,9 @@ let quickAddTag: string = 'feature';
 let quickAddPriority: string = 'medium';
 let quickAddCol: string = 'up-next';
 
+// Pre-AI form snapshot for undo support
+let preAIFormSnapshot: { text: string; tag: string; priority: string; col: string } | null = null;
+
 // Settings (synced from extension)
 interface VBSettings {
   autoBackup: boolean;
@@ -237,6 +240,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
 
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
     e.preventDefault();
+    if (undoAIImprove()) { return; }
     vscode.postMessage({ type: 'undo', payload: {} });
     return;
   }
@@ -1147,6 +1151,7 @@ function bindEvents(): void {
 
   // Undo
   document.getElementById('btn-undo')?.addEventListener('click', () => {
+    if (undoAIImprove()) { return; }
     vscode.postMessage({ type: 'undo', payload: {} });
   });
 
@@ -3951,6 +3956,41 @@ function showBoardManager(): void {
 // AI Result Handling
 // ============================================================
 
+/**
+ * Undo an AI Improve rewrite by restoring the pre-AI form state.
+ * Returns true if there was an AI rewrite to undo, false otherwise.
+ */
+function undoAIImprove(): boolean {
+  if (!preAIFormSnapshot) { return false; }
+  const snapshot = preAIFormSnapshot;
+  preAIFormSnapshot = null;
+
+  const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
+  const tagSelect = document.getElementById('quick-add-tag') as HTMLSelectElement | null;
+  const prioSelect = document.getElementById('quick-add-priority') as HTMLSelectElement | null;
+  const colSelect = document.getElementById('quick-add-col') as HTMLSelectElement | null;
+
+  if (input) {
+    input.value = snapshot.text;
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+    input.focus();
+  }
+  if (tagSelect) { tagSelect.value = snapshot.tag; }
+  if (prioSelect) { prioSelect.value = snapshot.priority; }
+  if (colSelect) { colSelect.value = snapshot.col; }
+
+  // Restore state variables so next render picks them up
+  quickAddTag = snapshot.tag;
+  quickAddPriority = snapshot.priority;
+  quickAddCol = snapshot.col;
+  pendingAIClassification = null;
+  pendingAIDescription = '';
+
+  showAIToast('AI Improve undone', false);
+  return true;
+}
+
 function handleAIResult(payload: { action: string; result: string | string[]; taskId?: string }): void {
   const { action, result } = payload;
 
@@ -3980,6 +4020,13 @@ function handleAIResult(payload: { action: string; result: string | string[]; ta
         const colSelect = document.getElementById('quick-add-col') as HTMLSelectElement | null;
 
         if (input && parsed.title) {
+          // Save pre-AI form state so Undo can restore it
+          preAIFormSnapshot = {
+            text: input.value,
+            tag: tagSelect?.value || quickAddTag,
+            priority: prioSelect?.value || quickAddPriority,
+            col: colSelect?.value || quickAddCol,
+          };
           // Show full content in textarea: title on first line, description below
           const fullContent = parsed.description
             ? parsed.title + '\n' + parsed.description
@@ -4011,6 +4058,15 @@ function handleAIResult(payload: { action: string; result: string | string[]; ta
         // Fallback if not JSON
         const input = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
         if (input && raw) {
+          const tagSelect = document.getElementById('quick-add-tag') as HTMLSelectElement | null;
+          const prioSelect = document.getElementById('quick-add-priority') as HTMLSelectElement | null;
+          const colSelect = document.getElementById('quick-add-col') as HTMLSelectElement | null;
+          preAIFormSnapshot = {
+            text: input.value,
+            tag: tagSelect?.value || quickAddTag,
+            priority: prioSelect?.value || quickAddPriority,
+            col: colSelect?.value || quickAddCol,
+          };
           input.value = raw;
           input.focus();
           showAIToast('Title improved by AI', false);
