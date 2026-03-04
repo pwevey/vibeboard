@@ -2154,11 +2154,11 @@ function showSettingsDialog(): void {
       </label>
       <p class="settings-hint" style="margin-top:4px;">Generate a token at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" class="jira-link">id.atlassian.com</a></p>
       <div class="jira-save-row">
-        <button class="secondary" id="jira-save-btn">&#128274; Save Securely</button>
+        <button class="secondary" id="jira-save-btn">Save</button>
         <span class="jira-save-status" id="jira-save-status"></span>
       </div>
     </div>
-    <p class="settings-hint">&#128274; Email &amp; API Token are encrypted via your OS keychain (Windows Credential Manager / macOS Keychain).</p>
+
   </div>`;
   document.body.appendChild(overlay);
 
