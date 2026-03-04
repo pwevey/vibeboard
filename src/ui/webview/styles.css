@@ -3304,3 +3304,41 @@ textarea:focus-visible {
   white-space: nowrap;
   flex: 1;
 }
+
+/* Status mapping step */
+.jira-mapping-desc {
+  font-size: 12px;
+  opacity: 0.8;
+  margin: 0 0 12px;
+}
+
+.jira-mapping-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.jira-mapping-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jira-mapping-label {
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 100px;
+  text-align: right;
+}
+
+.jira-mapping-arrow {
+  font-size: 14px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.jira-mapping-row .jira-select {
+  flex: 1;
+  min-width: 0;
+}

@@ -234,6 +234,9 @@ window.addEventListener('message', (event) => {
     case 'jiraProjects':
       handleJiraProjectsResponse(message.payload);
       break;
+    case 'jiraStatuses':
+      handleJiraStatusesResponse(message.payload);
+      break;
     case 'jiraExportResult':
       handleJiraExportResult(message.payload);
       break;
@@ -2854,6 +2857,9 @@ function showExportTimePicker(format: 'csv' | 'markdown', projectIds?: string[])
 /** Pending callback for when Jira projects arrive from the extension. */
 let jiraProjectsCallback: ((payload: { projects: { id: string; key: string; name: string }[]; error?: string }) => void) | null = null;
 
+/** Pending callback for when Jira statuses arrive from the extension. */
+let jiraStatusesCallback: ((payload: { statuses: { id: string; name: string }[]; error?: string }) => void) | null = null;
+
 /** Pending overlay for Jira export result display. */
 let jiraResultOverlay: HTMLDivElement | null = null;
 
@@ -2912,6 +2918,13 @@ function showJiraExportDialog(): void {
 function handleJiraProjectsResponse(payload: { projects: { id: string; key: string; name: string }[]; error?: string }): void {
   if (jiraProjectsCallback) {
     jiraProjectsCallback(payload);
+  }
+}
+
+/** Handle the jiraStatuses response from the extension. */
+function handleJiraStatusesResponse(payload: { statuses: { id: string; name: string }[]; error?: string }): void {
+  if (jiraStatusesCallback) {
+    jiraStatusesCallback(payload);
   }
 }
 
@@ -3038,23 +3051,152 @@ function showJiraProjectAndTaskPicker(
   // Cancel
   overlay.querySelector('#jira-cancel')!.addEventListener('click', () => overlay.remove());
 
-  // Export
+  // Export — show status mapping step
   overlay.querySelector('#jira-export-confirm')!.addEventListener('click', () => {
     const selectedIds = Array.from(taskCbs).filter((cb) => cb.checked).map((cb) => cb.value);
     if (selectedIds.length === 0) { return; }
 
     const projectKey = (overlay.querySelector('#jira-project-select') as HTMLSelectElement).value;
 
-    // Replace dialog with progress
+    // Determine which VB statuses are present in the selected tasks
+    const selectedTasks = exportableTasks.filter((t: { id: string }) => selectedIds.includes(t.id));
+    const presentStatuses = [...new Set(selectedTasks.map((t: { status: string }) => t.status))];
+
+    // Show loading while fetching Jira statuses
+    overlay.querySelector('.jira-dialog')!.innerHTML = `
+      <h3>&#127919; Export to Jira</h3>
+      <p class="jira-loading">Fetching statuses for ${escapeHtml(projectKey)}&hellip;</p>`;
+
+    jiraStatusesCallback = (payload) => {
+      jiraStatusesCallback = null;
+      if (payload.error || payload.statuses.length === 0) {
+        // Can't get statuses — export without mapping
+        overlay.querySelector('.jira-dialog')!.innerHTML = `
+          <h3>&#127919; Exporting to Jira&hellip;</h3>
+          <p class="jira-loading">Creating ${selectedIds.length} issue${selectedIds.length === 1 ? '' : 's'} in ${escapeHtml(projectKey)}&hellip;</p>`;
+        jiraResultOverlay = overlay;
+        vscode.postMessage({ type: 'exportToJira', payload: { projectKey, taskIds: selectedIds } });
+        return;
+      }
+      showJiraStatusMapping(overlay, projectKey, selectedIds, presentStatuses, payload.statuses);
+    };
+
+    vscode.postMessage({ type: 'getJiraStatuses', payload: { projectKey } });
+  });
+}
+
+/**
+ * Show the status mapping step — lets user map each VB status to a Jira status.
+ */
+function showJiraStatusMapping(
+  overlay: HTMLDivElement,
+  projectKey: string,
+  taskIds: string[],
+  presentStatuses: string[],
+  jiraStatuses: { id: string; name: string }[]
+): void {
+  const STATUS_LABELS: Record<string, string> = {
+    'in-progress': 'In Progress',
+    'up-next': 'Up Next',
+    'backlog': 'Backlog',
+    'completed': 'Completed',
+    'notes': 'Notes',
+  };
+
+  // Build a smart default mapping
+  const defaultMap: Record<string, string> = {};
+  const jiraNames = jiraStatuses.map((s) => s.name.toLowerCase());
+  for (const vbStatus of presentStatuses) {
+    // Try to find a matching Jira status name
+    const label = STATUS_LABELS[vbStatus]?.toLowerCase() || vbStatus;
+    const exactMatch = jiraStatuses.find((s) => s.name.toLowerCase() === label);
+    if (exactMatch) {
+      defaultMap[vbStatus] = exactMatch.name;
+    } else if (vbStatus === 'completed') {
+      // Common Jira names for done status
+      const done = jiraStatuses.find((s) => ['done', 'closed', 'resolved', 'complete', 'completed'].includes(s.name.toLowerCase()));
+      defaultMap[vbStatus] = done ? done.name : '';
+    } else if (vbStatus === 'in-progress') {
+      const inProg = jiraStatuses.find((s) => ['in progress', 'in development', 'active'].includes(s.name.toLowerCase()));
+      defaultMap[vbStatus] = inProg ? inProg.name : '';
+    } else if (vbStatus === 'backlog') {
+      const backlog = jiraStatuses.find((s) => ['backlog', 'open', 'to do'].includes(s.name.toLowerCase()));
+      defaultMap[vbStatus] = backlog ? backlog.name : '';
+    } else if (vbStatus === 'up-next') {
+      const upNext = jiraStatuses.find((s) => ['to do', 'selected for development', 'open'].includes(s.name.toLowerCase()));
+      defaultMap[vbStatus] = upNext ? upNext.name : '';
+    } else {
+      defaultMap[vbStatus] = '';
+    }
+  }
+
+  const statusOptions = jiraStatuses.map((s) =>
+    `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`
+  ).join('');
+
+  const mappingRows = presentStatuses.map((vbStatus) => {
+    const label = STATUS_LABELS[vbStatus] || vbStatus;
+    const defaultVal = defaultMap[vbStatus] || '';
+    return `<div class="jira-mapping-row">
+      <span class="jira-mapping-label">${escapeHtml(label)}</span>
+      <span class="jira-mapping-arrow">&#8594;</span>
+      <select class="jira-select jira-status-select" data-vb-status="${escapeHtml(vbStatus)}">
+        <option value="">— Don't change —</option>
+        ${statusOptions}
+      </select>
+    </div>`;
+  }).join('');
+
+  overlay.querySelector('.jira-dialog')!.innerHTML = `
+    <h3>&#127919; Status Mapping</h3>
+    <p class="jira-mapping-desc">Map Vibe Board statuses to Jira statuses. Issues will be transitioned after creation.</p>
+    <div class="jira-mapping-grid">
+      ${mappingRows}
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" id="jira-mapping-back">&#8592; Back</button>
+      <button id="jira-mapping-export">&#128640; Export to Jira</button>
+    </div>`;
+
+  // Set default values on the selects
+  for (const vbStatus of presentStatuses) {
+    const sel = overlay.querySelector(`select[data-vb-status="${vbStatus}"]`) as HTMLSelectElement | null;
+    if (sel && defaultMap[vbStatus]) {
+      sel.value = defaultMap[vbStatus];
+    }
+  }
+
+  // Back button — go back to project/task picker would be complex, so just close
+  overlay.querySelector('#jira-mapping-back')!.addEventListener('click', () => {
+    overlay.remove();
+    showJiraExportDialog();
+  });
+
+  // Export with mapping
+  overlay.querySelector('#jira-mapping-export')!.addEventListener('click', () => {
+    const statusMapping: Record<string, string> = {};
+    const selects = overlay.querySelectorAll<HTMLSelectElement>('.jira-status-select');
+    selects.forEach((sel) => {
+      const vbStatus = sel.getAttribute('data-vb-status')!;
+      if (sel.value) {
+        statusMapping[vbStatus] = sel.value;
+      }
+    });
+
+    // Show progress
     overlay.querySelector('.jira-dialog')!.innerHTML = `
       <h3>&#127919; Exporting to Jira&hellip;</h3>
-      <p class="jira-loading">Creating ${selectedIds.length} issue${selectedIds.length === 1 ? '' : 's'} in ${escapeHtml(projectKey)}&hellip;</p>`;
+      <p class="jira-loading">Creating ${taskIds.length} issue${taskIds.length === 1 ? '' : 's'} in ${escapeHtml(projectKey)}&hellip;</p>`;
 
     jiraResultOverlay = overlay;
 
     vscode.postMessage({
       type: 'exportToJira',
-      payload: { projectKey, taskIds: selectedIds },
+      payload: {
+        projectKey,
+        taskIds,
+        statusMapping: Object.keys(statusMapping).length > 0 ? statusMapping : undefined,
+      },
     });
   });
 }

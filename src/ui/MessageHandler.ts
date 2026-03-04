@@ -761,9 +761,21 @@ export class MessageHandler {
         break;
       }
 
+      case 'getJiraStatuses': {
+        const { projectKey: statusProjectKey } = message.payload as { projectKey: string };
+        const statusResult = await this.jiraService.getStatuses(statusProjectKey);
+        this.webview?.postMessage({ type: 'jiraStatuses', payload: statusResult });
+        break;
+      }
+
       case 'exportToJira': {
         const data = this.storage.getData();
-        const { projectKey, taskIds, issueType } = message.payload as { projectKey: string; taskIds?: string[]; issueType?: string };
+        const { projectKey, taskIds, issueType, statusMapping } = message.payload as {
+          projectKey: string;
+          taskIds?: string[];
+          issueType?: string;
+          statusMapping?: Record<string, string>;
+        };
 
         // If taskIds provided, export those; otherwise export all tasks in active session
         let tasksToExport: VBTask[];
@@ -786,7 +798,9 @@ export class MessageHandler {
         const { created, errors } = await this.jiraService.createIssues(
           tasksToExport,
           projectKey,
-          issueType || 'Task'
+          issueType || 'Task',
+          undefined,
+          statusMapping
         );
 
         const success = created.length > 0 && errors.length === 0;

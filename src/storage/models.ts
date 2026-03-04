@@ -200,7 +200,8 @@ export type WebviewToExtensionMessage =
   | { type: 'setActiveProject'; payload: { projectId: string | null } }
   | { type: 'updateSetting'; payload: { key: string; value: unknown } }
   | { type: 'getJiraProjects'; payload: Record<string, never> }
-  | { type: 'exportToJira'; payload: { projectKey: string; taskIds?: string[]; issueType?: string } }
+  | { type: 'getJiraStatuses'; payload: { projectKey: string } }
+  | { type: 'exportToJira'; payload: { projectKey: string; taskIds?: string[]; issueType?: string; statusMapping?: Record<string, string> } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
@@ -214,6 +215,7 @@ export type ExtensionToWebviewMessage =
   | { type: 'automationProgress'; payload: AutomationProgress }
   | { type: 'settingsUpdate'; payload: Record<string, unknown> }
   | { type: 'jiraProjects'; payload: { projects: JiraProject[]; error?: string } }
+  | { type: 'jiraStatuses'; payload: { statuses: JiraStatus[]; error?: string } }
   | { type: 'jiraExportResult'; payload: { success: boolean; created: number; failed: number; issues: JiraCreatedIssue[]; errors: string[] } };
 
 // === Jira Types ===
@@ -221,6 +223,11 @@ export type ExtensionToWebviewMessage =
 export interface JiraProject {
   id: string;
   key: string;
+  name: string;
+}
+
+export interface JiraStatus {
+  id: string;
   name: string;
 }
 

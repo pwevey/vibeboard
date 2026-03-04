@@ -4,7 +4,7 @@
  */
 
 import * as vscode from 'vscode';
-import { VBTask, JiraProject, JiraCreatedIssue } from '../storage/models';
+import { VBTask, JiraProject, JiraCreatedIssue, JiraStatus } from '../storage/models';
 
 /** Jira REST API v3 priority mapping. */
 const PRIORITY_MAP: Record<string, string> = {
@@ -89,14 +89,121 @@ export class JiraService {
   }
 
   /**
+   * Fetch available statuses for a Jira project.
+   * Returns a de-duplicated list of status names used by the project's issue types.
+   */
+  async getStatuses(projectKey: string): Promise<{ statuses: JiraStatus[]; error?: string }> {
+    const cfg = this.getConfig();
+    if (!cfg) { return { statuses: [], error: 'Jira credentials not configured.' }; }
+
+    try {
+      const response = await fetch(`${cfg.baseUrl}/rest/api/3/project/${encodeURIComponent(projectKey)}/statuses`, {
+        method: 'GET',
+        headers: {
+          'Authorization': this.authHeader(cfg.email, cfg.token),
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        const detail = response.status === 401 ? 'Invalid credentials.'
+          : response.status === 404 ? `Project "${projectKey}" not found.`
+          : `HTTP ${response.status}: ${text.slice(0, 200)}`;
+        return { statuses: [], error: detail };
+      }
+
+      // Response is an array of issue types, each with a "statuses" array
+      const body = await response.json() as { name: string; statuses: { id: string; name: string }[] }[];
+      const seen = new Set<string>();
+      const statuses: JiraStatus[] = [];
+      for (const issueType of body) {
+        for (const s of issueType.statuses) {
+          if (!seen.has(s.id)) {
+            seen.add(s.id);
+            statuses.push({ id: s.id, name: s.name });
+          }
+        }
+      }
+      // Sort alphabetically for a nice picker
+      statuses.sort((a, b) => a.name.localeCompare(b.name));
+      return { statuses };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { statuses: [], error: `Network error: ${msg}` };
+    }
+  }
+
+  /**
+   * Transition a Jira issue to a target status by name.
+   * Fetches available transitions, finds one whose "to" status name matches,
+   * and executes it. Returns true on success.
+   */
+  async transitionIssue(
+    issueKey: string,
+    targetStatusName: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const cfg = this.getConfig();
+    if (!cfg) { return { success: false, error: 'Jira credentials not configured.' }; }
+
+    try {
+      // Get available transitions
+      const trRes = await fetch(`${cfg.baseUrl}/rest/api/3/issue/${encodeURIComponent(issueKey)}/transitions`, {
+        method: 'GET',
+        headers: {
+          'Authorization': this.authHeader(cfg.email, cfg.token),
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!trRes.ok) {
+        return { success: false, error: `Failed to get transitions: HTTP ${trRes.status}` };
+      }
+
+      const trBody = await trRes.json() as {
+        transitions: { id: string; name: string; to: { name: string } }[];
+      };
+
+      const target = targetStatusName.toLowerCase();
+      const match = trBody.transitions.find((t) => t.to.name.toLowerCase() === target);
+      if (!match) {
+        // Issue may already be in the target status, or no valid transition path
+        return { success: false, error: `No transition to "${targetStatusName}" available from current status.` };
+      }
+
+      // Execute the transition
+      const execRes = await fetch(`${cfg.baseUrl}/rest/api/3/issue/${encodeURIComponent(issueKey)}/transitions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': this.authHeader(cfg.email, cfg.token),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ transition: { id: match.id } }),
+      });
+
+      if (!execRes.ok) {
+        const text = await execRes.text();
+        return { success: false, error: `Transition failed: HTTP ${execRes.status} — ${text.slice(0, 200)}` };
+      }
+
+      return { success: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, error: `Network error: ${msg}` };
+    }
+  }
+
+  /**
    * Create Jira issues from an array of VB tasks.
+   * If statusMapping is provided, transitions each created issue to the mapped Jira status.
    * Returns results for each task (success or failure).
    */
   async createIssues(
     tasks: VBTask[],
     projectKey: string,
     issueType: string = 'Task',
-    onProgress?: (done: number, total: number) => void
+    onProgress?: (done: number, total: number) => void,
+    statusMapping?: Record<string, string>
   ): Promise<{ created: JiraCreatedIssue[]; errors: string[] }> {
     const cfg = this.getConfig();
     if (!cfg) { return { created: [], errors: ['Jira credentials not configured.'] }; }
@@ -109,6 +216,15 @@ export class JiraService {
       try {
         const result = await this.createSingleIssue(cfg, task, projectKey, issueType);
         created.push(result);
+
+        // Transition to mapped status if specified
+        if (statusMapping && statusMapping[task.status]) {
+          const targetStatus = statusMapping[task.status];
+          const trResult = await this.transitionIssue(result.issueKey, targetStatus);
+          if (!trResult.success) {
+            errors.push(`"${task.title}": created as ${result.issueKey} but transition to "${targetStatus}" failed — ${trResult.error}`);
+          }
+        }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         errors.push(`"${task.title}": ${msg}`);
