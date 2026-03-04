@@ -1437,6 +1437,24 @@ body.is-dragging .task-card:not(.dragging) {
   color: var(--vscode-input-placeholderForeground);
 }
 
+.jira-save-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.jira-save-row button {
+  padding: 4px 16px;
+  font-size: 12px;
+}
+
+.jira-save-status {
+  font-size: 11px;
+  color: var(--vscode-charts-green, #4caf50);
+  font-weight: 600;
+}
+
 .settings-btn {
   font-size: 15px !important;
   font-weight: 700;

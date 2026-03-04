@@ -2137,17 +2137,21 @@ function showSettingsDialog(): void {
     <div class="start-settings">
       <label class="start-setting-row setting-text-row">
         <span class="start-setting-label">Base URL</span>
-        <input type="text" class="setting-text" data-setting="jiraBaseUrl" value="${escapeHtml(extensionSettings.jiraBaseUrl)}" placeholder="https://your-domain.atlassian.net" />
+        <input type="text" class="setting-text jira-setting" data-setting="jiraBaseUrl" value="${escapeHtml(extensionSettings.jiraBaseUrl)}" placeholder="https://your-domain.atlassian.net" />
       </label>
       <label class="start-setting-row setting-text-row">
         <span class="start-setting-label">Email</span>
-        <input type="text" class="setting-text" data-setting="jiraEmail" value="${escapeHtml(extensionSettings.jiraEmail)}" placeholder="you@example.com" />
+        <input type="text" class="setting-text jira-setting" data-setting="jiraEmail" value="${escapeHtml(extensionSettings.jiraEmail)}" placeholder="you@example.com" />
       </label>
       <label class="start-setting-row setting-text-row">
         <span class="start-setting-label">API Token</span>
-        <input type="password" class="setting-text" data-setting="jiraApiToken" value="${extensionSettings.jiraConfigured ? '••••••••' : ''}" placeholder="Paste your API token" />
+        <input type="password" class="setting-text jira-setting" data-setting="jiraApiToken" value="${extensionSettings.jiraConfigured ? '••••••••' : ''}" placeholder="Paste your API token" />
       </label>
       <p class="settings-hint" style="margin-top:4px;">Generate a token at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" class="jira-link">id.atlassian.com</a></p>
+      <div class="jira-save-row">
+        <button class="secondary" id="jira-save-btn">Save</button>
+        <span class="jira-save-status" id="jira-save-status"></span>
+      </div>
     </div>
     <p class="settings-hint">These settings are also available in VS Code Settings (<kbd>Ctrl+,</kbd>) under <em>Vibe Board</em>.</p>
   </div>`;
@@ -2199,30 +2203,50 @@ function showSettingsDialog(): void {
     });
   });
 
-  // Jira text settings — save on blur
-  overlay.querySelectorAll<HTMLInputElement>('.setting-text').forEach((input) => {
-    input.addEventListener('blur', () => {
+  // Jira Save button
+  document.getElementById('jira-save-btn')?.addEventListener('click', () => {
+    const fields = overlay.querySelectorAll<HTMLInputElement>('.jira-setting');
+    let hasToken = false;
+    fields.forEach((input) => {
       const key = input.dataset.setting;
       if (!key) { return; }
       const val = input.value.trim();
-      // For the token field, ignore the placeholder dots
-      if (key === 'jiraApiToken' && val === '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022') { return; }
-      if (key === 'jiraApiToken' && !val) { return; }
-      vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
-      if (key !== 'jiraApiToken') {
+      if (key === 'jiraApiToken') {
+        if (val && val !== '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022') {
+          vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
+          hasToken = true;
+        }
+      } else {
+        vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
         (extensionSettings as Record<string, unknown>)[key] = val;
       }
     });
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { input.blur(); }
-    });
-    // Clear placeholder dots when user focuses the token field
-    if (input.dataset.setting === 'jiraApiToken') {
-      input.addEventListener('focus', () => {
-        if (input.value === '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022') {
-          input.value = '';
-        }
-      });
+
+    // Update jiraConfigured locally
+    const baseUrl = (overlay.querySelector('[data-setting="jiraBaseUrl"]') as HTMLInputElement)?.value.trim() || '';
+    const email = (overlay.querySelector('[data-setting="jiraEmail"]') as HTMLInputElement)?.value.trim() || '';
+    const tokenInput = overlay.querySelector('[data-setting="jiraApiToken"]') as HTMLInputElement;
+    const tokenFilled = hasToken || extensionSettings.jiraConfigured;
+    extensionSettings.jiraConfigured = !!(baseUrl && email && tokenFilled);
+
+    // Mask the token field after save
+    if (hasToken && tokenInput) {
+      tokenInput.value = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+    }
+
+    // Show saved confirmation
+    const status = document.getElementById('jira-save-status');
+    if (status) {
+      status.textContent = '\u2713 Saved';
+      setTimeout(() => { status.textContent = ''; }, 2000);
+    }
+  });
+
+  // Clear placeholder dots when user focuses the token field
+  const tokenInput = overlay.querySelector('[data-setting="jiraApiToken"]') as HTMLInputElement;
+  tokenInput?.addEventListener('focus', () => {
+    if (tokenInput.value === '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022') {
+      tokenInput.value = '';
     }
   });
 }
