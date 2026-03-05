@@ -3021,25 +3021,48 @@ function showJiraProjectAndTaskPicker(
     `<option value="${escapeHtml(p.key)}" ${p.key === mappedJiraKey ? 'selected' : ''}>${escapeHtml(p.name)} (${escapeHtml(p.key)})</option>`
   ).join('');
 
-  // Separate exported and non-exported tasks
-  const exportedCount = exportableTasks.filter((t: { jiraIssueKey?: string }) => t.jiraIssueKey).length;
-  const hasExported = exportedCount > 0;
+  // Build a lookup of per-project exports for each task
+  type TaskWithExports = { id: string; title: string; tag: string; priority: string; status: string; jiraExports?: Record<string, { issueKey: string; exportedAt: string }>; jiraIssueKey?: string };
+  const taskExportsMap = new Map<string, Record<string, { issueKey: string; exportedAt: string }>>();
+  for (const t of exportableTasks as TaskWithExports[]) {
+    if (t.jiraExports && Object.keys(t.jiraExports).length > 0) {
+      taskExportsMap.set(t.id, t.jiraExports);
+    }
+  }
 
-  const taskRows = exportableTasks.map((t: { id: string; title: string; tag: string; priority: string; status: string; jiraIssueKey?: string; jiraExportedAt?: string }) => {
-    const tagClass = `tag-${t.tag}`;
-    const isExported = !!t.jiraIssueKey;
-    const exportedClass = isExported ? ' jira-task-exported' : '';
-    const checkedAttr = isExported ? '' : 'checked';
-    const badge = isExported ? `<span class="jira-exported-badge" title="Exported as ${escapeHtml(t.jiraIssueKey || '')}">${escapeHtml(t.jiraIssueKey || '')}</span>` : '';
-    return `<label class="jira-task-option${exportedClass}" data-exported="${isExported}">
-      <input type="checkbox" name="jira-task" value="${t.id}" ${checkedAttr} />
-      <span class="task-tag ${tagClass}">${t.tag}</span>
-      <span class="jira-task-title">${escapeHtml(t.title)}</span>
-      ${badge}
-    </label>`;
-  }).join('');
+  // Helper: check if task was exported to a specific Jira project
+  const getExportInfo = (taskId: string, jiraProjectKey: string): { issueKey: string; exportedAt: string } | null => {
+    const exports = taskExportsMap.get(taskId);
+    return exports?.[jiraProjectKey] || null;
+  };
 
-  const nonExportedCount = exportableTasks.length - exportedCount;
+  // Build initial task rows based on the initially selected Jira project
+  const initialJiraKey = mappedJiraKey || (jiraProjects.length > 0 ? jiraProjects[0].key : '');
+
+  const buildTaskRows = (selectedJiraKey: string) => {
+    let exportedCount = 0;
+    const rows = (exportableTasks as TaskWithExports[]).map((t) => {
+      const tagClass = `tag-${t.tag}`;
+      const exportInfo = getExportInfo(t.id, selectedJiraKey);
+      const isExported = !!exportInfo;
+      if (isExported) { exportedCount++; }
+      const exportedClass = isExported ? ' jira-task-exported' : '';
+      const checkedAttr = isExported ? '' : 'checked';
+      const badge = isExported
+        ? `<span class="jira-exported-badge" title="Exported as ${escapeHtml(exportInfo!.issueKey)}">${escapeHtml(exportInfo!.issueKey)}</span>`
+        : '';
+      return `<label class="jira-task-option${exportedClass}" data-exported="${isExported}" data-task-id="${t.id}">
+        <input type="checkbox" name="jira-task" value="${t.id}" ${checkedAttr} />
+        <span class="task-tag ${tagClass}">${t.tag}</span>
+        <span class="jira-task-title">${escapeHtml(t.title)}</span>
+        ${badge}
+      </label>`;
+    });
+    return { html: rows.join(''), exportedCount };
+  };
+
+  const initial = buildTaskRows(initialJiraKey);
+  const nonExportedCount = exportableTasks.length - initial.exportedCount;
 
   // Project mapping row (only show when a VB project is active)
   const mappingRow = activeVBProject
@@ -3059,17 +3082,17 @@ function showJiraProjectAndTaskPicker(
       </div>
       <div class="jira-field">
         <label>Tasks to Export <span class="jira-task-count">(${nonExportedCount} selected)</span></label>
-        ${hasExported ? `<label class="jira-filter-row">
+        <label class="jira-filter-row" id="jira-filter-row" ${initial.exportedCount === 0 ? 'style="display:none"' : ''}>
           <input type="checkbox" id="jira-hide-exported" checked />
-          Hide ${exportedCount} already exported task${exportedCount === 1 ? '' : 's'}
-        </label>` : ''}
+          <span id="jira-hide-exported-label">Hide ${initial.exportedCount} already exported task${initial.exportedCount === 1 ? '' : 's'}</span>
+        </label>
         <div class="jira-task-list">
           <label class="jira-task-option jira-select-all">
             <input type="checkbox" id="jira-select-all" checked />
             <strong>Select All</strong>
           </label>
           <div class="jira-task-divider"></div>
-          ${taskRows}
+          <div id="jira-task-rows">${initial.html}</div>
         </div>
       </div>
     </div>
@@ -3080,7 +3103,7 @@ function showJiraProjectAndTaskPicker(
 
   // Select All toggling
   const selectAllCb = overlay.querySelector('#jira-select-all') as HTMLInputElement;
-  const taskCbs = overlay.querySelectorAll<HTMLInputElement>('input[name="jira-task"]');
+  let taskCbs = overlay.querySelectorAll<HTMLInputElement>('input[name="jira-task"]');
   const countSpan = overlay.querySelector('.jira-task-count') as HTMLElement;
 
   const updateCount = () => {
@@ -3088,59 +3111,91 @@ function showJiraProjectAndTaskPicker(
     countSpan.textContent = `(${checked} selected)`;
   };
 
-  selectAllCb.addEventListener('change', () => {
-    // Only toggle visible (non-hidden) checkboxes
-    taskCbs.forEach((cb) => {
-      const row = cb.closest('.jira-task-option') as HTMLElement;
-      if (row && row.style.display !== 'none') {
-        cb.checked = selectAllCb.checked;
-      }
-    });
-    updateCount();
-  });
-
-  taskCbs.forEach((cb) => {
-    cb.addEventListener('change', () => {
-      const visibleCbs = Array.from(taskCbs).filter((c) => {
-        const row = c.closest('.jira-task-option') as HTMLElement;
-        return row && row.style.display !== 'none';
+  const bindSelectAll = () => {
+    selectAllCb.addEventListener('change', () => {
+      taskCbs.forEach((cb) => {
+        const row = cb.closest('.jira-task-option') as HTMLElement;
+        if (row && row.style.display !== 'none') {
+          cb.checked = selectAllCb.checked;
+        }
       });
-      const allChecked = visibleCbs.every((c) => c.checked);
-      const noneChecked = !visibleCbs.some((c) => c.checked);
-      selectAllCb.checked = allChecked;
-      selectAllCb.indeterminate = !allChecked && !noneChecked;
       updateCount();
     });
-  });
+  };
+
+  const bindTaskCbs = () => {
+    taskCbs.forEach((cb) => {
+      cb.addEventListener('change', () => {
+        const visibleCbs = Array.from(taskCbs).filter((c) => {
+          const row = c.closest('.jira-task-option') as HTMLElement;
+          return row && row.style.display !== 'none';
+        });
+        const allChecked = visibleCbs.every((c) => c.checked);
+        const noneChecked = !visibleCbs.some((c) => c.checked);
+        selectAllCb.checked = allChecked;
+        selectAllCb.indeterminate = !allChecked && !noneChecked;
+        updateCount();
+      });
+    });
+  };
+
+  bindSelectAll();
+  bindTaskCbs();
 
   // Hide/show exported tasks toggle
-  const hideExportedCb = overlay.querySelector('#jira-hide-exported') as HTMLInputElement | null;
-  if (hideExportedCb) {
-    const applyFilter = () => {
-      const hide = hideExportedCb.checked;
-      overlay.querySelectorAll<HTMLElement>('.jira-task-option[data-exported="true"]').forEach((row) => {
-        row.style.display = hide ? 'none' : '';
-      });
-      updateCount();
-    };
-    applyFilter(); // Apply initial state
-    hideExportedCb.addEventListener('change', applyFilter);
-  }
+  const hideExportedCb = overlay.querySelector('#jira-hide-exported') as HTMLInputElement;
+  const filterRow = overlay.querySelector('#jira-filter-row') as HTMLElement;
+  const filterLabel = overlay.querySelector('#jira-hide-exported-label') as HTMLElement;
+
+  const applyExportedFilter = () => {
+    const hide = hideExportedCb.checked;
+    overlay.querySelectorAll<HTMLElement>('.jira-task-option[data-exported="true"]').forEach((row) => {
+      row.style.display = hide ? 'none' : '';
+    });
+    updateCount();
+  };
+  applyExportedFilter(); // Apply initial state
+  hideExportedCb.addEventListener('change', applyExportedFilter);
+
+  // When Jira project changes, re-evaluate which tasks are "exported" for that project
+  const refreshTasksForProject = (jiraKey: string) => {
+    const result = buildTaskRows(jiraKey);
+    const rowsContainer = overlay.querySelector('#jira-task-rows') as HTMLElement;
+    rowsContainer.innerHTML = result.html;
+
+    // Update filter row
+    if (result.exportedCount > 0) {
+      filterRow.style.display = '';
+      filterLabel.textContent = `Hide ${result.exportedCount} already exported task${result.exportedCount === 1 ? '' : 's'}`;
+    } else {
+      filterRow.style.display = 'none';
+    }
+
+    // Re-query checkboxes and rebind
+    taskCbs = overlay.querySelectorAll<HTMLInputElement>('input[name="jira-task"]');
+    selectAllCb.checked = true;
+    selectAllCb.indeterminate = false;
+    bindTaskCbs();
+    applyExportedFilter();
+    updateCount();
+  };
 
   // Project mapping save
   const saveMappingCb = overlay.querySelector('#jira-save-mapping') as HTMLInputElement | null;
   const projectSelect = overlay.querySelector('#jira-project-select') as HTMLSelectElement;
 
-  // If project select changes while "remember" is checked, update mapping
+  // When Jira project changes: refresh exported state + update mapping if "remember" is checked
+  projectSelect.addEventListener('change', () => {
+    refreshTasksForProject(projectSelect.value);
+    if (saveMappingCb?.checked && activeProjectId) {
+      vscode.postMessage({
+        type: 'setJiraProjectMapping',
+        payload: { vbProjectId: activeProjectId, jiraProjectKey: projectSelect.value },
+      });
+    }
+  });
+
   if (saveMappingCb && activeProjectId) {
-    projectSelect.addEventListener('change', () => {
-      if (saveMappingCb.checked) {
-        vscode.postMessage({
-          type: 'setJiraProjectMapping',
-          payload: { vbProjectId: activeProjectId, jiraProjectKey: projectSelect.value },
-        });
-      }
-    });
     saveMappingCb.addEventListener('change', () => {
       vscode.postMessage({
         type: 'setJiraProjectMapping',

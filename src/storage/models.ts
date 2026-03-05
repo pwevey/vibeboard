@@ -52,8 +52,9 @@ export interface VBTask {
   attachments?: VBAttachment[]; // image/file attachments
   copilotLog?: { prompt: string; timestamp: string }[]; // log of follow-up prompts sent to Copilot
   sentToCopilot?: boolean; // true while awaiting Copilot completion
-  jiraIssueKey?: string;    // Jira issue key (e.g. SAM-123) if exported
-  jiraExportedAt?: string;  // ISO 8601 when task was exported to Jira
+  jiraIssueKey?: string;    // Jira issue key (e.g. SAM-123) — last exported key (legacy)
+  jiraExportedAt?: string;  // ISO 8601 when task was last exported to Jira (legacy)
+  jiraExports?: Record<string, { issueKey: string; exportedAt: string }>; // per-Jira-project export tracking (projectKey → info)
 }
 
 export interface VBSession {

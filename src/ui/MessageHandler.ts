@@ -837,15 +837,20 @@ export class MessageHandler {
 
         const success = created.length > 0 && errors.length === 0;
 
-        // Stamp exported tasks with Jira issue keys
+        // Stamp exported tasks with Jira issue keys (per-project)
         if (created.length > 0) {
           const d = this.storage.getData();
           const now = new Date().toISOString();
           for (const issue of created) {
             const task = d.tasks.find((t) => t.id === issue.taskId);
             if (task) {
+              // Legacy fields (last export)
               task.jiraIssueKey = issue.issueKey;
               task.jiraExportedAt = now;
+              // Per-project tracking
+              if (!task.jiraExports) { task.jiraExports = {}; }
+              const projKey = issue.issueKey.replace(/-\d+$/, '');
+              task.jiraExports[projKey] = { issueKey: issue.issueKey, exportedAt: now };
             }
           }
           this.storage.setData(d);
