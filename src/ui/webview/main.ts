@@ -2147,7 +2147,6 @@ function showSettingsDialog(): void {
       <label class="start-setting-row">
         <input type="checkbox" id="jira-prompt-toggle" ${!(state as Record<string, unknown>)?.jiraPromptDismissed ? 'checked' : ''} />
         <span class="start-setting-label">End-Session Export Prompt</span>
-        <span class="start-setting-desc">Ask to export tasks to Jira when ending a session</span>
       </label>
     </div>
     <div class="jira-save-row" style="margin-bottom:8px;">
