@@ -985,6 +985,10 @@ function renderTaskEditCard(task: VBTask): string {
   return `<div class="task-card editing" data-task-id="${task.id}" role="listitem">
     <input type="text" class="edit-title-input" data-save-title="${task.id}" value="${escapeAttr(task.title)}" placeholder="Task title" aria-label="Edit title" />
     <textarea class="edit-desc-input" data-save-desc="${task.id}" placeholder="Description (optional)" rows="3" aria-label="Edit description">${escapeHtml(task.description)}</textarea>
+    <details class="edit-context-details">
+      <summary style="font-size:11px;color:var(--vscode-descriptionForeground);cursor:pointer;margin:4px 0;">&#129302; Copilot Context</summary>
+      <textarea class="edit-desc-input" data-save-context="${task.id}" placeholder="Task-specific instructions for Copilot (optional)" rows="2" aria-label="Copilot context" style="margin-top:4px;">${escapeHtml(task.copilotContext || '')}</textarea>
+    </details>
     ${attachmentHtml}
     <div class="edit-controls">
       <select data-save-tag="${task.id}" aria-label="Tag">${tagOpts}</select>
@@ -1034,7 +1038,7 @@ function renderNoSessionState(): string {
       html += `<button class="project-chip${activeProjectId === p.id ? ' active' : ''}" data-project-id="${p.id}">
         ${colorDot}${escapeHtml(p.name)} <span class="project-count">${sessionCount}</span>
         <span class="project-actions">
-          <span class="project-action-btn project-rename" data-rename-project="${p.id}" title="Rename">&#9998;</span>
+          <span class="project-action-btn project-rename" data-rename-project="${p.id}" title="Edit">&#9998;</span>
           <span class="project-action-btn project-delete" data-delete-project="${p.id}" title="Delete">&#10005;</span>
         </span>
       </button>`;
@@ -1817,6 +1821,8 @@ function saveEdit(taskId: string): void {
   if (descInput) { changes.description = descInput.value; }
   if (tagSelect) { changes.tag = tagSelect.value; }
   if (prioSelect) { changes.priority = prioSelect.value; }
+  const contextInput = document.querySelector(`[data-save-context="${taskId}"]`) as HTMLTextAreaElement;
+  if (contextInput) { changes.copilotContext = contextInput.value.trim(); }
 
   vscode.postMessage({ type: 'updateTask', payload: { id: taskId, changes } });
   editingTaskId = null;
@@ -2410,12 +2416,15 @@ function showCreateProjectDialog(): void {
     `<button class="project-color-btn${i === 0 ? ' selected' : ''}" data-color="${c}" style="background:${c};" title="${c}"></button>`
   ).join('');
 
-  overlay.innerHTML = `<div class="modal-card" style="max-width:340px;">
+  overlay.innerHTML = `<div class="modal-card" style="max-width:380px;">
     <h3>New Project</h3>
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Name</label>
     <input type="text" id="project-name-input" placeholder="Project name..." style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:4px;">Color</label>
     <div class="project-color-picker">${colorBtns}</div>
+    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;margin-top:8px;">Copilot Context <span style="opacity:0.6;">(optional)</span></label>
+    <textarea id="project-context-input" placeholder="e.g. Always add comments, run tests, update help docs..." rows="3" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;resize:vertical;font-family:inherit;font-size:12px;"></textarea>
+    <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:0 0 8px;">These instructions are included with every Copilot prompt for tasks in this project.</p>
     <div class="modal-actions">
       <button class="secondary" id="modal-cancel">Cancel</button>
       <button id="modal-confirm">Create</button>
@@ -2438,7 +2447,9 @@ function showCreateProjectDialog(): void {
   const doCreate = () => {
     const name = input?.value.trim();
     if (!name) { return; }
-    vscode.postMessage({ type: 'createProject', payload: { name, color: selectedColor } });
+    const contextInput = document.getElementById('project-context-input') as HTMLTextAreaElement;
+    const copilotContext = contextInput?.value.trim() || undefined;
+    vscode.postMessage({ type: 'createProject', payload: { name, color: selectedColor, copilotContext } });
     overlay.remove();
   };
 
@@ -2449,34 +2460,59 @@ function showCreateProjectDialog(): void {
 }
 
 function showRenameProjectDialog(projectId: string, currentName: string): void {
+  const project = state?.projects?.find((p) => p.id === projectId);
+  const currentColor = project?.color || PROJECT_COLORS[0];
+  const currentContext = project?.copilotContext || '';
+
+  const colorBtns = PROJECT_COLORS.map((c) =>
+    `<button class="project-color-btn${c === currentColor ? ' selected' : ''}" data-color="${c}" style="background:${c};" title="${c}"></button>`
+  ).join('');
+
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', 'Rename Project');
-  overlay.innerHTML = `<div class="modal-card" style="max-width:340px;">
-    <h3>Rename Project</h3>
-    <input type="text" id="project-rename-input" value="${escapeAttr(currentName)}" style="width:100%;padding:6px;margin:8px 0;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+  overlay.setAttribute('aria-label', 'Edit Project');
+  overlay.innerHTML = `<div class="modal-card" style="max-width:380px;">
+    <h3>Edit Project</h3>
+    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Name</label>
+    <input type="text" id="project-rename-input" value="${escapeAttr(currentName)}" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:4px;">Color</label>
+    <div class="project-color-picker">${colorBtns}</div>
+    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;margin-top:8px;">Copilot Context <span style="opacity:0.6;">(optional)</span></label>
+    <textarea id="project-context-input" placeholder="e.g. Always add comments, run tests, update help docs..." rows="3" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;resize:vertical;font-family:inherit;font-size:12px;">${escapeHtml(currentContext)}</textarea>
+    <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:0 0 8px;">These instructions are included with every Copilot prompt for tasks in this project.</p>
     <div class="modal-actions">
       <button class="secondary" id="modal-cancel">Cancel</button>
-      <button id="modal-confirm">Rename</button>
+      <button id="modal-confirm">Save</button>
     </div>
   </div>`;
   document.body.appendChild(overlay);
+
+  let selectedColor = currentColor;
+  overlay.querySelectorAll<HTMLElement>('.project-color-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      overlay.querySelectorAll('.project-color-btn').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedColor = btn.dataset.color!;
+    });
+  });
 
   const input = document.getElementById('project-rename-input') as HTMLInputElement;
   input?.focus();
   input?.select();
 
-  const doRename = () => {
+  const doSave = () => {
     const name = input?.value.trim();
     if (!name) { return; }
-    vscode.postMessage({ type: 'renameProject', payload: { projectId, name } });
+    const contextInput = document.getElementById('project-context-input') as HTMLTextAreaElement;
+    const copilotContext = contextInput?.value.trim() || undefined;
+    vscode.postMessage({ type: 'updateProject', payload: { projectId, changes: { name, color: selectedColor, copilotContext } } });
     overlay.remove();
   };
 
-  document.getElementById('modal-confirm')!.addEventListener('click', doRename);
-  input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { doRename(); } });
+  document.getElementById('modal-confirm')!.addEventListener('click', doSave);
+  input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { doSave(); } });
   document.getElementById('modal-cancel')!.addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 }
@@ -4282,8 +4318,9 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Managing Projects</h4>
         <ul>
-          <li><strong>Rename</strong> &mdash; Hover over a project chip and click the pencil icon to rename it.</li>
+          <li><strong>Edit</strong> &mdash; Hover over a project chip and click the pencil icon to edit the name, color, and Copilot Context.</li>
           <li><strong>Delete</strong> &mdash; Hover over a project chip and click the &times; icon to delete it. Sessions are preserved but become unassigned.</li>
+          <li><strong>Copilot Context</strong> &mdash; Set project-level instructions that are automatically included in every Copilot prompt for tasks in that project.</li>
         </ul>
         <h4>Project-Scoped Exports</h4>
         <ul>
@@ -4364,6 +4401,14 @@ function renderHelpContent(section: string): string {
           <li><strong>Plan tasks</strong> automatically open in <strong>Ask mode</strong>, so Copilot provides a planning response instead of making changes immediately.</li>
           <li>The task is <strong>automatically moved to In Progress</strong> and flagged as sent to Copilot.</li>
           <li>If Copilot Chat is not available, the prompt is copied to your clipboard instead.</li>
+        </ul>
+        <h4>Copilot Context</h4>
+        <p>Attach persistent instructions to projects and tasks that are automatically included in every Copilot prompt.</p>
+        <ul>
+          <li><strong>Project-level context</strong> &mdash; Set in the <strong>Edit Project</strong> dialog (click the pencil icon on a project chip). These instructions apply to every task in the project (e.g. &ldquo;Always add comments, run tests, update help docs&rdquo;).</li>
+          <li><strong>Task-level context</strong> &mdash; Set in the task edit card under the <strong>&#129302; Copilot Context</strong> collapsible section. These instructions apply only to that specific task.</li>
+          <li>When a task is sent to Copilot, the project context is prepended first, then the task context, then the task title and description.</li>
+          <li>Context is also included during <strong>Automation</strong> runs.</li>
         </ul>
         <h4>Copilot Completion Loop</h4>
         <p>After sending a task to Copilot, persistent action buttons appear directly on the task card. These buttons stay visible as long as you need &mdash; no time pressure.</p>

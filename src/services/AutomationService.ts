@@ -338,6 +338,23 @@ export class AutomationService {
     if (task.description) {
       prompt += '\n\n' + task.description;
     }
+
+    // Prepend context instructions (project-level then task-level)
+    const contextParts: string[] = [];
+    if (data.projects && data.sessions) {
+      const session = data.sessions.find((s) => s.id === task.sessionId);
+      const project = session?.projectId ? data.projects.find((p) => p.id === session.projectId) : null;
+      if (project?.copilotContext?.trim()) {
+        contextParts.push(`[Project Context]\n${project.copilotContext.trim()}`);
+      }
+    }
+    if (task.copilotContext?.trim()) {
+      contextParts.push(`[Task Context]\n${task.copilotContext.trim()}`);
+    }
+    if (contextParts.length > 0) {
+      prompt = contextParts.join('\n\n') + '\n\n' + prompt;
+    }
+
     if (item.retryCount && item.retryCount > 0) {
       prompt += `\n\n[RETRY ${item.retryCount}/${MAX_RETRY_COUNT}] The previous attempt was rejected. Please try a different approach or fix the issues from the last attempt.`;
     }

@@ -217,7 +217,7 @@ export class TaskManager {
    */
   updateTask(
     taskId: string,
-    changes: Partial<Pick<VBTask, 'title' | 'description' | 'tag' | 'priority'>>
+    changes: Partial<Pick<VBTask, 'title' | 'description' | 'tag' | 'priority' | 'copilotContext'>>
   ): VBTask | null {
     const data = this.storage.getData();
     const task = data.tasks.find((t) => t.id === taskId);
@@ -239,6 +239,9 @@ export class TaskManager {
     }
     if (changes.priority !== undefined) {
       task.priority = changes.priority;
+    }
+    if (changes.copilotContext !== undefined) {
+      task.copilotContext = changes.copilotContext || undefined;
     }
 
     this.storage.setData(data);

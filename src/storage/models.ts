@@ -30,6 +30,7 @@ export interface VBProject {
   name: string;
   createdAt: string;       // ISO 8601
   color?: string;          // optional hex color for visual distinction
+  copilotContext?: string; // project-level instructions passed to Copilot with every prompt
 }
 
 // === Core Models ===
@@ -52,6 +53,7 @@ export interface VBTask {
   attachments?: VBAttachment[]; // image/file attachments
   copilotLog?: { prompt: string; timestamp: string }[]; // log of follow-up prompts sent to Copilot
   sentToCopilot?: boolean; // true while awaiting Copilot completion
+  copilotContext?: string; // task-level instructions passed to Copilot with this task's prompt
   jiraIssueKey?: string;    // Jira issue key (e.g. SAM-123) — last exported key (legacy)
   jiraExportedAt?: string;  // ISO 8601 when task was last exported to Jira (legacy)
   jiraExports?: Record<string, { issueKey: string; exportedAt: string }>; // per-Jira-project export tracking (projectKey → info)
@@ -158,7 +160,7 @@ export interface AutomationProgress {
 
 export type WebviewToExtensionMessage =
   | { type: 'addTask'; payload: { title: string; tag: TaskTag; status: TaskStatus; priority?: TaskPriority; description?: string; attachments?: VBAttachment[] } }
-  | { type: 'updateTask'; payload: { id: string; changes: Partial<Pick<VBTask, 'title' | 'description' | 'tag' | 'priority'>> } }
+  | { type: 'updateTask'; payload: { id: string; changes: Partial<Pick<VBTask, 'title' | 'description' | 'tag' | 'priority' | 'copilotContext'>> } }
   | { type: 'moveTask'; payload: { id: string; newStatus: TaskStatus; newOrder: number } }
   | { type: 'deleteTask'; payload: { id: string } }
   | { type: 'completeTask'; payload: { id: string } }
@@ -199,8 +201,9 @@ export type WebviewToExtensionMessage =
   | { type: 'approveAutomationTask'; payload: Record<string, never> }
   | { type: 'rejectAutomationTask'; payload: Record<string, never> }
   | { type: 'retryAutomationTask'; payload: { queueIndex: number } }
-  | { type: 'createProject'; payload: { id?: string; name: string; color?: string } }
+  | { type: 'createProject'; payload: { id?: string; name: string; color?: string; copilotContext?: string } }
   | { type: 'renameProject'; payload: { projectId: string; name: string } }
+  | { type: 'updateProject'; payload: { projectId: string; changes: Partial<Pick<VBProject, 'name' | 'color' | 'copilotContext'>> } }
   | { type: 'deleteProject'; payload: { projectId: string } }
   | { type: 'setActiveProject'; payload: { projectId: string | null } }
   | { type: 'updateSetting'; payload: { key: string; value: unknown } }

@@ -313,6 +313,12 @@ export class MessageHandler {
           prompt += '\n\n' + task.description;
         }
 
+        // Prepend context instructions (project-level then task-level)
+        const contextPrefix = this.buildContextPrefix(data, task);
+        if (contextPrefix) {
+          prompt = contextPrefix + '\n\n' + prompt;
+        }
+
         // Plan tasks: prefix with planning instructions and open in Ask mode
         const useAskMode = task.tag === 'plan';
         if (useAskMode) {
@@ -708,6 +714,7 @@ export class MessageHandler {
           name: message.payload.name,
           createdAt: new Date().toISOString(),
           color: message.payload.color,
+          copilotContext: message.payload.copilotContext || undefined,
         };
         d.projects.push(project);
         d.activeProjectId = project.id;
@@ -721,6 +728,20 @@ export class MessageHandler {
         const proj = d.projects?.find((p) => p.id === message.payload.projectId);
         if (proj) {
           proj.name = message.payload.name;
+          this.storage.setData(d);
+          this.sendStateUpdate();
+        }
+        break;
+      }
+
+      case 'updateProject': {
+        const d = this.storage.getData();
+        const proj = d.projects?.find((p) => p.id === message.payload.projectId);
+        if (proj) {
+          const changes = message.payload.changes;
+          if (changes.name !== undefined) { proj.name = changes.name; }
+          if (changes.color !== undefined) { proj.color = changes.color; }
+          if (changes.copilotContext !== undefined) { proj.copilotContext = changes.copilotContext || undefined; }
           this.storage.setData(d);
           this.sendStateUpdate();
         }
@@ -985,6 +1006,30 @@ export class MessageHandler {
   invalidateSettingsCache(): void {
     this.settingsCache = null;
     this.sendSettingsUpdate();
+  }
+
+  /**
+   * Build a context instruction prefix from project-level and task-level context.
+   * Returns an empty string if no context is set.
+   */
+  private buildContextPrefix(data: { projects?: { id: string; copilotContext?: string }[]; activeProjectId?: string | null; sessions?: { id: string; projectId?: string }[] }, task?: { sessionId: string; copilotContext?: string }): string {
+    const parts: string[] = [];
+
+    // Project-level context: find the project for the task's session
+    if (task && data.projects && data.sessions) {
+      const session = data.sessions.find((s) => s.id === task.sessionId);
+      const project = session?.projectId ? data.projects.find((p) => p.id === session.projectId) : null;
+      if (project?.copilotContext?.trim()) {
+        parts.push(`[Project Context]\n${project.copilotContext.trim()}`);
+      }
+    }
+
+    // Task-level context
+    if (task?.copilotContext?.trim()) {
+      parts.push(`[Task Context]\n${task.copilotContext.trim()}`);
+    }
+
+    return parts.join('\n\n');
   }
 
   /**
