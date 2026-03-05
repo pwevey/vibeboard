@@ -432,7 +432,7 @@ export class JiraService {
     descParagraphs.push({
       type: 'paragraph',
       content: [
-        { type: 'text', text: '— Exported from Vibe Board —\n' + metaLines.join('\n'), marks: [{ type: 'em' }] },
+        { type: 'text', text: `— Exported from Vibe Board on ${new Date().toLocaleString()} —\n` + metaLines.join('\n'), marks: [{ type: 'em' }] },
       ],
     });
 

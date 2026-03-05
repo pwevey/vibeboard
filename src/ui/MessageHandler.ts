@@ -1050,9 +1050,10 @@ export class MessageHandler {
           for (const issue of issues) {
             const tag = mapTag(issue.issueType, issue.labels);
             const priority = mapPriority(issue.priority);
+            const importedAt = new Date().toLocaleString();
             const description = issue.description
-              ? `${issue.description}\n\n— Imported from Jira: ${issue.key} —`
-              : `— Imported from Jira: ${issue.key} —`;
+              ? `${issue.description}\n\n— Imported from Jira: ${issue.key} on ${importedAt} —`
+              : `— Imported from Jira: ${issue.key} on ${importedAt} —`;
 
             const task = this.taskManager.addTask({
               title: issue.summary.slice(0, 300),
