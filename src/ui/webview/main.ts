@@ -2661,6 +2661,12 @@ function showEndSessionJiraPrompt(boardIds: string[]): void {
       !t.jiraIssueKey && (!t.jiraExports || Object.keys(t.jiraExports).length === 0)
     );
 
+    // If no unexported tasks remain, skip the prompt entirely
+    if (unexported.length === 0) {
+      vscode.postMessage({ type: 'closeBoards', payload: { boardIds } });
+      return;
+    }
+
     overlay.innerHTML = `<div class="modal-card jira-dialog" style="max-width:380px">
       <h3>&#128640; Export to Jira?</h3>
       <p>Would you like to export your tasks to Jira before ending the session?</p>
