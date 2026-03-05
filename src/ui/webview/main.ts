@@ -4065,7 +4065,7 @@ function showJiraImportProjectPicker(
       </div>
       <div class="jira-field">
         <label for="jira-import-jql">Filter <span style="opacity:0.6;font-weight:normal">(JQL — optional)</span></label>
-        <input type="text" id="jira-import-jql" class="jira-input" placeholder='e.g. status = "To Do" AND type = Bug' value="${escapeHtml(prevJql)}" />
+        <input type="text" id="jira-import-jql" class="jira-input" placeholder='e.g. status = "To Do" AND type = Bug' value="${escapeAttr(prevJql)}" />
       </div>
       <label class="jira-filter-row" style="margin-top:-4px;">
         <input type="checkbox" id="jira-import-exclude-completed" ${prevExclude ? 'checked' : ''} />
@@ -5583,6 +5583,38 @@ function renderHelpContent(section: string): string {
           <li><strong>Tag</strong> &rarr; Label (feature, bug, refactor, etc.)</li>
           <li><strong>Priority</strong> &rarr; Issue Priority (High, Medium, Low)</li>
           <li><strong>Issue Type</strong> &rarr; Task (default)</li>
+        </ul>
+        <h4>Task Scoping (Export)</h4>
+        <ul>
+          <li>When an <strong>active session</strong> is running, only that session&rsquo;s tasks appear in the export dialog.</li>
+          <li>When a <strong>project filter</strong> is active (but no session), tasks from all sessions in that project are shown.</li>
+          <li>With <strong>no session or project filter</strong>, all tasks across all sessions are listed.</li>
+          <li>Tasks are <strong>grouped by Vibe Board column</strong> (In Progress, Up Next, Backlog, Completed, Notes) with collapsible groups and per-group Select All checkboxes.</li>
+        </ul>
+        <h4>Importing from Jira</h4>
+        <p>Import Jira issues into Vibe Board as tasks. Click the <strong>Import from Jira</strong> button on the start page to open the import dialog.</p>
+        <h4>Import &mdash; Step 1: Search</h4>
+        <ul>
+          <li>Select a <strong>Jira project</strong> from the dropdown. If you have a project mapping saved, the mapped project is pre-selected automatically.</li>
+          <li>Optionally enter a <strong>JQL filter</strong> to narrow results (e.g. <code>status = &quot;To Do&quot; AND type = Bug</code>).</li>
+          <li>Check <strong>&ldquo;Exclude Completed issues&rdquo;</strong> to automatically filter out issues in completed-like statuses (Done, Closed, Resolved, etc.). This is enabled by default.</li>
+          <li>Click <strong>Search Issues</strong> to query Jira. Up to 50 issues are returned per search.</li>
+        </ul>
+        <h4>Import &mdash; Step 2: Select Issues</h4>
+        <ul>
+          <li>Issues are <strong>grouped by their Jira status</strong> (e.g. To Do, In Progress, Done) with collapsible groups.</li>
+          <li>Each issue shows its <strong>type icon</strong> (&#128027; Bug, &#128218; Story, &#9889; Epic, &#128279; Sub-task, &#9744; Other), <strong>issue key</strong> (e.g. PROJ-42), and <strong>summary</strong>.</li>
+          <li><strong>Badges</strong> indicate attachments (&#128247;) and comments (&#128172;) with counts.</li>
+          <li>Use <strong>Select All</strong> or per-group checkboxes to quickly toggle selections. All issues are selected by default.</li>
+          <li>Click <strong>&larr; Back</strong> to return to the search step with your previous project, JQL filter, and exclude setting preserved.</li>
+        </ul>
+        <h4>Import &mdash; Step 3: Status Mapping</h4>
+        <ul>
+          <li>Map each <strong>Jira status</strong> present in your selected issues to a <strong>Vibe Board column</strong> (Up Next, In Progress, Backlog, Completed, Notes).</li>
+          <li>Smart defaults are applied automatically &mdash; e.g. &ldquo;In Progress&rdquo; maps to In Progress, &ldquo;To Do&rdquo; maps to Up Next, &ldquo;Done&rdquo; maps to Completed.</li>
+          <li>Previously saved mappings for the Jira project are loaded automatically and take priority over defaults.</li>
+          <li>Check <strong>&ldquo;Remember this mapping&rdquo;</strong> to save the import mapping for the Jira project so it auto-populates next time.</li>
+          <li>If no session is active when you confirm, Vibe Board prompts you to <strong>start a session first</strong> and then completes the import automatically.</li>
         </ul>`;
 
     case 'shortcuts':
