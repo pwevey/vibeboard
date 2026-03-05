@@ -4043,11 +4043,14 @@ function showJiraImportDialog(): void {
  */
 function showJiraImportProjectPicker(
   overlay: HTMLDivElement,
-  jiraProjects: { id: string; key: string; name: string }[]
+  jiraProjects: { id: string; key: string; name: string }[],
+  previousValues?: { projectKey?: string; jql?: string; excludeCompleted?: boolean }
 ): void {
   const activeProjectId = (state as Record<string, unknown>)?.activeProjectId as string | null || null;
   const jiraProjectMapping = (state as Record<string, unknown>)?.jiraProjectMapping as Record<string, string> || {};
-  const mappedJiraKey = activeProjectId ? (jiraProjectMapping[activeProjectId] || '') : '';
+  const mappedJiraKey = previousValues?.projectKey || (activeProjectId ? (jiraProjectMapping[activeProjectId] || '') : '');
+  const prevJql = previousValues?.jql ?? '';
+  const prevExclude = previousValues?.excludeCompleted ?? true;
 
   const projectOptions = jiraProjects.map((p) =>
     `<option value="${escapeHtml(p.key)}" ${p.key === mappedJiraKey ? 'selected' : ''}>${escapeHtml(p.name)} (${escapeHtml(p.key)})</option>`
@@ -4062,10 +4065,10 @@ function showJiraImportProjectPicker(
       </div>
       <div class="jira-field">
         <label for="jira-import-jql">Filter <span style="opacity:0.6;font-weight:normal">(JQL — optional)</span></label>
-        <input type="text" id="jira-import-jql" class="jira-input" placeholder='e.g. status = "To Do" AND type = Bug' />
+        <input type="text" id="jira-import-jql" class="jira-input" placeholder='e.g. status = "To Do" AND type = Bug' value="${escapeHtml(prevJql)}" />
       </div>
       <label class="jira-filter-row" style="margin-top:-4px;">
-        <input type="checkbox" id="jira-import-exclude-completed" checked />
+        <input type="checkbox" id="jira-import-exclude-completed" ${prevExclude ? 'checked' : ''} />
         <span>Exclude Completed issues</span>
       </label>
       <div class="modal-actions">
@@ -4334,9 +4337,9 @@ function showJiraImportIssuePicker(
     updateCount();
   }));
 
-  // Back button
+  // Back button — retain previously set values
   overlay.querySelector('#jira-import-back')!.addEventListener('click', () => {
-    showJiraImportProjectPicker(overlay, jiraProjects);
+    showJiraImportProjectPicker(overlay, jiraProjects, { projectKey, jql, excludeCompleted });
   });
 
   // Import button — go to status mapping step
@@ -4351,7 +4354,7 @@ function showJiraImportIssuePicker(
 
     // Determine which unique Jira statuses are present in the selected issues
     const presentJiraStatuses = [...new Set(selectedIssues.map((i) => i.status))];
-    showJiraImportStatusMapping(overlay, projectKey, selectedIssues, presentJiraStatuses, jiraProjects, jql);
+    showJiraImportStatusMapping(overlay, projectKey, selectedIssues, presentJiraStatuses, jiraProjects, jql, excludeCompleted);
   });
 }
 
@@ -4364,7 +4367,8 @@ function showJiraImportStatusMapping(
   selectedIssues: JiraImportIssue[],
   presentJiraStatuses: string[],
   jiraProjects: { id: string; key: string; name: string }[],
-  jql: string
+  jql: string,
+  excludeCompleted: boolean = false
 ): void {
   const VB_STATUSES: { value: string; label: string }[] = [
     { value: 'up-next', label: 'Up Next' },
@@ -4444,9 +4448,23 @@ function showJiraImportStatusMapping(
         showJiraImportProjectPicker(overlay, jiraProjects);
         return;
       }
-      showJiraImportIssuePicker(overlay, payload.issues, payload.total, projectKey, jql, jiraProjects);
+      showJiraImportIssuePicker(overlay, payload.issues, payload.total, projectKey, jql, jiraProjects, excludeCompleted);
     };
-    vscode.postMessage({ type: 'searchJiraIssues', payload: { projectKey, jql: jql || undefined, maxResults: 50 } });
+
+    // Re-build the effective JQL with exclude-completed filter
+    let backJql = jql || '';
+    if (excludeCompleted) {
+      const savedMapping = ((state as Record<string, unknown>)?.jiraStatusMapping as Record<string, { export: Record<string, string>; import: Record<string, string> }> || {})[projectKey]?.import || {};
+      const completedStatuses: string[] = [];
+      for (const [js, vs] of Object.entries(savedMapping)) { if (vs === 'completed') { completedStatuses.push(js); } }
+      for (const kc of ['Done', 'Closed', 'Resolved', 'Complete', 'Completed']) { if (!savedMapping[kc]) { completedStatuses.push(kc); } }
+      if (completedStatuses.length > 0) {
+        const statusList = completedStatuses.map((s) => `"${s}"`).join(', ');
+        const excludeClause = `status NOT IN (${statusList})`;
+        backJql = backJql ? `(${backJql}) AND ${excludeClause}` : excludeClause;
+      }
+    }
+    vscode.postMessage({ type: 'searchJiraIssues', payload: { projectKey, jql: backJql || undefined, maxResults: 50 } });
   });
 
   // Import button
