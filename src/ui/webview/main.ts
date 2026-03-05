@@ -130,6 +130,7 @@ let boardClickTimer: ReturnType<typeof setTimeout> | null = null;
 let sessionHistoryData: { sessions: VBSession[]; summaries: VBSessionSummary[] } | null = null;
 let editingTaskId: string | null = null;
 let contextMenuTaskId: string | null = null;
+let carriedOverDismissed: Set<string> = new Set(); // session IDs whose carry-over banner was dismissed
 let pendingAIDescription: string = '';
 let voiceRecognition: unknown = null;
 let isVoiceRecording = false;
@@ -726,6 +727,8 @@ function renderBoardSwitcher(): string {
 
 function renderCarriedOverBanner(): string {
   if (!state) { return ''; }
+  const activeSessionId = state.activeSessionId;
+  if (activeSessionId && carriedOverDismissed.has(activeSessionId)) { return ''; }
   const tasks = getActiveSessionTasks();
   const carriedTasks = tasks.filter((t) => t.carriedFromSessionId);
   if (carriedTasks.length === 0) { return ''; }
@@ -1237,6 +1240,9 @@ function bindEvents(): void {
   // Carried-over banner dismiss
   document.getElementById('carried-over-dismiss')?.addEventListener('click', (e) => {
     e.stopPropagation();
+    if (state?.activeSessionId) {
+      carriedOverDismissed.add(state.activeSessionId);
+    }
     const banner = document.getElementById('carried-over-banner');
     if (banner) { banner.style.display = 'none'; }
   });
