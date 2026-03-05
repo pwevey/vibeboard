@@ -2530,8 +2530,8 @@ function showEndSessionPicker(): void {
     document.body.appendChild(overlay);
 
     document.getElementById('end-session-confirm')!.addEventListener('click', () => {
-      vscode.postMessage({ type: 'closeBoards', payload: { boardIds: [b.id] } });
       overlay.remove();
+      showEndSessionJiraPrompt([b.id]);
     });
     document.getElementById('end-session-cancel')!.addEventListener('click', () => overlay.remove());
   } else {
@@ -2597,9 +2597,9 @@ function showEndSessionPicker(): void {
     document.getElementById('end-session-confirm')!.addEventListener('click', () => {
       const selected = Array.from(checkboxes).filter((cb) => cb.checked).map((cb) => cb.value);
       if (selected.length > 0) {
-        vscode.postMessage({ type: 'closeBoards', payload: { boardIds: selected } });
+        overlay.remove();
+        showEndSessionJiraPrompt(selected);
       }
-      overlay.remove();
     });
 
     document.getElementById('end-session-cancel')!.addEventListener('click', () => overlay.remove());
@@ -2607,6 +2607,122 @@ function showEndSessionPicker(): void {
 
   overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
   overlay.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Escape') { overlay.remove(); } });
+}
+
+/**
+ * After the user confirms ending a session, prompt them about Jira export.
+ * - If Jira is configured: ask if they want to export tasks first.
+ * - If Jira is NOT configured: show a tip about Jira integration with a "Don't show again" checkbox.
+ * - If the user previously dismissed the prompt: skip straight to closing boards.
+ */
+function showEndSessionJiraPrompt(boardIds: string[]): void {
+  const dismissed = !!(state as Record<string, unknown>)?.jiraPromptDismissed;
+
+  // If user previously dismissed, skip the prompt
+  if (dismissed) {
+    vscode.postMessage({ type: 'closeBoards', payload: { boardIds } });
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Export to Jira');
+
+  if (extensionSettings.jiraConfigured) {
+    // Jira is configured — offer to export
+    const sessionTasks = state?.tasks?.filter(
+      (t) => t.sessionId === state?.activeSessionId
+    ) || [];
+    const unexported = sessionTasks.filter((t: { jiraExports?: Record<string, unknown>; jiraIssueKey?: string }) =>
+      !t.jiraIssueKey && (!t.jiraExports || Object.keys(t.jiraExports).length === 0)
+    );
+
+    overlay.innerHTML = `<div class="modal-card jira-dialog" style="max-width:380px">
+      <h3>&#128640; Export to Jira?</h3>
+      <p>Would you like to export your tasks to Jira before ending the session?</p>
+      ${unexported.length > 0 ? `<p style="opacity:0.75;font-size:12px">You have <strong>${unexported.length}</strong> task${unexported.length === 1 ? '' : 's'} not yet exported.</p>` : ''}
+      <label class="jira-filter-row" style="margin-top:8px">
+        <input type="checkbox" id="jira-end-dismiss" />
+        Don&rsquo;t ask me again
+      </label>
+      <div class="modal-actions" style="margin-top:12px">
+        <button class="secondary" id="jira-end-skip">Skip</button>
+        <button id="jira-end-export">&#128640; Export to Jira</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#jira-end-skip')!.addEventListener('click', () => {
+      const dismissCb = overlay.querySelector('#jira-end-dismiss') as HTMLInputElement;
+      if (dismissCb.checked) {
+        vscode.postMessage({ type: 'setJiraPromptDismissed', payload: { dismissed: true } });
+      }
+      overlay.remove();
+      vscode.postMessage({ type: 'closeBoards', payload: { boardIds } });
+    });
+
+    overlay.querySelector('#jira-end-export')!.addEventListener('click', () => {
+      const dismissCb = overlay.querySelector('#jira-end-dismiss') as HTMLInputElement;
+      if (dismissCb.checked) {
+        vscode.postMessage({ type: 'setJiraPromptDismissed', payload: { dismissed: true } });
+      }
+      overlay.remove();
+      // Open the full Jira export dialog, then close boards when done or cancelled
+      pendingCloseBoardIds = boardIds;
+      showJiraExportDialog();
+    });
+  } else {
+    // Jira is NOT configured — informational tip
+    overlay.innerHTML = `<div class="modal-card jira-dialog" style="max-width:400px">
+      <h3>&#128161; Did you know?</h3>
+      <p>You can export your Vibe Board tasks directly to <strong>Jira</strong> as issues &mdash; with automatic field mapping, status transitions, and duplicate prevention.</p>
+      <p style="font-size:12px;opacity:0.8">Set it up in <strong>&#9881; Settings</strong> &rarr; <strong>Jira Integration</strong>.</p>
+      <label class="jira-filter-row" style="margin-top:8px">
+        <input type="checkbox" id="jira-end-dismiss" />
+        Don&rsquo;t show this again
+      </label>
+      <div class="modal-actions" style="margin-top:12px">
+        <button id="jira-end-ok">OK</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#jira-end-ok')!.addEventListener('click', () => {
+      const dismissCb = overlay.querySelector('#jira-end-dismiss') as HTMLInputElement;
+      if (dismissCb.checked) {
+        vscode.postMessage({ type: 'setJiraPromptDismissed', payload: { dismissed: true } });
+      }
+      overlay.remove();
+      vscode.postMessage({ type: 'closeBoards', payload: { boardIds } });
+    });
+  }
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
+      flushPendingBoardClose();
+    }
+  });
+  overlay.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      overlay.remove();
+      flushPendingBoardClose();
+    }
+  });
+}
+
+// Variable to track pending board close after Jira export
+let pendingCloseBoardIds: string[] | null = null;
+
+/** Flush any pending board close after Jira export flow completes. */
+function flushPendingBoardClose(): void {
+  if (pendingCloseBoardIds) {
+    const boardIds = pendingCloseBoardIds;
+    pendingCloseBoardIds = null;
+    vscode.postMessage({ type: 'closeBoards', payload: { boardIds } });
+  }
 }
 
 // ============================================================
@@ -2889,7 +3005,12 @@ function showJiraExportDialog(): void {
     <p class="jira-loading">Fetching Jira projects&hellip;</p>
   </div>`;
   document.body.appendChild(overlay);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
+      flushPendingBoardClose();
+    }
+  });
 
   jiraProjectsCallback = (payload) => {
     jiraProjectsCallback = null;
@@ -2900,7 +3021,7 @@ function showJiraExportDialog(): void {
         <div class="modal-actions">
           <button id="jira-error-close">Close</button>
         </div>`;
-      overlay.querySelector('#jira-error-close')!.addEventListener('click', () => overlay.remove());
+      overlay.querySelector('#jira-error-close')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
       return;
     }
     if (payload.projects.length === 0) {
@@ -2910,7 +3031,7 @@ function showJiraExportDialog(): void {
         <div class="modal-actions">
           <button id="jira-error-close">Close</button>
         </div>`;
-      overlay.querySelector('#jira-error-close')!.addEventListener('click', () => overlay.remove());
+      overlay.querySelector('#jira-error-close')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
       return;
     }
     showJiraProjectAndTaskPicker(overlay, payload.projects);
@@ -2959,8 +3080,8 @@ function showJiraCredentialsPrompt(): void {
     </div>
   </div>`;
   document.body.appendChild(overlay);
-  overlay.querySelector('#jira-setup-close')!.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
+  overlay.querySelector('#jira-setup-close')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); flushPendingBoardClose(); } });
 }
 
 /**
@@ -3004,7 +3125,7 @@ function showJiraProjectAndTaskPicker(
       <div class="modal-actions">
         <button id="jira-error-close">Close</button>
       </div>`;
-    overlay.querySelector('#jira-error-close')!.addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#jira-error-close')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
     return;
   }
 
@@ -3208,7 +3329,10 @@ function showJiraProjectAndTaskPicker(
   }
 
   // Cancel
-  overlay.querySelector('#jira-cancel')!.addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#jira-cancel')!.addEventListener('click', () => {
+    overlay.remove();
+    flushPendingBoardClose();
+  });
 
   // Export — show status mapping step
   overlay.querySelector('#jira-export-confirm')!.addEventListener('click', () => {
@@ -3404,7 +3528,10 @@ function handleJiraExportResult(payload: {
       <button id="jira-result-close">Close</button>
     </div>`;
 
-  overlay.querySelector('#jira-result-close')!.addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#jira-result-close')!.addEventListener('click', () => {
+    overlay.remove();
+    flushPendingBoardClose();
+  });
 }
 
 // ============================================================

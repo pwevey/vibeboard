@@ -787,6 +787,14 @@ export class MessageHandler {
         break;
       }
 
+      case 'setJiraPromptDismissed': {
+        const { dismissed } = message.payload as { dismissed: boolean };
+        const d = this.storage.getData();
+        d.jiraPromptDismissed = dismissed;
+        this.storage.setData(d);
+        break;
+      }
+
       case 'getJiraProjects': {
         const result = await this.jiraService.getProjects();
         this.webview?.postMessage({ type: 'jiraProjects', payload: result });

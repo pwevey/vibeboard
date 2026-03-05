@@ -99,6 +99,7 @@ export interface VBWorkspaceData {
   projects?: VBProject[];
   activeProjectId?: string | null;
   jiraProjectMapping?: Record<string, string>; // VB projectId → Jira project key
+  jiraPromptDismissed?: boolean; // true if user dismissed the end-session Jira export prompt
 }
 
 // === Multi-Board ===
@@ -206,6 +207,7 @@ export type WebviewToExtensionMessage =
   | { type: 'saveJiraCredentials'; payload: { baseUrl: string; email: string; token: string } }
   | { type: 'clearJiraCredentials'; payload: Record<string, never> }
   | { type: 'setJiraProjectMapping'; payload: { vbProjectId: string; jiraProjectKey: string } }
+  | { type: 'setJiraPromptDismissed'; payload: { dismissed: boolean } }
   | { type: 'getJiraProjects'; payload: Record<string, never> }
   | { type: 'getJiraStatuses'; payload: { projectKey: string } }
   | { type: 'exportToJira'; payload: { projectKey: string; taskIds?: string[]; issueType?: string; statusMapping?: Record<string, string> } }
@@ -260,6 +262,7 @@ export function createDefaultWorkspaceData(): VBWorkspaceData {
     projects: [],
     activeProjectId: null,
     jiraProjectMapping: {},
+    jiraPromptDismissed: false,
   };
 }
 
