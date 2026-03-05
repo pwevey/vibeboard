@@ -2253,6 +2253,20 @@ function showSettingsDialog(): void {
         <span class="jira-save-status" id="jira-save-status"></span>
       </div>
     </div>
+    ${extensionSettings.jiraConfigured ? `
+    <div class="settings-section-divider"></div>
+    <h4 class="settings-section-title">&#128260; Status Mapping</h4>
+    <p class="settings-section-desc">Map Vibe Board columns to Jira statuses for export, and Jira statuses to Vibe Board columns for import.</p>
+    <div class="start-settings" id="jira-status-mapping-section">
+      <label class="start-setting-row setting-text-row">
+        <span class="start-setting-label">Jira Project</span>
+        <select id="jira-mapping-project-select" class="jira-select" style="flex:1;">
+          <option value="">Select a project&hellip;</option>
+        </select>
+      </label>
+      <div id="jira-mapping-content"></div>
+    </div>
+    ` : ''}
 
   </div>`;
   document.body.appendChild(overlay);
@@ -2375,6 +2389,206 @@ function showSettingsDialog(): void {
     if (testBtn) { testBtn.disabled = true; }
     vscode.postMessage({ type: 'testJiraConnection', payload: {} });
   });
+
+  // Status Mapping section — populate project dropdown and build mapping UI
+  const mappingProjectSelect = overlay.querySelector('#jira-mapping-project-select') as HTMLSelectElement | null;
+  const mappingContent = overlay.querySelector('#jira-mapping-content') as HTMLElement | null;
+
+  if (mappingProjectSelect && mappingContent && extensionSettings.jiraConfigured) {
+    /** VB status labels for display */
+    const VB_STATUS_LABELS: Record<string, string> = {
+      'up-next': 'Up Next',
+      'in-progress': 'In Progress',
+      'backlog': 'Backlog',
+      'completed': 'Completed',
+      'notes': 'Notes',
+    };
+    const VB_STATUSES = Object.keys(VB_STATUS_LABELS);
+
+    // Collect Jira project keys that have saved status mappings
+    const statusMappingData = (state as Record<string, unknown>)?.jiraStatusMapping as Record<string, { export: Record<string, string>; import: Record<string, string> }> || {};
+
+    // Populate the project dropdown from projects that have mappings, plus fetch live projects
+    const addedKeys = new Set<string>();
+    for (const key of Object.keys(statusMappingData)) {
+      if (!addedKeys.has(key)) {
+        mappingProjectSelect.innerHTML += `<option value="${escapeAttr(key)}">${escapeHtml(key)}</option>`;
+        addedKeys.add(key);
+      }
+    }
+
+    // Fetch Jira projects to populate dropdown with full list
+    jiraProjectsCallback = (payload) => {
+      jiraProjectsCallback = null;
+      if (payload.error || payload.projects.length === 0) { return; }
+      for (const p of payload.projects) {
+        if (!addedKeys.has(p.key)) {
+          mappingProjectSelect.innerHTML += `<option value="${escapeAttr(p.key)}">${escapeHtml(p.name)} (${escapeHtml(p.key)})</option>`;
+          addedKeys.add(p.key);
+        } else {
+          // Update display name for already-added keys
+          const opt = mappingProjectSelect.querySelector(`option[value="${CSS.escape(p.key)}"]`) as HTMLOptionElement | null;
+          if (opt && opt.textContent === p.key) {
+            opt.textContent = `${p.name} (${p.key})`;
+          }
+        }
+      }
+    };
+    vscode.postMessage({ type: 'getJiraProjects', payload: {} });
+
+    /**
+     * Build and display the status mapping UI for a given Jira project.
+     * Fetches Jira statuses from the API and shows editable export/import mapping grids.
+     */
+    const showMappingForProject = (projectKey: string) => {
+      if (!projectKey) {
+        mappingContent.innerHTML = '';
+        return;
+      }
+
+      mappingContent.innerHTML = '<p class="jira-loading" style="font-size:11px;">Fetching statuses&hellip;</p>';
+
+      // Fetch Jira statuses for this project
+      jiraStatusesCallback = (payload) => {
+        jiraStatusesCallback = null;
+        if (payload.error) {
+          mappingContent.innerHTML = `<p class="jira-error" style="font-size:11px;">&#9888; ${escapeHtml(payload.error)}</p>`;
+          return;
+        }
+        if (payload.statuses.length === 0) {
+          mappingContent.innerHTML = '<p class="jira-error" style="font-size:11px;">No statuses found for this project.</p>';
+          return;
+        }
+
+        const jiraStatuses = payload.statuses;
+        const savedExportMapping = statusMappingData[projectKey]?.export || {};
+        const savedImportMapping = statusMappingData[projectKey]?.import || {};
+
+        // Build Jira status options HTML
+        const jiraStatusOptions = jiraStatuses.map((s: { id: string; name: string }) =>
+          `<option value="${escapeAttr(s.name)}">${escapeHtml(s.name)}</option>`
+        ).join('');
+
+        // Build VB status options HTML
+        const vbStatusOptions = VB_STATUSES.map((s) =>
+          `<option value="${escapeAttr(s)}">${escapeHtml(VB_STATUS_LABELS[s])}</option>`
+        ).join('');
+
+        // Export mapping: VB status → Jira status
+        const exportRows = VB_STATUSES.map((vbStatus) =>
+          `<div class="jira-mapping-row">
+            <span class="jira-mapping-label">${escapeHtml(VB_STATUS_LABELS[vbStatus])}</span>
+            <span class="jira-mapping-arrow">&#8594;</span>
+            <select class="jira-select settings-export-mapping" data-vb-status="${escapeAttr(vbStatus)}">
+              <option value="">&mdash; Don't map &mdash;</option>
+              ${jiraStatusOptions}
+            </select>
+          </div>`
+        ).join('');
+
+        // Import mapping: get unique Jira statuses from saved import mapping + available statuses
+        const importJiraStatuses = new Set<string>();
+        for (const jiraStatus of Object.keys(savedImportMapping)) {
+          importJiraStatuses.add(jiraStatus);
+        }
+        for (const s of jiraStatuses) {
+          importJiraStatuses.add(s.name);
+        }
+        const sortedImportStatuses = [...importJiraStatuses].sort();
+
+        const importRows = sortedImportStatuses.map((jiraStatus) =>
+          `<div class="jira-mapping-row">
+            <span class="jira-mapping-label">${escapeHtml(jiraStatus)}</span>
+            <span class="jira-mapping-arrow">&#8594;</span>
+            <select class="jira-select settings-import-mapping" data-jira-status="${escapeAttr(jiraStatus)}">
+              <option value="">&mdash; Don't map &mdash;</option>
+              ${vbStatusOptions}
+            </select>
+          </div>`
+        ).join('');
+
+        mappingContent.innerHTML = `
+          <div style="margin-top:8px;">
+            <h5 style="margin:0 0 4px;font-size:11px;opacity:0.8;">Export: Vibe Board &#8594; Jira</h5>
+            <div class="jira-mapping-grid">${exportRows}</div>
+          </div>
+          <div style="margin-top:10px;">
+            <h5 style="margin:0 0 4px;font-size:11px;opacity:0.8;">Import: Jira &#8594; Vibe Board</h5>
+            <div class="jira-mapping-grid">${importRows}</div>
+          </div>
+          <div class="jira-save-row" style="margin-top:8px;">
+            <button class="secondary" id="jira-mapping-save-btn">Save Mapping</button>
+            <span class="jira-save-status" id="jira-mapping-save-status"></span>
+          </div>`;
+
+        // Set saved export mapping values
+        for (const vbStatus of VB_STATUSES) {
+          const sel = mappingContent.querySelector(`select.settings-export-mapping[data-vb-status="${CSS.escape(vbStatus)}"]`) as HTMLSelectElement | null;
+          if (sel && savedExportMapping[vbStatus]) {
+            sel.value = savedExportMapping[vbStatus];
+          }
+        }
+
+        // Set saved import mapping values
+        for (const jiraStatus of sortedImportStatuses) {
+          const sel = mappingContent.querySelector(`select.settings-import-mapping[data-jira-status="${CSS.escape(jiraStatus)}"]`) as HTMLSelectElement | null;
+          if (sel && savedImportMapping[jiraStatus]) {
+            sel.value = savedImportMapping[jiraStatus];
+          }
+        }
+
+        // Save button — persist both export and import mappings
+        mappingContent.querySelector('#jira-mapping-save-btn')?.addEventListener('click', () => {
+          // Collect export mapping
+          const exportMapping: Record<string, string> = {};
+          mappingContent.querySelectorAll<HTMLSelectElement>('select.settings-export-mapping').forEach((sel) => {
+            const vbStatus = sel.getAttribute('data-vb-status')!;
+            if (sel.value) { exportMapping[vbStatus] = sel.value; }
+          });
+
+          // Collect import mapping
+          const importMapping: Record<string, string> = {};
+          mappingContent.querySelectorAll<HTMLSelectElement>('select.settings-import-mapping').forEach((sel) => {
+            const jiraStatus = sel.getAttribute('data-jira-status')!;
+            if (sel.value) { importMapping[jiraStatus] = sel.value; }
+          });
+
+          // Save export mapping
+          vscode.postMessage({
+            type: 'setJiraStatusMapping',
+            payload: { jiraProjectKey: projectKey, direction: 'export', mapping: exportMapping },
+          });
+
+          // Save import mapping
+          vscode.postMessage({
+            type: 'setJiraStatusMapping',
+            payload: { jiraProjectKey: projectKey, direction: 'import', mapping: importMapping },
+          });
+
+          // Update local cache so re-opening shows the new values
+          if (!statusMappingData[projectKey]) {
+            statusMappingData[projectKey] = { export: {}, import: {} };
+          }
+          statusMappingData[projectKey].export = exportMapping;
+          statusMappingData[projectKey].import = importMapping;
+
+          // Show saved confirmation
+          const status = mappingContent.querySelector('#jira-mapping-save-status') as HTMLElement | null;
+          if (status) {
+            status.textContent = '\u2713 Saved';
+            setTimeout(() => { if (status) { status.textContent = ''; } }, 2500);
+          }
+        });
+      };
+
+      vscode.postMessage({ type: 'getJiraStatuses', payload: { projectKey } });
+    };
+
+    // Listen for project selection changes
+    mappingProjectSelect.addEventListener('change', () => {
+      showMappingForProject(mappingProjectSelect.value);
+    });
+  }
 }
 
 // ============================================================
@@ -5563,8 +5777,10 @@ function renderHelpContent(section: string): string {
         <h4>Status Mapping</h4>
         <ul>
           <li>After selecting tasks, a <strong>status mapping step</strong> lets you map each Vibe Board column (In Progress, Up Next, Backlog, Completed, Notes) to a Jira status in the target project.</li>
-          <li>Jira statuses are fetched from yor project automatically.</li>
+          <li>Jira statuses are fetched from your project automatically.</li>
           <li>After issues are created, Vibe Board <strong>transitions</strong> each issue to the mapped Jira status so they land in the correct workflow state.</li>
+          <li>You can also configure status mappings in <strong>&#9881; Settings &rarr; Status Mapping</strong>. Select a Jira project to view and edit both export (VB &rarr; Jira) and import (Jira &rarr; VB) mappings in one place.</li>
+          <li>Mappings configured in Settings are used as defaults during export and import dialogs.</li>
         </ul>
         <h4>Epic Linking</h4>
         <ul>
