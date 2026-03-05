@@ -3298,7 +3298,7 @@ textarea:focus-visible {
   margin-top: 4px;
 }
 
-.jira-project-mapping-row label {
+.jira-project-mapping-row span {
   font-weight: 400 !important;
   opacity: 0.8;
   white-space: nowrap;

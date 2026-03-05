@@ -3353,7 +3353,7 @@ function showJiraProjectAndTaskPicker(
   const mappingRow = activeVBProject
     ? `<label class="jira-project-mapping-row">
          <input type="checkbox" id="jira-save-mapping" ${mappedJiraKey ? 'checked' : ''} />
-         <label>Remember for <strong>${escapeHtml(activeVBProject.name)}</strong></label>
+         <span>Remember for <strong>${escapeHtml(activeVBProject.name)}</strong></span>
        </label>`
     : '';
 
@@ -3361,7 +3361,7 @@ function showJiraProjectAndTaskPicker(
   const epicMappingRow = activeVBProject
     ? `<label class="jira-project-mapping-row">
          <input type="checkbox" id="jira-save-epic-mapping" ${mappedEpicKey ? 'checked' : ''} />
-         <label>Remember for <strong>${escapeHtml(activeVBProject.name)}</strong></label>
+         <span>Remember for <strong>${escapeHtml(activeVBProject.name)}</strong></span>
        </label>`
     : '';
 
