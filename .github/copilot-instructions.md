@@ -39,6 +39,7 @@ Vibe Board is a VS Code extension providing a Kanban-style sidebar for AI-assist
   - It has 13 tabbed sections: Getting Started, Tasks, Board, Sessions, Projects, Timers, Templates, AI Features, Automation, Voice Input, Attachments, Export/Import, and Shortcuts.
   - Each section returns an HTML string from a `switch` case — add or update the relevant section's HTML when a feature changes.
   - The `searchHelpSections()` function indexes all tabs for search — new content is automatically searchable.
+- **Do NOT update help docs** for internal UX refinements, default-value tweaks, sort-order changes, or other behind-the-scenes improvements that users don't need to know about. Only document things a user would actively look up or need instructions for.
 - Update `README.md` when adding or changing commands, settings, or architecture (e.g., new services/modules).
 
 ## Key Files
