@@ -211,6 +211,92 @@ export class JiraService {
   }
 
   /**
+   * Search for epics in a Jira project.
+   * Uses JQL to find issues of type Epic in the given project.
+   */
+  async searchEpics(projectKey: string): Promise<{ epics: { key: string; summary: string }[]; error?: string }> {
+    const cfg = await this.getConfig();
+    if (!cfg) { return { epics: [], error: 'Jira credentials not configured.' }; }
+
+    try {
+      const jql = encodeURIComponent(`project = "${projectKey}" AND issuetype = Epic ORDER BY summary ASC`);
+      const response = await fetch(`${cfg.baseUrl}/rest/api/3/search?jql=${jql}&fields=summary&maxResults=100`, {
+        method: 'GET',
+        headers: {
+          'Authorization': this.authHeader(cfg.email, cfg.token),
+          'Accept': 'application/json',
+        },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        return { epics: [], error: describeHttpError(response.status, text) };
+      }
+
+      const body = await response.json() as {
+        issues: { key: string; fields: { summary: string } }[];
+      };
+      const epics = body.issues.map((i) => ({
+        key: i.key,
+        summary: i.fields.summary,
+      }));
+      return { epics };
+    } catch (err: unknown) {
+      return { epics: [], error: describeNetworkError(err) };
+    }
+  }
+
+  /**
+   * Create a new Epic in a Jira project.
+   * Returns the epic's issue key on success.
+   */
+  async createEpic(projectKey: string, epicName: string): Promise<{ key: string; error?: string }> {
+    const cfg = await this.getConfig();
+    if (!cfg) { return { key: '', error: 'Jira credentials not configured.' }; }
+
+    try {
+      const body = {
+        fields: {
+          project: { key: projectKey },
+          summary: epicName.slice(0, 255),
+          issuetype: { name: 'Epic' },
+        },
+      };
+
+      const response = await fetch(`${cfg.baseUrl}/rest/api/3/issue`, {
+        method: 'POST',
+        headers: {
+          'Authorization': this.authHeader(cfg.email, cfg.token),
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        let detail: string;
+        try {
+          const errObj = JSON.parse(text);
+          detail = errObj.errors
+            ? Object.values(errObj.errors).join('; ')
+            : errObj.errorMessages?.join('; ') || text.slice(0, 300);
+        } catch {
+          detail = text.slice(0, 300);
+        }
+        return { key: '', error: `Failed to create epic: ${detail}` };
+      }
+
+      const result = await response.json() as { key: string };
+      return { key: result.key };
+    } catch (err: unknown) {
+      return { key: '', error: describeNetworkError(err) };
+    }
+  }
+
+  /**
    * Transition a Jira issue to a target status by name.
    * Fetches available transitions, finds one whose "to" status name matches,
    * and executes it. Returns true on success.
@@ -282,7 +368,8 @@ export class JiraService {
     issueType: string = 'Task',
     onProgress?: (done: number, total: number) => void,
     statusMapping?: Record<string, string>,
-    exportMeta?: { projectContext?: string; sessionNames?: Record<string, string>; boardNames?: Record<string, string> }
+    exportMeta?: { projectContext?: string; sessionNames?: Record<string, string>; boardNames?: Record<string, string> },
+    epicKey?: string
   ): Promise<{ created: JiraCreatedIssue[]; errors: string[] }> {
     const cfg = await this.getConfig();
     if (!cfg) { return { created: [], errors: ['Jira credentials not configured.'] }; }
@@ -293,7 +380,7 @@ export class JiraService {
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
       try {
-        const result = await this.createSingleIssue(cfg, task, projectKey, issueType, exportMeta);
+        const result = await this.createSingleIssue(cfg, task, projectKey, issueType, exportMeta, epicKey);
         created.push(result);
 
         // Transition to mapped status if specified
@@ -332,7 +419,8 @@ export class JiraService {
     task: VBTask,
     projectKey: string,
     issueType: string,
-    exportMeta?: { projectContext?: string; sessionNames?: Record<string, string>; boardNames?: Record<string, string> }
+    exportMeta?: { projectContext?: string; sessionNames?: Record<string, string>; boardNames?: Record<string, string> },
+    epicKey?: string
   ): Promise<JiraCreatedIssue> {
     // Build description in ADF (Atlassian Document Format)
     const descParagraphs: object[] = [];
@@ -400,6 +488,11 @@ export class JiraService {
     // Native time tracking — use timeSpentSeconds for completed time
     if (task.timeSpentMs > 0) {
       fields.timetracking = { timeSpentSeconds: Math.floor(task.timeSpentMs / 1000) };
+    }
+
+    // Link to epic if specified
+    if (epicKey) {
+      fields.parent = { key: epicKey };
     }
 
     const body = { fields };

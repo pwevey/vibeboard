@@ -815,6 +815,20 @@ export class MessageHandler {
         break;
       }
 
+      case 'setJiraEpicMapping': {
+        const { vbProjectId: epicVbId, epicKey } = message.payload as { vbProjectId: string; epicKey: string };
+        const d = this.storage.getData();
+        if (!d.jiraEpicMapping) { d.jiraEpicMapping = {}; }
+        if (epicKey) {
+          d.jiraEpicMapping[epicVbId] = epicKey;
+        } else {
+          delete d.jiraEpicMapping[epicVbId];
+        }
+        this.storage.setData(d);
+        this.sendStateUpdate();
+        break;
+      }
+
       case 'setJiraPromptDismissed': {
         const { dismissed } = message.payload as { dismissed: boolean };
         const d = this.storage.getData();
@@ -846,6 +860,38 @@ export class MessageHandler {
         break;
       }
 
+      case 'getJiraEpics': {
+        try {
+          const { projectKey: epicProjectKey } = message.payload as { projectKey: string };
+          const epicResult = await this.jiraService.searchEpics(epicProjectKey);
+          this.webview?.postMessage({ type: 'jiraEpics', payload: epicResult });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.webview?.postMessage({ type: 'jiraEpics', payload: { epics: [], error: `Unexpected error: ${msg}` } });
+        }
+        break;
+      }
+
+      case 'createJiraEpic': {
+        try {
+          const { projectKey: epicProjKey, epicName } = message.payload as { projectKey: string; epicName: string };
+          const result = await this.jiraService.createEpic(epicProjKey, epicName);
+          if (result.error) {
+            // Still send epics list so UI can recover
+            const epics = await this.jiraService.searchEpics(epicProjKey);
+            this.webview?.postMessage({ type: 'jiraEpics', payload: { epics: epics.epics, error: `Epic creation failed: ${result.error}` } });
+          } else {
+            // Reload epics so the new one appears — send back the new key to auto-select
+            const epics = await this.jiraService.searchEpics(epicProjKey);
+            this.webview?.postMessage({ type: 'jiraEpics', payload: { ...epics, newEpicKey: result.key } });
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.webview?.postMessage({ type: 'jiraEpics', payload: { epics: [], error: `Unexpected error: ${msg}` } });
+        }
+        break;
+      }
+
       case 'testJiraConnection': {
         try {
           const result = await this.jiraService.testConnection();
@@ -860,11 +906,12 @@ export class MessageHandler {
       case 'exportToJira': {
         try {
           const data = this.storage.getData();
-          const { projectKey, taskIds, issueType, statusMapping } = message.payload as {
+          const { projectKey, taskIds, issueType, statusMapping, epicKey: exportEpicKey } = message.payload as {
             projectKey: string;
             taskIds?: string[];
             issueType?: string;
             statusMapping?: Record<string, string>;
+            epicKey?: string;
           };
 
           // If taskIds provided, export those; otherwise export all tasks in active session
@@ -905,7 +952,8 @@ export class MessageHandler {
             issueType || 'Task',
             undefined,
             statusMapping,
-            { projectContext, sessionNames, boardNames }
+            { projectContext, sessionNames, boardNames },
+            exportEpicKey
           );
 
           const success = created.length > 0 && errors.length === 0;

@@ -101,6 +101,7 @@ export interface VBWorkspaceData {
   projects?: VBProject[];
   activeProjectId?: string | null;
   jiraProjectMapping?: Record<string, string>; // VB projectId → Jira project key
+  jiraEpicMapping?: Record<string, string>; // VB projectId → Jira epic key (e.g. VB-50)
   jiraPromptDismissed?: boolean; // true if user dismissed the end-session Jira export prompt
 }
 
@@ -210,11 +211,14 @@ export type WebviewToExtensionMessage =
   | { type: 'saveJiraCredentials'; payload: { baseUrl: string; email: string; token: string } }
   | { type: 'clearJiraCredentials'; payload: Record<string, never> }
   | { type: 'setJiraProjectMapping'; payload: { vbProjectId: string; jiraProjectKey: string } }
+  | { type: 'setJiraEpicMapping'; payload: { vbProjectId: string; epicKey: string } }
   | { type: 'setJiraPromptDismissed'; payload: { dismissed: boolean } }
   | { type: 'getJiraProjects'; payload: Record<string, never> }
+  | { type: 'getJiraEpics'; payload: { projectKey: string } }
+  | { type: 'createJiraEpic'; payload: { projectKey: string; epicName: string } }
   | { type: 'getJiraStatuses'; payload: { projectKey: string } }
   | { type: 'testJiraConnection'; payload: Record<string, never> }
-  | { type: 'exportToJira'; payload: { projectKey: string; taskIds?: string[]; issueType?: string; statusMapping?: Record<string, string> } }
+  | { type: 'exportToJira'; payload: { projectKey: string; taskIds?: string[]; issueType?: string; statusMapping?: Record<string, string>; epicKey?: string } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
@@ -228,6 +232,7 @@ export type ExtensionToWebviewMessage =
   | { type: 'automationProgress'; payload: AutomationProgress }
   | { type: 'settingsUpdate'; payload: Record<string, unknown> }
   | { type: 'jiraProjects'; payload: { projects: JiraProject[]; error?: string } }
+  | { type: 'jiraEpics'; payload: { epics: { key: string; summary: string }[]; error?: string; newEpicKey?: string } }
   | { type: 'jiraStatuses'; payload: { statuses: JiraStatus[]; error?: string } }
   | { type: 'jiraConnectionTest'; payload: { success: boolean; displayName?: string; error?: string } }
   | { type: 'jiraExportResult'; payload: { success: boolean; created: number; failed: number; issues: JiraCreatedIssue[]; errors: string[] } };
@@ -267,6 +272,7 @@ export function createDefaultWorkspaceData(): VBWorkspaceData {
     projects: [],
     activeProjectId: null,
     jiraProjectMapping: {},
+    jiraEpicMapping: {},
     jiraPromptDismissed: false,
   };
 }

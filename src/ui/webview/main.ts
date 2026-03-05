@@ -239,6 +239,9 @@ window.addEventListener('message', (event) => {
     case 'jiraStatuses':
       handleJiraStatusesResponse(message.payload);
       break;
+    case 'jiraEpics':
+      handleJiraEpicsResponse(message.payload);
+      break;
     case 'jiraExportResult':
       handleJiraExportResult(message.payload);
       break;
@@ -3113,6 +3116,9 @@ let jiraProjectsCallback: ((payload: { projects: { id: string; key: string; name
 /** Pending callback for when Jira statuses arrive from the extension. */
 let jiraStatusesCallback: ((payload: { statuses: { id: string; name: string }[]; error?: string }) => void) | null = null;
 
+/** Pending callback for when Jira epics arrive from the extension. */
+let jiraEpicsCallback: ((payload: { epics: { key: string; summary: string }[]; error?: string }) => void) | null = null;
+
 /** Pending overlay for Jira export result display. */
 let jiraResultOverlay: HTMLDivElement | null = null;
 
@@ -3183,6 +3189,13 @@ function handleJiraProjectsResponse(payload: { projects: { id: string; key: stri
 function handleJiraStatusesResponse(payload: { statuses: { id: string; name: string }[]; error?: string }): void {
   if (jiraStatusesCallback) {
     jiraStatusesCallback(payload);
+  }
+}
+
+/** Handle the jiraEpics response from the extension. */
+function handleJiraEpicsResponse(payload: { epics: { key: string; summary: string }[]; error?: string }): void {
+  if (jiraEpicsCallback) {
+    jiraEpicsCallback(payload);
   }
 }
 
@@ -3280,7 +3293,9 @@ function showJiraProjectAndTaskPicker(
 
   // Determine active VB project and its mapped Jira project
   const jiraProjectMapping = (state as Record<string, unknown>)?.jiraProjectMapping as Record<string, string> || {};
+  const jiraEpicMapping = (state as Record<string, unknown>)?.jiraEpicMapping as Record<string, string> || {};
   const mappedJiraKey = activeProjectId ? (jiraProjectMapping[activeProjectId] || '') : '';
+  const mappedEpicKey = activeProjectId ? (jiraEpicMapping[activeProjectId] || '') : '';
   const activeVBProject = activeProjectId
     ? ((state as Record<string, unknown>)?.projects as { id: string; name: string }[] || []).find(
         (p) => p.id === activeProjectId
@@ -3342,6 +3357,14 @@ function showJiraProjectAndTaskPicker(
        </label>`
     : '';
 
+  // Epic mapping row (only show when a VB project is active)
+  const epicMappingRow = activeVBProject
+    ? `<label class="jira-project-mapping-row">
+         <input type="checkbox" id="jira-save-epic" ${mappedEpicKey ? 'checked' : ''} />
+         Remember for <strong>${escapeHtml(activeVBProject.name)}</strong>
+       </label>`
+    : '';
+
   overlay.querySelector('.jira-dialog')!.innerHTML = `
     <h3>&#127919; Export to Jira</h3>
     <div class="jira-form">
@@ -3349,6 +3372,14 @@ function showJiraProjectAndTaskPicker(
         <label for="jira-project-select">Jira Project</label>
         <select id="jira-project-select" class="jira-select">${projectOptions}</select>
         ${mappingRow}
+      </div>
+      <div class="jira-field">
+        <label for="jira-epic-select">Epic <span style="opacity:0.6;font-weight:normal">(optional)</span></label>
+        <select id="jira-epic-select" class="jira-select">
+          <option value="">— None —</option>
+          <option value="__loading" disabled>Loading epics…</option>
+        </select>
+        ${epicMappingRow}
       </div>
       <div class="jira-field">
         <label>Tasks to Export <span class="jira-task-count">(${nonExportedCount} selected)</span></label>
@@ -3454,7 +3485,7 @@ function showJiraProjectAndTaskPicker(
   const saveMappingCb = overlay.querySelector('#jira-save-mapping') as HTMLInputElement | null;
   const projectSelect = overlay.querySelector('#jira-project-select') as HTMLSelectElement;
 
-  // When Jira project changes: refresh exported state + update mapping if "remember" is checked
+  // When Jira project changes: refresh exported state + update mapping if "remember" is checked + reload epics
   projectSelect.addEventListener('change', () => {
     refreshTasksForProject(projectSelect.value);
     if (saveMappingCb?.checked && activeProjectId) {
@@ -3463,6 +3494,7 @@ function showJiraProjectAndTaskPicker(
         payload: { vbProjectId: activeProjectId, jiraProjectKey: projectSelect.value },
       });
     }
+    loadEpicsForProject(projectSelect.value);
   });
 
   if (saveMappingCb && activeProjectId) {
@@ -3477,6 +3509,98 @@ function showJiraProjectAndTaskPicker(
     });
   }
 
+  // === Epic loading and selection ===
+  const epicSelect = overlay.querySelector('#jira-epic-select') as HTMLSelectElement;
+  const saveEpicCb = overlay.querySelector('#jira-save-epic') as HTMLInputElement | null;
+
+  const loadEpicsForProject = (jiraKey: string) => {
+    // Reset to loading state
+    epicSelect.innerHTML = '<option value="">— None —</option><option value="__loading" disabled>Loading epics…</option>';
+    epicSelect.value = '';
+
+    jiraEpicsCallback = (payload) => {
+      jiraEpicsCallback = null;
+      epicSelect.innerHTML = '<option value="">— None —</option>';
+      if (!payload.error && payload.epics.length > 0) {
+        for (const epic of payload.epics) {
+          const opt = document.createElement('option');
+          opt.value = epic.key;
+          opt.textContent = `${epic.key} — ${epic.summary}`;
+          epicSelect.appendChild(opt);
+        }
+      }
+      // "Create new" option
+      const createOpt = document.createElement('option');
+      createOpt.value = '__create';
+      createOpt.textContent = '＋ Create new epic…';
+      epicSelect.appendChild(createOpt);
+
+      // Auto-select mapped epic if it exists for this project
+      if (mappedEpicKey && epicSelect.querySelector(`option[value="${mappedEpicKey}"]`)) {
+        epicSelect.value = mappedEpicKey;
+      }
+    };
+    vscode.postMessage({ type: 'getJiraEpics', payload: { projectKey: jiraKey } });
+  };
+
+  // Handle "Create new" selection
+  epicSelect.addEventListener('change', () => {
+    if (epicSelect.value === '__create') {
+      const projectName = activeVBProject?.name || 'New Epic';
+      const epicName = prompt('Epic name:', projectName);
+      if (epicName && epicName.trim()) {
+        epicSelect.innerHTML = '<option value="">— None —</option><option value="__creating" disabled selected>Creating epic…</option>';
+        // Create the epic — the response comes back as jiraEpics with newEpicKey
+        jiraEpicsCallback = (payload) => {
+          jiraEpicsCallback = null;
+          epicSelect.innerHTML = '<option value="">— None —</option>';
+          if (!payload.error && payload.epics.length > 0) {
+            for (const epic of payload.epics) {
+              const opt = document.createElement('option');
+              opt.value = epic.key;
+              opt.textContent = `${epic.key} — ${epic.summary}`;
+              epicSelect.appendChild(opt);
+            }
+          }
+          const createOpt2 = document.createElement('option');
+          createOpt2.value = '__create';
+          createOpt2.textContent = '＋ Create new epic…';
+          epicSelect.appendChild(createOpt2);
+          // Auto-select the newly created epic
+          const newKey = (payload as Record<string, unknown>).newEpicKey as string | undefined;
+          if (newKey && epicSelect.querySelector(`option[value="${newKey}"]`)) {
+            epicSelect.value = newKey;
+          }
+        };
+        vscode.postMessage({ type: 'createJiraEpic', payload: { projectKey: projectSelect.value, epicName: epicName.trim() } });
+      } else {
+        epicSelect.value = '';
+      }
+    }
+    // Save epic mapping if "remember" is checked
+    if (saveEpicCb?.checked && activeProjectId && epicSelect.value !== '__create' && epicSelect.value !== '__creating') {
+      vscode.postMessage({
+        type: 'setJiraEpicMapping',
+        payload: { vbProjectId: activeProjectId, epicKey: epicSelect.value },
+      });
+    }
+  });
+
+  if (saveEpicCb && activeProjectId) {
+    saveEpicCb.addEventListener('change', () => {
+      vscode.postMessage({
+        type: 'setJiraEpicMapping',
+        payload: {
+          vbProjectId: activeProjectId,
+          epicKey: saveEpicCb.checked ? epicSelect.value : '',
+        },
+      });
+    });
+  }
+
+  // Fetch epics for the initially selected project
+  loadEpicsForProject(initialJiraKey);
+
   // Cancel
   overlay.querySelector('#jira-cancel')!.addEventListener('click', () => {
     overlay.remove();
@@ -3489,6 +3613,7 @@ function showJiraProjectAndTaskPicker(
     if (selectedIds.length === 0) { return; }
 
     const projectKey = projectSelect.value;
+    const selectedEpicKey = epicSelect.value && epicSelect.value !== '__create' && epicSelect.value !== '__creating' ? epicSelect.value : undefined;
 
     // Determine which VB statuses are present in the selected tasks
     const selectedTasks = exportableTasks.filter((t: { id: string }) => selectedIds.includes(t.id));
@@ -3507,10 +3632,10 @@ function showJiraProjectAndTaskPicker(
           <h3>&#127919; Exporting to Jira&hellip;</h3>
           <p class="jira-loading">Creating ${selectedIds.length} issue${selectedIds.length === 1 ? '' : 's'} in ${escapeHtml(projectKey)}&hellip;</p>`;
         jiraResultOverlay = overlay;
-        vscode.postMessage({ type: 'exportToJira', payload: { projectKey, taskIds: selectedIds } });
+        vscode.postMessage({ type: 'exportToJira', payload: { projectKey, taskIds: selectedIds, epicKey: selectedEpicKey } });
         return;
       }
-      showJiraStatusMapping(overlay, projectKey, selectedIds, presentStatuses, payload.statuses);
+      showJiraStatusMapping(overlay, projectKey, selectedIds, presentStatuses, payload.statuses, selectedEpicKey);
     };
 
     vscode.postMessage({ type: 'getJiraStatuses', payload: { projectKey } });
@@ -3525,7 +3650,8 @@ function showJiraStatusMapping(
   projectKey: string,
   taskIds: string[],
   presentStatuses: string[],
-  jiraStatuses: { id: string; name: string }[]
+  jiraStatuses: { id: string; name: string }[],
+  epicKey?: string
 ): void {
   const STATUS_LABELS: Record<string, string> = {
     'in-progress': 'In Progress',
@@ -3628,6 +3754,7 @@ function showJiraStatusMapping(
         projectKey,
         taskIds,
         statusMapping: Object.keys(statusMapping).length > 0 ? statusMapping : undefined,
+        epicKey,
       },
     });
   });
@@ -4727,6 +4854,14 @@ function renderHelpContent(section: string): string {
           <li>After selecting tasks, a <strong>status mapping step</strong> lets you map each Vibe Board column (In Progress, Up Next, Backlog, Completed, Notes) to a Jira status in the target project.</li>
           <li>Jira statuses are fetched from yor project automatically.</li>
           <li>After issues are created, Vibe Board <strong>transitions</strong> each issue to the mapped Jira status so they land in the correct workflow state.</li>
+        </ul>
+        <h4>Epic Linking</h4>
+        <ul>
+          <li>The export dialog includes an <strong>Epic</strong> dropdown that lists all epics in the selected Jira project.</li>
+          <li>Select an epic to <strong>link every exported task</strong> to that epic automatically.</li>
+          <li>Choose <strong>&ldquo;&#xFF0B; Create new epic&hellip;&rdquo;</strong> to create a brand-new epic in the Jira project and link tasks to it in one step.</li>
+          <li>Check <strong>&ldquo;Remember for [Project]&rdquo;</strong> on the epic row to save the mapping between your active Vibe Board project and the selected epic.</li>
+          <li>Next time you export from the same project, the mapped epic is <strong>pre-selected automatically</strong>.</li>
         </ul>
         <h4>Jira Field Mapping</h4>
         <ul>
