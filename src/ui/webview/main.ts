@@ -2971,12 +2971,26 @@ function showJiraProjectAndTaskPicker(
   overlay: HTMLDivElement,
   jiraProjects: { id: string; key: string; name: string }[]
 ): void {
-  // Get tasks in the current context
+  // Get tasks in the current context — scoped to active session or active project
   const activeSessionId = state?.activeSessionId || null;
   const tasks = state?.tasks || [];
-  const sessionTasks = activeSessionId
-    ? tasks.filter((t: { sessionId: string }) => t.sessionId === activeSessionId)
-    : tasks;
+  const activeProjectId = (state as Record<string, unknown>)?.activeProjectId as string | null || null;
+  let sessionTasks: typeof tasks;
+  if (activeSessionId) {
+    // Active session: show only that session's tasks
+    sessionTasks = tasks.filter((t: { sessionId: string }) => t.sessionId === activeSessionId);
+  } else if (activeProjectId) {
+    // No active session but a project filter is set: show tasks from all sessions in this project
+    const projectSessionIds = new Set(
+      (state?.sessions || [])
+        .filter((s: { projectId?: string }) => s.projectId === activeProjectId)
+        .map((s: { id: string }) => s.id)
+    );
+    sessionTasks = tasks.filter((t: { sessionId: string }) => projectSessionIds.has(t.sessionId));
+  } else {
+    // No session, no project filter: show all tasks
+    sessionTasks = tasks;
+  }
 
   // Filter to actionable tasks (not notes)
   const exportableTasks = sessionTasks.filter(
@@ -2986,7 +3000,7 @@ function showJiraProjectAndTaskPicker(
   if (exportableTasks.length === 0) {
     overlay.querySelector('.jira-dialog')!.innerHTML = `
       <h3>&#127919; Export to Jira</h3>
-      <p class="jira-error">No tasks available to export${activeSessionId ? ' in the active session' : ''}.</p>
+      <p class="jira-error">No tasks available to export${activeSessionId ? ' in the active session' : activeProjectId ? ' in the selected project' : ''}.</p>
       <div class="modal-actions">
         <button id="jira-error-close">Close</button>
       </div>`;
@@ -2995,12 +3009,11 @@ function showJiraProjectAndTaskPicker(
   }
 
   // Determine active VB project and its mapped Jira project
-  const activeVBProjectId = (state as Record<string, unknown>)?.activeProjectId as string | null || null;
   const jiraProjectMapping = (state as Record<string, unknown>)?.jiraProjectMapping as Record<string, string> || {};
-  const mappedJiraKey = activeVBProjectId ? (jiraProjectMapping[activeVBProjectId] || '') : '';
-  const activeVBProject = activeVBProjectId
+  const mappedJiraKey = activeProjectId ? (jiraProjectMapping[activeProjectId] || '') : '';
+  const activeVBProject = activeProjectId
     ? ((state as Record<string, unknown>)?.projects as { id: string; name: string }[] || []).find(
-        (p) => p.id === activeVBProjectId
+        (p) => p.id === activeProjectId
       )
     : null;
 
@@ -3119,12 +3132,12 @@ function showJiraProjectAndTaskPicker(
   const projectSelect = overlay.querySelector('#jira-project-select') as HTMLSelectElement;
 
   // If project select changes while "remember" is checked, update mapping
-  if (saveMappingCb && activeVBProjectId) {
+  if (saveMappingCb && activeProjectId) {
     projectSelect.addEventListener('change', () => {
       if (saveMappingCb.checked) {
         vscode.postMessage({
           type: 'setJiraProjectMapping',
-          payload: { vbProjectId: activeVBProjectId, jiraProjectKey: projectSelect.value },
+          payload: { vbProjectId: activeProjectId, jiraProjectKey: projectSelect.value },
         });
       }
     });
@@ -3132,7 +3145,7 @@ function showJiraProjectAndTaskPicker(
       vscode.postMessage({
         type: 'setJiraProjectMapping',
         payload: {
-          vbProjectId: activeVBProjectId,
+          vbProjectId: activeProjectId,
           jiraProjectKey: saveMappingCb.checked ? projectSelect.value : '',
         },
       });
