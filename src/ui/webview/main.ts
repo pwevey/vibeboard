@@ -153,6 +153,7 @@ interface VBSettings {
   autoBackupIntervalMin: number;
   autoPromptSession: boolean;
   carryOverTasks: boolean;
+  includeProjectContext: boolean;
   jiraConfigured: boolean;
   jiraBaseUrl: string;
   jiraEmail: string;
@@ -164,6 +165,7 @@ let extensionSettings: VBSettings = {
   autoBackupIntervalMin: 5,
   autoPromptSession: true,
   carryOverTasks: true,
+  includeProjectContext: true,
   jiraConfigured: false,
   jiraBaseUrl: '',
   jiraEmail: '',
@@ -2164,6 +2166,11 @@ function showSettingsDialog(): void {
         <input type="checkbox" class="setting-checkbox" data-setting="carryOverTasks" ${extensionSettings.carryOverTasks ? 'checked' : ''} />
         <span class="start-setting-label">Carry-Over Tasks</span>
         <span class="start-setting-desc">Carry over unfinished tasks to the next session</span>
+      </label>
+      <label class="start-setting-row">
+        <input type="checkbox" class="setting-checkbox" data-setting="includeProjectContext" ${extensionSettings.includeProjectContext ? 'checked' : ''} />
+        <span class="start-setting-label">Include Project Context</span>
+        <span class="start-setting-desc">Prepend project-level Copilot Context to prompts and follow-ups</span>
       </label>
     </div>
     <div class="settings-section-divider"></div>

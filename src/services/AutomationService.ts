@@ -341,7 +341,8 @@ export class AutomationService {
 
     // Prepend context instructions (project-level then task-level)
     const contextParts: string[] = [];
-    if (data.projects && data.sessions) {
+    const includeProjectCtx = vscode.workspace.getConfiguration('vibeboard').get<boolean>('includeProjectContext', true);
+    if (includeProjectCtx && data.projects && data.sessions) {
       const session = data.sessions.find((s) => s.id === task.sessionId);
       const project = session?.projectId ? data.projects.find((p) => p.id === session.projectId) : null;
       if (project?.copilotContext?.trim()) {

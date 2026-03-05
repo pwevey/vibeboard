@@ -314,7 +314,8 @@ export class MessageHandler {
         }
 
         // Prepend context instructions (project-level then task-level)
-        const contextPrefix = this.buildContextPrefix(data, task);
+        const includeProject = vscode.workspace.getConfiguration('vibeboard').get<boolean>('includeProjectContext', true);
+        const contextPrefix = this.buildContextPrefix(data, task, !includeProject);
         if (contextPrefix) {
           prompt = contextPrefix + '\n\n' + prompt;
         }
@@ -360,8 +361,13 @@ export class MessageHandler {
         this.storage.setData(fuData);
         this.sendStateUpdate();
 
+        // Prepend context instructions to follow-up
+        const includeProjectCtx = vscode.workspace.getConfiguration('vibeboard').get<boolean>('includeProjectContext', true);
+        const fuContextPrefix = this.buildContextPrefix(fuData, fuTask, !includeProjectCtx);
+        const fullFollowUp = fuContextPrefix ? fuContextPrefix + '\n\n' + followUpPrompt : followUpPrompt;
+
         // Send the follow-up to Copilot Chat
-        await this.sendPromptToCopilot(followUpPrompt, followUpAttachments);
+        await this.sendPromptToCopilot(fullFollowUp, followUpAttachments);
         // Buttons remain on the card (sentToCopilot is still true)
         break;
       }
@@ -773,7 +779,7 @@ export class MessageHandler {
 
       case 'updateSetting': {
         const { key, value } = message.payload as { key: string; value: unknown };
-        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl'];
+        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'includeProjectContext', 'jiraBaseUrl'];
         if (allowedKeys.includes(key)) {
           await vscode.workspace.getConfiguration('vibeboard').update(key, value, vscode.ConfigurationTarget.Global);
           this.invalidateSettingsCache();
@@ -991,6 +997,7 @@ export class MessageHandler {
       autoBackupIntervalMin: config.get<number>('autoBackupIntervalMin', 5),
       autoPromptSession: config.get<boolean>('autoPromptSession', true),
       carryOverTasks: config.get<boolean>('carryOverTasks', true),
+      includeProjectContext: config.get<boolean>('includeProjectContext', true),
       jiraBaseUrl: config.get<string>('jiraBaseUrl', ''),
       jiraEmail: jiraSummary.email,
       jiraConfigured: jiraSummary.configured,
@@ -1012,11 +1019,11 @@ export class MessageHandler {
    * Build a context instruction prefix from project-level and task-level context.
    * Returns an empty string if no context is set.
    */
-  private buildContextPrefix(data: { projects?: { id: string; copilotContext?: string }[]; activeProjectId?: string | null; sessions?: { id: string; projectId?: string }[] }, task?: { sessionId: string; copilotContext?: string }): string {
+  private buildContextPrefix(data: { projects?: { id: string; copilotContext?: string }[]; activeProjectId?: string | null; sessions?: { id: string; projectId?: string }[] }, task?: { sessionId: string; copilotContext?: string }, skipProjectContext = false): string {
     const parts: string[] = [];
 
     // Project-level context: find the project for the task's session
-    if (task && data.projects && data.sessions) {
+    if (!skipProjectContext && task && data.projects && data.sessions) {
       const session = data.sessions.find((s) => s.id === task.sessionId);
       const project = session?.projectId ? data.projects.find((p) => p.id === session.projectId) : null;
       if (project?.copilotContext?.trim()) {
