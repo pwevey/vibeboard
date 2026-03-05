@@ -4165,7 +4165,6 @@ function showJiraImportIssuePicker(
       <span class="jira-issue-key">${escapeHtml(issue.key)}</span>
       <span class="jira-task-title">${escapeHtml(issue.summary)}</span>
       ${badges.length > 0 ? `<span class="jira-badges">${badges.join('')}</span>` : ''}
-      <span class="jira-import-status ${priorityClass(issue.priority)}">${escapeHtml(issue.status)}</span>
     </label>`;
   };
 
