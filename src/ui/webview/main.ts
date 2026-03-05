@@ -3385,6 +3385,11 @@ function showJiraProjectAndTaskPicker(
           <option value="">&mdash; None &mdash;</option>
           <option value="" disabled>Loading&hellip;</option>
         </select>
+        <div id="jira-create-epic-row" style="display:none;margin-top:4px;display:none;gap:4px;align-items:center;">
+          <input type="text" id="jira-new-epic-name" class="jira-select" placeholder="New epic name" style="flex:1" />
+          <button id="jira-create-epic-btn" style="white-space:nowrap">Create</button>
+          <button id="jira-create-epic-cancel" class="secondary" style="white-space:nowrap;padding:4px 8px">&#10005;</button>
+        </div>
         ${epicMappingRow}
       </div>
       <div class="jira-field">
@@ -3548,32 +3553,61 @@ function showJiraProjectAndTaskPicker(
   };
 
   // Handle epic select change — create new epic flow
+  const createEpicRow = overlay.querySelector('#jira-create-epic-row') as HTMLElement;
+  const newEpicNameInput = overlay.querySelector('#jira-new-epic-name') as HTMLInputElement;
+  const createEpicBtn = overlay.querySelector('#jira-create-epic-btn') as HTMLButtonElement;
+  const createEpicCancelBtn = overlay.querySelector('#jira-create-epic-cancel') as HTMLButtonElement;
+
   epicSelect.addEventListener('change', () => {
     if (epicSelect.value === '__create__') {
-      const epicName = prompt('Enter a name for the new epic:');
-      if (epicName && epicName.trim()) {
-        epicSelect.innerHTML = '<option value="" disabled selected>Creating&hellip;</option>';
-        jiraEpicsCallback = (payload) => {
-          jiraEpicsCallback = null;
-          if (payload.error) {
-            epicSelect.innerHTML = `<option value="">&mdash; None &mdash;</option><option value="" disabled>Error: ${escapeHtml(payload.error)}</option>`;
-            return;
-          }
-          let opts = '<option value="">&mdash; None &mdash;</option>';
-          for (const ep of payload.epics) {
-            opts += `<option value="${escapeHtml(ep.key)}">${escapeHtml(ep.name)} (${escapeHtml(ep.key)})</option>`;
-          }
-          opts += '<option value="__create__">\uFF0B Create new epic\u2026</option>';
-          epicSelect.innerHTML = opts;
-          if (payload.newEpicKey) {
-            epicSelect.value = payload.newEpicKey;
-          }
-        };
-        vscode.postMessage({ type: 'createJiraEpic', payload: { projectKey: projectSelect.value, epicName: epicName.trim() } });
-      } else {
-        epicSelect.value = ''; // Reset to None
-      }
+      epicSelect.style.display = 'none';
+      createEpicRow.style.display = 'flex';
+      newEpicNameInput.value = '';
+      newEpicNameInput.focus();
+    } else {
+      createEpicRow.style.display = 'none';
+      epicSelect.style.display = '';
     }
+  });
+
+  const submitCreateEpic = () => {
+    const epicName = newEpicNameInput.value.trim();
+    if (!epicName) { newEpicNameInput.focus(); return; }
+    createEpicBtn.disabled = true;
+    createEpicBtn.textContent = 'Creating\u2026';
+    newEpicNameInput.disabled = true;
+    jiraEpicsCallback = (payload) => {
+      jiraEpicsCallback = null;
+      createEpicRow.style.display = 'none';
+      epicSelect.style.display = '';
+      createEpicBtn.disabled = false;
+      createEpicBtn.textContent = 'Create';
+      newEpicNameInput.disabled = false;
+      if (payload.error) {
+        epicSelect.innerHTML = `<option value="">&mdash; None &mdash;</option><option value="" disabled>Error: ${escapeHtml(payload.error)}</option>`;
+        return;
+      }
+      let opts = '<option value="">&mdash; None &mdash;</option>';
+      for (const ep of payload.epics) {
+        opts += `<option value="${escapeHtml(ep.key)}">${escapeHtml(ep.name)} (${escapeHtml(ep.key)})</option>`;
+      }
+      opts += '<option value="__create__">\uFF0B Create new epic\u2026</option>';
+      epicSelect.innerHTML = opts;
+      if (payload.newEpicKey) {
+        epicSelect.value = payload.newEpicKey;
+      }
+    };
+    vscode.postMessage({ type: 'createJiraEpic', payload: { projectKey: projectSelect.value, epicName } });
+  };
+
+  createEpicBtn.addEventListener('click', submitCreateEpic);
+  newEpicNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submitCreateEpic(); }
+  });
+  createEpicCancelBtn.addEventListener('click', () => {
+    createEpicRow.style.display = 'none';
+    epicSelect.style.display = '';
+    epicSelect.value = '';
   });
 
   // Epic mapping save
