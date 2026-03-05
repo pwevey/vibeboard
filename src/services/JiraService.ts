@@ -281,7 +281,8 @@ export class JiraService {
     projectKey: string,
     issueType: string = 'Task',
     onProgress?: (done: number, total: number) => void,
-    statusMapping?: Record<string, string>
+    statusMapping?: Record<string, string>,
+    exportMeta?: { projectContext?: string; sessionNames?: Record<string, string>; boardNames?: Record<string, string> }
   ): Promise<{ created: JiraCreatedIssue[]; errors: string[] }> {
     const cfg = await this.getConfig();
     if (!cfg) { return { created: [], errors: ['Jira credentials not configured.'] }; }
@@ -292,7 +293,7 @@ export class JiraService {
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
       try {
-        const result = await this.createSingleIssue(cfg, task, projectKey, issueType);
+        const result = await this.createSingleIssue(cfg, task, projectKey, issueType, exportMeta);
         created.push(result);
 
         // Transition to mapped status if specified
@@ -330,7 +331,8 @@ export class JiraService {
     cfg: { baseUrl: string; email: string; token: string },
     task: VBTask,
     projectKey: string,
-    issueType: string
+    issueType: string,
+    exportMeta?: { projectContext?: string; sessionNames?: Record<string, string>; boardNames?: Record<string, string> }
   ): Promise<JiraCreatedIssue> {
     // Build description in ADF (Atlassian Document Format)
     const descParagraphs: object[] = [];
@@ -349,11 +351,23 @@ export class JiraService {
       `Priority: ${task.priority}`,
       `Status: ${STATUS_LABEL[task.status] || task.status}`,
     ];
+    const sessionName = exportMeta?.sessionNames?.[task.sessionId];
+    if (sessionName) {
+      metaLines.push(`Session: ${sessionName}`);
+    }
+    const boardName = exportMeta?.boardNames?.[task.boardId];
+    if (boardName) {
+      metaLines.push(`Board: ${boardName}`);
+    }
+    metaLines.push(`Created: ${new Date(task.createdAt).toLocaleDateString()}`);
     if (task.timeSpentMs > 0) {
       metaLines.push(`Time spent: ${this.formatDuration(task.timeSpentMs)}`);
     }
     if (task.completedAt) {
       metaLines.push(`Completed: ${new Date(task.completedAt).toLocaleDateString()}`);
+    }
+    if (task.carriedFromSessionId) {
+      metaLines.push('Carried over: Yes');
     }
     descParagraphs.push({
       type: 'paragraph',
@@ -361,6 +375,16 @@ export class JiraService {
         { type: 'text', text: '— Exported from Vibe Board —\n' + metaLines.join('\n'), marks: [{ type: 'em' }] },
       ],
     });
+
+    // Project context block
+    if (exportMeta?.projectContext?.trim()) {
+      descParagraphs.push({
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: 'Project Context:\n' + exportMeta.projectContext.trim(), marks: [{ type: 'em' }] },
+        ],
+      });
+    }
 
     const body = {
       fields: {

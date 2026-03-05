@@ -885,12 +885,27 @@ export class MessageHandler {
             break;
           }
 
+          // Resolve export metadata: project context, session names, board names
+          const activeSession = data.activeSessionId ? data.sessions.find((s) => s.id === data.activeSessionId) : null;
+          const activeProjectId = (activeSession as Record<string, unknown>)?.projectId as string | undefined;
+          const activeProject = activeProjectId ? (data as Record<string, unknown>).projects as { id: string; copilotContext?: string; copilotContextEnabled?: boolean }[] | undefined : undefined;
+          const projObj = activeProject?.find((p) => p.id === activeProjectId);
+          const projectContext = projObj?.copilotContextEnabled !== false ? projObj?.copilotContext : undefined;
+
+          const sessionNames: Record<string, string> = {};
+          for (const s of data.sessions) { sessionNames[s.id] = s.name; }
+
+          const boardNames: Record<string, string> = {};
+          const boards = (data as Record<string, unknown>).boards as { id: string; name: string }[] | undefined;
+          if (boards) { for (const b of boards) { boardNames[b.id] = b.name; } }
+
           const { created, errors } = await this.jiraService.createIssues(
             tasksToExport,
             projectKey,
             issueType || 'Task',
             undefined,
-            statusMapping
+            statusMapping,
+            { projectContext, sessionNames, boardNames }
           );
 
           const success = created.length > 0 && errors.length === 0;
