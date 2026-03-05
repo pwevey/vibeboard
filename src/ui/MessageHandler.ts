@@ -942,10 +942,12 @@ export class MessageHandler {
 
   /**
    * Send initial state + settings to the webview (called once on first connect).
+   * State is sent synchronously; settings are sent async (may involve keychain reads).
    */
-  async sendInitialState(): Promise<void> {
+  sendInitialState(): void {
     this.sendStateUpdate();
-    await this.sendSettingsUpdate();
+    // Fire-and-forget — don't block on keychain I/O
+    this.sendSettingsUpdate();
   }
 
   /**
@@ -955,6 +957,11 @@ export class MessageHandler {
   private settingsCache: Record<string, unknown> | null = null;
   private async sendSettingsUpdate(): Promise<void> {
     if (!this.webview) { return; }
+    // Return cached settings immediately if available (skip keychain reads)
+    if (this.settingsCache) {
+      this.webview.postMessage({ type: 'settingsUpdate', payload: this.settingsCache });
+      return;
+    }
     const config = vscode.workspace.getConfiguration('vibeboard');
     const jiraSummary = await this.secretStorage.getJiraSummary();
     this.settingsCache = {

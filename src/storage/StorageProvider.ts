@@ -31,20 +31,13 @@ export class StorageProvider {
     this.storageUri = vscode.Uri.joinPath(dirUri, STORAGE_FILE);
     this.backupDirUri = vscode.Uri.joinPath(dirUri, BACKUP_DIR);
 
-    // Ensure data directory exists (backup dir created lazily on first backup)
-    try {
-      await vscode.workspace.fs.createDirectory(dirUri);
-    } catch {
-      // Directory may already exist
-    }
-
-    await this.load();
+    await this.load(dirUri);
   }
 
   /**
    * Load data from the JSON file. Creates default if not found.
    */
-  private async load(): Promise<void> {
+  private async load(dirUri?: vscode.Uri): Promise<void> {
     if (!this.storageUri) {
       return;
     }
@@ -63,7 +56,10 @@ export class StorageProvider {
         this.data = createDefaultWorkspaceData();
       }
     } catch {
-      // File doesn't exist yet or is corrupted — use defaults
+      // File doesn't exist yet or is corrupted — ensure directory exists and write defaults
+      if (dirUri) {
+        try { await vscode.workspace.fs.createDirectory(dirUri); } catch { /* already exists */ }
+      }
       this.data = createDefaultWorkspaceData();
       await this.flush();
     }
