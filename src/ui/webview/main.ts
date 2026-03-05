@@ -4064,6 +4064,10 @@ function showJiraImportProjectPicker(
         <label for="jira-import-jql">Filter <span style="opacity:0.6;font-weight:normal">(JQL — optional)</span></label>
         <input type="text" id="jira-import-jql" class="jira-input" placeholder='e.g. status = "To Do" AND type = Bug' />
       </div>
+      <label class="jira-filter-row" style="margin-top:-4px;">
+        <input type="checkbox" id="jira-import-exclude-completed" checked />
+        <span>Exclude Completed issues</span>
+      </label>
       <div class="modal-actions">
         <button class="secondary" id="jira-import-cancel">Cancel</button>
         <button id="jira-import-search">&#128269; Search Issues</button>
@@ -4075,6 +4079,32 @@ function showJiraImportProjectPicker(
   overlay.querySelector('#jira-import-search')!.addEventListener('click', () => {
     const projectKey = (overlay.querySelector('#jira-import-project') as HTMLSelectElement).value;
     const jql = (overlay.querySelector('#jira-import-jql') as HTMLInputElement).value.trim();
+    const excludeCompleted = (overlay.querySelector('#jira-import-exclude-completed') as HTMLInputElement).checked;
+
+    // Determine Jira statuses that map to "completed" using saved mapping + smart defaults
+    let completedJiraStatuses: string[] = [];
+    if (excludeCompleted) {
+      const savedMapping = ((state as Record<string, unknown>)?.jiraStatusMapping as Record<string, { export: Record<string, string>; import: Record<string, string> }> || {})[projectKey]?.import || {};
+      // Collect statuses explicitly mapped to completed
+      for (const [jiraStatus, vbStatus] of Object.entries(savedMapping)) {
+        if (vbStatus === 'completed') { completedJiraStatuses.push(jiraStatus); }
+      }
+      // Add well-known completed statuses if not already mapped elsewhere
+      const knownCompleted = ['Done', 'Closed', 'Resolved', 'Complete', 'Completed'];
+      for (const kc of knownCompleted) {
+        if (!completedJiraStatuses.includes(kc) && !savedMapping[kc]) {
+          completedJiraStatuses.push(kc);
+        }
+      }
+    }
+
+    // Build the effective JQL, appending the completed exclusion if needed
+    let effectiveJql = jql || '';
+    if (excludeCompleted && completedJiraStatuses.length > 0) {
+      const statusList = completedJiraStatuses.map((s) => `"${s}"`).join(', ');
+      const excludeClause = `status NOT IN (${statusList})`;
+      effectiveJql = effectiveJql ? `(${effectiveJql}) AND ${excludeClause}` : excludeClause;
+    }
 
     // Show loading state
     const searchBtn = overlay.querySelector('#jira-import-search') as HTMLButtonElement;
@@ -4108,10 +4138,10 @@ function showJiraImportProjectPicker(
         errEl.textContent = 'No issues found matching your filter.';
         return;
       }
-      showJiraImportIssuePicker(overlay, payload.issues, payload.total, projectKey, jql, jiraProjects);
+      showJiraImportIssuePicker(overlay, payload.issues, payload.total, projectKey, jql, jiraProjects, excludeCompleted);
     };
 
-    vscode.postMessage({ type: 'searchJiraIssues', payload: { projectKey, jql: jql || undefined, maxResults: 50 } });
+    vscode.postMessage({ type: 'searchJiraIssues', payload: { projectKey, jql: effectiveJql || undefined, maxResults: 50 } });
   });
 }
 
@@ -4124,7 +4154,8 @@ function showJiraImportIssuePicker(
   total: number,
   projectKey: string,
   jql: string,
-  jiraProjects: { id: string; key: string; name: string }[]
+  jiraProjects: { id: string; key: string; name: string }[],
+  excludeCompleted: boolean = false
 ): void {
   const issueTypeIcon = (t: string): string => {
     const lt = t.toLowerCase();
@@ -4142,9 +4173,25 @@ function showJiraImportIssuePicker(
     return 'priority-medium';
   };
 
+  // If excludeCompleted, filter out issues whose Jira status maps to "completed"
+  let filteredIssues = issues;
+  if (excludeCompleted) {
+    const savedMapping = ((state as Record<string, unknown>)?.jiraStatusMapping as Record<string, { export: Record<string, string>; import: Record<string, string> }> || {})[projectKey]?.import || {};
+    const completedStatuses = new Set<string>();
+    // Statuses explicitly mapped to completed
+    for (const [jiraStatus, vbStatus] of Object.entries(savedMapping)) {
+      if (vbStatus === 'completed') { completedStatuses.add(jiraStatus); }
+    }
+    // Well-known completed statuses (if not explicitly mapped to something else)
+    for (const kc of ['Done', 'Closed', 'Resolved', 'Complete', 'Completed']) {
+      if (!savedMapping[kc]) { completedStatuses.add(kc); }
+    }
+    filteredIssues = issues.filter((i) => !completedStatuses.has(i.status));
+  }
+
   // Group issues by Jira status
   const statusGroups = new Map<string, JiraImportIssue[]>();
-  for (const issue of issues) {
+  for (const issue of filteredIssues) {
     const s = issue.status;
     if (!statusGroups.has(s)) { statusGroups.set(s, []); }
     statusGroups.get(s)!.push(issue);
@@ -4186,7 +4233,9 @@ function showJiraImportIssuePicker(
     </div>`;
   }
 
-  const showing = issues.length < total ? `Showing ${issues.length} of ${total}` : `${issues.length} issue${issues.length === 1 ? '' : 's'}`;
+  const showing = filteredIssues.length < total
+    ? (excludeCompleted ? `${filteredIssues.length} issue${filteredIssues.length === 1 ? '' : 's'} (excluding completed)` : `Showing ${filteredIssues.length} of ${total}`)
+    : `${filteredIssues.length} issue${filteredIssues.length === 1 ? '' : 's'}`;
 
   overlay.querySelector('.jira-dialog')!.innerHTML = `
     <h3>&#128229; Import from Jira</h3>
@@ -4203,7 +4252,7 @@ function showJiraImportIssuePicker(
       </div>
       <div class="modal-actions">
         <button class="secondary" id="jira-import-back">&#8592; Back</button>
-        <button id="jira-import-confirm">&#128229; Import ${issues.length} Issue${issues.length === 1 ? '' : 's'}</button>
+        <button id="jira-import-confirm">&#128229; Import ${filteredIssues.length} Issue${filteredIssues.length === 1 ? '' : 's'}</button>
       </div>
     </div>`;
 
@@ -4297,7 +4346,7 @@ function showJiraImportIssuePicker(
       checkedKeys.add(cb.value);
     });
 
-    const selectedIssues = issues.filter((i) => checkedKeys.has(i.key));
+    const selectedIssues = filteredIssues.filter((i) => checkedKeys.has(i.key));
     if (selectedIssues.length === 0) { return; }
 
     // Determine which unique Jira statuses are present in the selected issues
