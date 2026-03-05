@@ -741,10 +741,13 @@ function renderCarriedOverBanner(): string {
     </div>`;
   }).join('');
 
-  return `<div class="carried-over-banner" role="region" aria-label="Carried over tasks">
+  return `<div class="carried-over-banner" id="carried-over-banner" role="region" aria-label="Carried over tasks">
     <div class="carried-over-header" id="carried-over-toggle">
       <span>&#8634; ${carriedTasks.length} task${carriedTasks.length === 1 ? '' : 's'} carried over from <strong>${escapeHtml(fromName)}</strong></span>
-      <button class="icon-btn carried-over-expand" title="Toggle details" aria-label="Toggle carried over details">&#9660;</button>
+      <span style="display:flex;gap:2px;align-items:center;">
+        <button class="icon-btn carried-over-expand" title="Toggle details" aria-label="Toggle carried over details">&#9660;</button>
+        <button class="icon-btn" id="carried-over-dismiss" title="Dismiss" aria-label="Dismiss carried over banner" style="font-size:13px;opacity:0.7;">&#10005;</button>
+      </span>
     </div>
     <div class="carried-over-details" id="carried-over-details" style="display:none;">
       ${taskList}
@@ -1207,7 +1210,8 @@ function bindEvents(): void {
   });
 
   // Carried-over banner toggle
-  document.getElementById('carried-over-toggle')?.addEventListener('click', () => {
+  document.getElementById('carried-over-toggle')?.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).id === 'carried-over-dismiss') { return; }
     const details = document.getElementById('carried-over-details');
     const expandBtn = document.querySelector('.carried-over-expand');
     if (details) {
@@ -1215,6 +1219,13 @@ function bindEvents(): void {
       details.style.display = isHidden ? 'block' : 'none';
       if (expandBtn) { expandBtn.innerHTML = isHidden ? '&#9650;' : '&#9660;'; }
     }
+  });
+
+  // Carried-over banner dismiss
+  document.getElementById('carried-over-dismiss')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const banner = document.getElementById('carried-over-banner');
+    if (banner) { banner.style.display = 'none'; }
   });
 
   // Start page show all / show less toggles
