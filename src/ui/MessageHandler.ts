@@ -1018,7 +1018,7 @@ export class MessageHandler {
    * Build a context instruction prefix from project-level and task-level context.
    * Returns an empty string if no context is set.
    */
-  private buildContextPrefix(data: { projects?: { id: string; copilotContext?: string; copilotContextEnabled?: boolean }[]; activeProjectId?: string | null; sessions?: { id: string; projectId?: string }[] }, task?: { sessionId: string; copilotContext?: string }, skipProjectContext = false): string {
+  private buildContextPrefix(data: { projects?: { id: string; copilotContext?: string; copilotContextEnabled?: boolean }[]; activeProjectId?: string | null; sessions?: { id: string; projectId?: string }[] }, task?: { sessionId: string }, skipProjectContext = false): string {
     const parts: string[] = [];
 
     // Project-level context: find the project for the task's session
@@ -1028,11 +1028,6 @@ export class MessageHandler {
       if (project?.copilotContext?.trim() && project.copilotContextEnabled !== false) {
         parts.push(`[Project Context]\n${project.copilotContext.trim()}`);
       }
-    }
-
-    // Task-level context
-    if (task?.copilotContext?.trim()) {
-      parts.push(`[Task Context]\n${task.copilotContext.trim()}`);
     }
 
     return parts.join('\n\n');
@@ -1713,11 +1708,10 @@ export class MessageHandler {
         carriedOver,
         new Date(task.createdAt).toLocaleString(),
         task.completedAt ? new Date(task.completedAt).toLocaleString() : '',
-        csvEsc(task.copilotContext || ''),
       ].join(',');
     };
 
-    const csvTaskHeader = 'Session,Session Date,Session Duration,Task Title,Description,Priority,Status,Board,Carried Over,Created,Completed,Copilot Context';
+    const csvTaskHeader = 'Session,Session Date,Session Duration,Task Title,Description,Priority,Status,Board,Carried Over,Created,Completed';
 
     if (hasProjects) {
       // Group by project, then by tag within each project
@@ -1986,9 +1980,6 @@ export class MessageHandler {
         for (const descLine of t.description.split('\n')) {
           lines.push(`  ${descLine}`);
         }
-      }
-      if (t.copilotContext) {
-        lines.push(`  *Copilot Context: ${t.copilotContext.replace(/[\r\n]+/g, ' ')}*`);
       }
     };
 

@@ -1002,10 +1002,6 @@ function renderTaskEditCard(task: VBTask): string {
   return `<div class="task-card editing" data-task-id="${task.id}" role="listitem">
     <input type="text" class="edit-title-input" data-save-title="${task.id}" value="${escapeAttr(task.title)}" placeholder="Task title" aria-label="Edit title" />
     <textarea class="edit-desc-input" data-save-desc="${task.id}" placeholder="Description (optional)" rows="3" aria-label="Edit description">${escapeHtml(task.description)}</textarea>
-    <details class="edit-context-details">
-      <summary style="font-size:11px;color:var(--vscode-descriptionForeground);cursor:pointer;margin:4px 0;">&#129302; Copilot Context</summary>
-      <textarea class="edit-desc-input" data-save-context="${task.id}" placeholder="Task-specific instructions for Copilot (optional)" rows="2" aria-label="Copilot context" style="margin-top:4px;">${escapeHtml(task.copilotContext || '')}</textarea>
-    </details>
     ${attachmentHtml}
     <div class="edit-controls">
       <select data-save-tag="${task.id}" aria-label="Tag">${tagOpts}</select>
@@ -1854,8 +1850,6 @@ function saveEdit(taskId: string): void {
   if (descInput) { changes.description = descInput.value; }
   if (tagSelect) { changes.tag = tagSelect.value; }
   if (prioSelect) { changes.priority = prioSelect.value; }
-  const contextInput = document.querySelector(`[data-save-context="${taskId}"]`) as HTMLTextAreaElement;
-  if (contextInput) { changes.copilotContext = contextInput.value.trim(); }
 
   vscode.postMessage({ type: 'updateTask', payload: { id: taskId, changes } });
   editingTaskId = null;
@@ -1874,6 +1868,14 @@ function bindFollowUpEvents(): void {
   const cancelBtn = document.getElementById('btn-follow-up-cancel');
   const voiceBtn = document.getElementById('btn-follow-up-voice');
   const attachBtn = document.getElementById('btn-follow-up-attach');
+
+  // Enter key sends follow-up (Shift+Enter for new line)
+  followUpInput?.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendBtn?.click();
+    }
+  });
 
   // Send follow-up
   sendBtn?.addEventListener('click', () => {
@@ -4457,11 +4459,10 @@ function renderHelpContent(section: string): string {
           <li>If Copilot Chat is not available, the prompt is copied to your clipboard instead.</li>
         </ul>
         <h4>Copilot Context</h4>
-        <p>Attach persistent instructions to projects and tasks that are automatically included in every Copilot prompt.</p>
+        <p>Attach persistent instructions to projects that are automatically included in every Copilot prompt.</p>
         <ul>
           <li><strong>Project-level context</strong> &mdash; Set in the <strong>Edit Project</strong> dialog (click the pencil icon on a project chip). These instructions apply to every task in the project (e.g. &ldquo;Always add comments, run tests, update help docs&rdquo;).</li>
-          <li><strong>Task-level context</strong> &mdash; Set in the task edit card under the <strong>&#129302; Copilot Context</strong> collapsible section. These instructions apply only to that specific task.</li>
-          <li>When a task is sent to Copilot, the project context is prepended first, then the task context, then the task title and description.</li>
+          <li>When a task is sent to Copilot, the project context is prepended before the task title and description.</li>
           <li>Context is also included during <strong>Automation</strong> runs.</li>
         </ul>
         <h4>Copilot Completion Loop</h4>

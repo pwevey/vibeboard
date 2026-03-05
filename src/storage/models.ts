@@ -54,7 +54,6 @@ export interface VBTask {
   attachments?: VBAttachment[]; // image/file attachments
   copilotLog?: { prompt: string; timestamp: string }[]; // log of follow-up prompts sent to Copilot
   sentToCopilot?: boolean; // true while awaiting Copilot completion
-  copilotContext?: string; // task-level instructions passed to Copilot with this task's prompt
   jiraIssueKey?: string;    // Jira issue key (e.g. SAM-123) — last exported key (legacy)
   jiraExportedAt?: string;  // ISO 8601 when task was last exported to Jira (legacy)
   jiraExports?: Record<string, { issueKey: string; exportedAt: string }>; // per-Jira-project export tracking (projectKey → info)
@@ -161,7 +160,7 @@ export interface AutomationProgress {
 
 export type WebviewToExtensionMessage =
   | { type: 'addTask'; payload: { title: string; tag: TaskTag; status: TaskStatus; priority?: TaskPriority; description?: string; attachments?: VBAttachment[] } }
-  | { type: 'updateTask'; payload: { id: string; changes: Partial<Pick<VBTask, 'title' | 'description' | 'tag' | 'priority' | 'copilotContext'>> } }
+  | { type: 'updateTask'; payload: { id: string; changes: Partial<Pick<VBTask, 'title' | 'description' | 'tag' | 'priority'>> } }
   | { type: 'moveTask'; payload: { id: string; newStatus: TaskStatus; newOrder: number } }
   | { type: 'deleteTask'; payload: { id: string } }
   | { type: 'completeTask'; payload: { id: string } }

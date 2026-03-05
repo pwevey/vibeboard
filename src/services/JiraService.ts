@@ -355,10 +355,6 @@ export class JiraService {
     if (task.completedAt) {
       metaLines.push(`Completed: ${new Date(task.completedAt).toLocaleDateString()}`);
     }
-    if (task.copilotContext) {
-      metaLines.push(`Copilot Context: ${task.copilotContext}`);
-    }
-
     descParagraphs.push({
       type: 'paragraph',
       content: [

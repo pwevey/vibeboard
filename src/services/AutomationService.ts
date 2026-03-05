@@ -348,9 +348,6 @@ export class AutomationService {
         contextParts.push(`[Project Context]\n${project.copilotContext.trim()}`);
       }
     }
-    if (task.copilotContext?.trim()) {
-      contextParts.push(`[Task Context]\n${task.copilotContext.trim()}`);
-    }
     if (contextParts.length > 0) {
       prompt = contextParts.join('\n\n') + '\n\n' + prompt;
     }
