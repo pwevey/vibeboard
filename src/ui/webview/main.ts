@@ -2653,9 +2653,10 @@ function showEndSessionJiraPrompt(boardIds: string[]): void {
 
   if (extensionSettings.jiraConfigured) {
     // Jira is configured — offer to export
-    const sessionTasks = state?.tasks?.filter(
+    // Filter to actionable tasks (exclude notes), matching the export dialog logic
+    const sessionTasks = (state?.tasks?.filter(
       (t) => t.sessionId === state?.activeSessionId
-    ) || [];
+    ) || []).filter((t: { status: string; tag: string }) => t.status !== 'notes' || t.tag !== 'note');
     const unexported = sessionTasks.filter((t: { jiraExports?: Record<string, unknown>; jiraIssueKey?: string }) =>
       !t.jiraIssueKey && (!t.jiraExports || Object.keys(t.jiraExports).length === 0)
     );
