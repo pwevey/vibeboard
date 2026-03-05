@@ -99,7 +99,13 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
   <title>Vibe Board</title>
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;opacity:0.5;">
+      <div style="width:24px;height:24px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:vb-spin 0.8s linear infinite;"></div>
+      <div style="margin-top:10px;font-size:12px;">Loading Vibe Board&hellip;</div>
+    </div>
+    <style>@keyframes vb-spin{to{transform:rotate(360deg)}}</style>
+  </div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
