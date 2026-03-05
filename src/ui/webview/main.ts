@@ -2144,6 +2144,13 @@ function showSettingsDialog(): void {
     <div class="settings-section-divider"></div>
     <h4 class="settings-section-title">&#127919; Jira Integration</h4>
     <p class="settings-section-desc">Export tasks as Jira issues. Your email and API token are stored securely in your OS keychain — never in plain text.</p>
+    <div class="start-settings" style="margin-bottom:8px;">
+      <label class="start-setting-row">
+        <input type="checkbox" id="jira-prompt-toggle" ${!(state as Record<string, unknown>)?.jiraPromptDismissed ? 'checked' : ''} />
+        <span class="start-setting-label">End-Session Export Prompt</span>
+        <span class="start-setting-desc">Ask to export tasks to Jira when ending a session</span>
+      </label>
+    </div>
     <div class="jira-save-row" style="margin-bottom:8px;">
       <button class="secondary" id="jira-test-btn">&#128267; Test Connection</button>
       <span class="jira-save-status" id="jira-test-status"></span>
@@ -2215,6 +2222,12 @@ function showSettingsDialog(): void {
       vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
       (extensionSettings as Record<string, unknown>)[key] = val;
     });
+  });
+
+  // Jira end-session prompt toggle
+  document.getElementById('jira-prompt-toggle')?.addEventListener('change', (e) => {
+    const checked = (e.target as HTMLInputElement).checked;
+    vscode.postMessage({ type: 'setJiraPromptDismissed', payload: { dismissed: !checked } });
   });
 
   // Jira Save button — sends credentials via secure saveJiraCredentials message
