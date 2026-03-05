@@ -3137,7 +3137,7 @@ textarea:focus-visible {
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .jira-loading {
@@ -3207,8 +3207,8 @@ textarea:focus-visible {
 }
 
 .jira-task-list {
-  height: 350px;
-  overflow-y: scroll;
+  max-height: 350px;
+  overflow-y: auto;
   border: 1px solid var(--vscode-widget-border);
   border-radius: 4px;
   padding: 4px;

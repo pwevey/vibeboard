@@ -3414,11 +3414,11 @@ function showJiraProjectAndTaskPicker(
       html += `<div class="jira-group" data-group-key="${escapeHtml(status)}">
         <div class="jira-group-header">
           <input type="checkbox" class="jira-group-select-all" data-group="${escapeHtml(status)}" checked />
-          <button type="button" class="jira-group-toggle" data-group="${escapeHtml(status)}" aria-expanded="true">&#9660;</button>
+          <button type="button" class="jira-group-toggle" data-group="${escapeHtml(status)}" aria-expanded="false">&#9654;</button>
           <strong>${escapeHtml(label)}</strong>
           <span class="jira-group-count">(${group.length})</span>
         </div>
-        <div class="jira-group-body" data-group="${escapeHtml(status)}">
+        <div class="jira-group-body" data-group="${escapeHtml(status)}" style="display:none">
           ${rows}
         </div>
       </div>`;
@@ -4176,11 +4176,11 @@ function showJiraImportIssuePicker(
     <div class="jira-group" data-group-key="${escapeHtml(groupKey)}">
       <div class="jira-group-header">
         <input type="checkbox" class="jira-group-select-all" data-group="${escapeHtml(groupKey)}" checked />
-        <button class="jira-group-toggle" data-group="${escapeHtml(groupKey)}" aria-expanded="true">&#9660;</button>
+        <button class="jira-group-toggle" data-group="${escapeHtml(groupKey)}" aria-expanded="false">&#9654;</button>
         <strong>${escapeHtml(statusName)}</strong>
         <span class="jira-group-count">(${groupIssues.length})</span>
       </div>
-      <div class="jira-group-body" data-group="${escapeHtml(groupKey)}">
+      <div class="jira-group-body" data-group="${escapeHtml(groupKey)}" style="display:none">
         ${issueRows}
       </div>
     </div>`;
