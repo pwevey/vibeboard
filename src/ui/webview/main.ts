@@ -210,6 +210,12 @@ window.addEventListener('message', (event) => {
     case 'stateUpdate':
       state = message.payload as VBWorkspaceData;
       render();
+      // Execute any pending Jira import now that a session is active
+      if (pendingJiraImport && state.activeSessionId) {
+        const pending = pendingJiraImport;
+        pendingJiraImport = null;
+        vscode.postMessage({ type: 'importFromJira', payload: pending });
+      }
       break;
     case 'sessionSummary':
       showSummary(message.payload as VBSessionSummary);
@@ -3156,6 +3162,9 @@ let jiraSearchCallback: ((payload: { issues: JiraImportIssue[]; total: number; e
 /** Pending callback for Jira import results. */
 let jiraImportCallback: ((payload: { success: boolean; imported: number; error?: string }) => void) | null = null;
 
+/** Pending Jira import — stored when user tries to import without an active session. Executed automatically after session starts. */
+let pendingJiraImport: { issues: JiraImportIssue[]; targetStatus: string } | null = null;
+
 /**
  * Show the Jira export dialog.
  * Step 1: Check credentials → fetch projects → show project picker with task selection.
@@ -4096,6 +4105,8 @@ function showJiraImportIssuePicker(
     if (selectedIssues.length === 0) { return; }
 
     if (!state?.activeSessionId) {
+      // Store the import for after session starts
+      pendingJiraImport = { issues: selectedIssues, targetStatus };
       overlay.remove();
       flushPendingBoardClose();
       showStartSessionDialog();
