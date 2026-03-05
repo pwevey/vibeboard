@@ -755,6 +755,7 @@ export class MessageHandler {
         const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl'];
         if (allowedKeys.includes(key)) {
           await vscode.workspace.getConfiguration('vibeboard').update(key, value, vscode.ConfigurationTarget.Global);
+          this.invalidateSettingsCache();
         }
         break;
       }
@@ -762,14 +763,14 @@ export class MessageHandler {
       case 'saveJiraCredentials': {
         const { baseUrl, email, token } = message.payload as { baseUrl: string; email: string; token: string };
         await this.secretStorage.saveJiraCredentials(baseUrl, email, token);
-        // Send updated summary back so webview reflects the new state
-        this.sendStateUpdate();
+        // Invalidate cache and send updated settings so webview reflects the new state
+        this.invalidateSettingsCache();
         break;
       }
 
       case 'clearJiraCredentials': {
         await this.secretStorage.clearJiraCredentials();
-        this.sendStateUpdate();
+        this.invalidateSettingsCache();
         break;
       }
 
@@ -937,31 +938,46 @@ export class MessageHandler {
       redoCount: redoStack?.length ?? 0,
     };
     this.webview.postMessage({ type: 'stateUpdate', payload });
-    // Send current settings to webview (async for SecretStorage)
-    this.sendSettingsUpdate();
+  }
+
+  /**
+   * Send initial state + settings to the webview (called once on first connect).
+   */
+  async sendInitialState(): Promise<void> {
+    this.sendStateUpdate();
+    await this.sendSettingsUpdate();
   }
 
   /**
    * Send settings (including Jira credential summary from SecretStorage) to webview.
+   * Caches the result so subsequent calls don't hit the keychain.
    */
+  private settingsCache: Record<string, unknown> | null = null;
   private async sendSettingsUpdate(): Promise<void> {
     if (!this.webview) { return; }
     const config = vscode.workspace.getConfiguration('vibeboard');
     const jiraSummary = await this.secretStorage.getJiraSummary();
-    this.webview.postMessage({
-      type: 'settingsUpdate',
-      payload: {
-        autoBackup: config.get<boolean>('autoBackup', true),
-        autoBackupMaxCount: config.get<number>('autoBackupMaxCount', 10),
-        autoBackupIntervalMin: config.get<number>('autoBackupIntervalMin', 5),
-        autoPromptSession: config.get<boolean>('autoPromptSession', true),
-        carryOverTasks: config.get<boolean>('carryOverTasks', true),
-        jiraBaseUrl: config.get<string>('jiraBaseUrl', ''),
-        jiraEmail: jiraSummary.email,
-        jiraConfigured: jiraSummary.configured,
-        jiraApiTokenLength: jiraSummary.tokenLength,
-      },
-    });
+    this.settingsCache = {
+      autoBackup: config.get<boolean>('autoBackup', true),
+      autoBackupMaxCount: config.get<number>('autoBackupMaxCount', 10),
+      autoBackupIntervalMin: config.get<number>('autoBackupIntervalMin', 5),
+      autoPromptSession: config.get<boolean>('autoPromptSession', true),
+      carryOverTasks: config.get<boolean>('carryOverTasks', true),
+      jiraBaseUrl: config.get<string>('jiraBaseUrl', ''),
+      jiraEmail: jiraSummary.email,
+      jiraConfigured: jiraSummary.configured,
+      jiraApiTokenLength: jiraSummary.tokenLength,
+    };
+    this.webview.postMessage({ type: 'settingsUpdate', payload: this.settingsCache });
+  }
+
+  /**
+   * Invalidate settings cache and re-send to webview.
+   * Call this when credentials or settings change.
+   */
+  invalidateSettingsCache(): void {
+    this.settingsCache = null;
+    this.sendSettingsUpdate();
   }
 
   /**

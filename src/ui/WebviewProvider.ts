@@ -25,7 +25,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
     this.messageHandler = handler;
     if (this.view) {
       handler.setWebview(this.view.webview);
-      handler.sendStateUpdate();
+      handler.sendInitialState();
     }
   }
 
@@ -69,7 +69,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
     // If handler is already set (unlikely on first open), bind it now
     if (this.messageHandler) {
       this.messageHandler.setWebview(webviewView.webview);
-      this.messageHandler.sendStateUpdate();
+      this.messageHandler.sendInitialState();
     } else {
       // Kick off lazy init — once done, setMessageHandler will be called
       this.ensureInit();

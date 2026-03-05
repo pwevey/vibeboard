@@ -174,24 +174,26 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   });
 
-  // Auto-prompt for session on startup (non-blocking, after lazy init)
-  ensureInitialized().then((ok) => {
-    if (!ok) { return; }
-    const config = vscode.workspace.getConfiguration('vibeboard');
-    const autoPrompt = config.get<boolean>('autoPromptSession', true);
+  // Auto-prompt for session on startup (deferred — let extension host finish loading first)
+  setTimeout(() => {
+    ensureInitialized().then((ok) => {
+      if (!ok) { return; }
+      const config = vscode.workspace.getConfiguration('vibeboard');
+      const autoPrompt = config.get<boolean>('autoPromptSession', true);
 
-    if (autoPrompt && !sessionManager!.hasActiveSession()) {
-      vscode.window.showInformationMessage(
-        'Vibe Board: Start a new session?',
-        'Start Session',
-        'Not Now'
-      ).then((action) => {
-        if (action === 'Start Session') {
-          vscode.commands.executeCommand('vibeboard.startSession');
-        }
-      });
-    }
-  });
+      if (autoPrompt && !sessionManager!.hasActiveSession()) {
+        vscode.window.showInformationMessage(
+          'Vibe Board: Start a new session?',
+          'Start Session',
+          'Not Now'
+        ).then((action) => {
+          if (action === 'Start Session') {
+            vscode.commands.executeCommand('vibeboard.startSession');
+          }
+        });
+      }
+    });
+  }, 2000);
 }
 
 export function deactivate(): void {
