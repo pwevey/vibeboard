@@ -1707,10 +1707,11 @@ export class MessageHandler {
         carriedOver,
         new Date(task.createdAt).toLocaleString(),
         task.completedAt ? new Date(task.completedAt).toLocaleString() : '',
+        csvEsc(task.copilotContext || ''),
       ].join(',');
     };
 
-    const csvTaskHeader = 'Session,Session Date,Session Duration,Task Title,Description,Priority,Status,Board,Carried Over,Created,Completed';
+    const csvTaskHeader = 'Session,Session Date,Session Duration,Task Title,Description,Priority,Status,Board,Carried Over,Created,Completed,Copilot Context';
 
     if (hasProjects) {
       // Group by project, then by tag within each project
@@ -1831,8 +1832,8 @@ export class MessageHandler {
     if (hasProjects) {
       lines.push('### By Project');
       lines.push('');
-      lines.push('| Project | Sessions | Tasks | Session Time |');
-      lines.push('|---------|----------|-------|-------------|');
+      lines.push('| Project | Sessions | Tasks | Session Time | Copilot Context |');
+      lines.push('|---------|----------|-------|-------------|-----------------|');
       const projectGroups = [...projects!, null];
       for (const project of projectGroups) {
         const projId = project?.id;
@@ -1844,7 +1845,8 @@ export class MessageHandler {
           return sum + dur;
         }, 0);
         const projTasks = data.tasks.filter((t) => projSessions.some((s) => s.id === t.sessionId));
-        lines.push(`| ${projName} | ${projSessions.length} | ${projTasks.length} | ${this.formatDuration(projSessionTime)} |`);
+        const projContext = project?.copilotContext ? project.copilotContext.replace(/[\r\n]+/g, ' ').slice(0, 80) : '';
+        lines.push(`| ${projName} | ${projSessions.length} | ${projTasks.length} | ${this.formatDuration(projSessionTime)} | ${projContext} |`);
       }
       lines.push('');
     }
@@ -1979,6 +1981,9 @@ export class MessageHandler {
           lines.push(`  ${descLine}`);
         }
       }
+      if (t.copilotContext) {
+        lines.push(`  *Copilot Context: ${t.copilotContext.replace(/[\r\n]+/g, ' ')}*`);
+      }
     };
 
     const sortTasks = (tasks: VBTask[]) => tasks.sort((a, b) => {
@@ -2009,6 +2014,9 @@ export class MessageHandler {
 
         const projCompleted = projTasks.filter((t) => t.status === 'completed').length;
         lines.push(`### ${projName} (${projSessions.length} sessions, ${projTasks.length} tasks, ${projCompleted} completed)`);
+        if (project?.copilotContext) {
+          lines.push(`*Project Context: ${project.copilotContext.replace(/[\r\n]+/g, ' ')}*`);
+        }
         lines.push('');
 
         if (projTasks.length > 0) {
