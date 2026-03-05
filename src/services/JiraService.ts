@@ -360,9 +360,7 @@ export class JiraService {
       metaLines.push(`Board: ${boardName}`);
     }
     metaLines.push(`Created: ${new Date(task.createdAt).toLocaleDateString()}`);
-    if (task.timeSpentMs > 0) {
-      metaLines.push(`Time spent: ${this.formatDuration(task.timeSpentMs)}`);
-    }
+    metaLines.push(`Time spent: ${task.timeSpentMs > 0 ? this.formatDuration(task.timeSpentMs) : 'None'}`);
     if (task.completedAt) {
       metaLines.push(`Completed: ${new Date(task.completedAt).toLocaleDateString()}`);
     }
