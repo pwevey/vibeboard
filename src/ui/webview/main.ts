@@ -4085,11 +4085,9 @@ function showJiraImportIssuePicker(
     if (selectedIssues.length === 0) { return; }
 
     if (!state?.activeSessionId) {
-      overlay.querySelector('.jira-dialog')!.innerHTML = `
-        <h3>&#128229; Import from Jira</h3>
-        <p class="jira-error">&#9888; No active session. Start a session first, then try again.</p>
-        <div class="modal-actions"><button id="jira-import-close">Close</button></div>`;
-      overlay.querySelector('#jira-import-close')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
+      overlay.remove();
+      flushPendingBoardClose();
+      showStartSessionDialog();
       return;
     }
 
