@@ -837,6 +837,23 @@ export class MessageHandler {
         break;
       }
 
+      case 'setJiraStatusMapping': {
+        const { jiraProjectKey, direction, mapping } = message.payload as {
+          jiraProjectKey: string;
+          direction: 'export' | 'import';
+          mapping: Record<string, string>;
+        };
+        const d = this.storage.getData();
+        if (!d.jiraStatusMapping) { d.jiraStatusMapping = {}; }
+        if (!d.jiraStatusMapping[jiraProjectKey]) {
+          d.jiraStatusMapping[jiraProjectKey] = { export: {}, import: {} };
+        }
+        d.jiraStatusMapping[jiraProjectKey][direction] = mapping;
+        this.storage.setData(d);
+        this.sendStateUpdate();
+        break;
+      }
+
       case 'getJiraProjects': {
         try {
           const result = await this.jiraService.getProjects();
@@ -1009,14 +1026,14 @@ export class MessageHandler {
 
       case 'importFromJira': {
         try {
-          const { issues, targetStatus } = message.payload as {
+          const { issues, statusMapping } = message.payload as {
             issues: {
               key: string; summary: string; description: string; status: string;
               priority: string; issueType: string; labels: string[];
               attachments?: { id: string; filename: string; mimeType: string; contentUrl: string }[];
               comments?: { author: string; body: string; created: string }[];
             }[];
-            targetStatus: string;
+            statusMapping?: Record<string, string>;
           };
 
           const data = this.storage.getData();
@@ -1042,14 +1059,22 @@ export class MessageHandler {
             return 'todo';
           };
 
-          const validStatus = (['in-progress', 'up-next', 'backlog', 'completed', 'notes'] as const).includes(targetStatus as TaskStatus)
-            ? targetStatus as TaskStatus
-            : 'up-next';
+          const resolveStatus = (jiraStatus: string): TaskStatus => {
+            // Use the provided mapping (Jira status name → VB status)
+            if (statusMapping && statusMapping[jiraStatus]) {
+              const mapped = statusMapping[jiraStatus] as TaskStatus;
+              if (['in-progress', 'up-next', 'backlog', 'completed', 'notes'].includes(mapped)) {
+                return mapped;
+              }
+            }
+            return 'up-next';
+          };
 
           let importCount = 0;
           for (const issue of issues) {
             const tag = mapTag(issue.issueType, issue.labels);
             const priority = mapPriority(issue.priority);
+            const vbStatus = resolveStatus(issue.status);
             const importedAt = new Date().toLocaleString();
             const description = issue.description
               ? `${issue.description}\n\n— Imported from Jira: ${issue.key} on ${importedAt} —`
@@ -1058,7 +1083,7 @@ export class MessageHandler {
             const task = this.taskManager.addTask({
               title: issue.summary.slice(0, 300),
               tag,
-              status: validStatus,
+              status: vbStatus,
               sessionId: data.activeSessionId,
               description,
               priority,
@@ -1422,6 +1447,7 @@ export class MessageHandler {
         projects: exportProjects,
         activeProjectId: data.activeProjectId || null,
         jiraProjectMapping: data.jiraProjectMapping || {},
+        jiraStatusMapping: data.jiraStatusMapping || {},
         boards: data.boards || [],
         activeBoardId: data.activeBoardId || null,
         summary: allTotals,
@@ -1516,6 +1542,7 @@ export class MessageHandler {
       let boards: any[] | undefined;
       let projects: any[] | undefined;
       let jiraProjectMapping: Record<string, string> | undefined;
+      let jiraStatusMapping: Record<string, { export: Record<string, string>; import: Record<string, string> }> | undefined;
 
       if (imported.version === 1 && Array.isArray(imported.sessions) && Array.isArray(imported.tasks)) {
         // Raw workspace data format (direct copy of data.json)
@@ -1524,6 +1551,7 @@ export class MessageHandler {
         boards = imported.boards;
         projects = imported.projects;
         jiraProjectMapping = imported.jiraProjectMapping;
+        jiraStatusMapping = imported.jiraStatusMapping;
       } else if (Array.isArray(imported.sessions) && Array.isArray(imported.tasks)) {
         // Export format — sessions may have .summary attached
         sessions = imported.sessions.map((s: any) => {
@@ -1537,6 +1565,9 @@ export class MessageHandler {
         }
         if (imported.jiraProjectMapping && typeof imported.jiraProjectMapping === 'object') {
           jiraProjectMapping = imported.jiraProjectMapping;
+        }
+        if (imported.jiraStatusMapping && typeof imported.jiraStatusMapping === 'object') {
+          jiraStatusMapping = imported.jiraStatusMapping;
         }
         if (Array.isArray(imported.boards)) {
           boards = imported.boards;
@@ -1601,6 +1632,11 @@ export class MessageHandler {
         } else {
           data.jiraProjectMapping = {};
         }
+        if (jiraStatusMapping) {
+          data.jiraStatusMapping = jiraStatusMapping;
+        } else {
+          data.jiraStatusMapping = {};
+        }
       } else {
         // Merge — add non-duplicate sessions and tasks
         const existingSessionIds = new Set(data.sessions.map((s) => s.id));
@@ -1648,6 +1684,16 @@ export class MessageHandler {
           for (const [vbId, jiraKey] of Object.entries(jiraProjectMapping)) {
             if (!data.jiraProjectMapping[vbId]) {
               data.jiraProjectMapping[vbId] = jiraKey;
+            }
+          }
+        }
+
+        // Merge Jira status mappings (imported values fill gaps per project key)
+        if (jiraStatusMapping) {
+          data.jiraStatusMapping = data.jiraStatusMapping || {};
+          for (const [projectKey, directions] of Object.entries(jiraStatusMapping)) {
+            if (!data.jiraStatusMapping[projectKey]) {
+              data.jiraStatusMapping[projectKey] = directions;
             }
           }
         }

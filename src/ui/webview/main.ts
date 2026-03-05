@@ -3163,7 +3163,7 @@ let jiraSearchCallback: ((payload: { issues: JiraImportIssue[]; total: number; e
 let jiraImportCallback: ((payload: { success: boolean; imported: number; error?: string }) => void) | null = null;
 
 /** Pending Jira import — stored when user tries to import without an active session. Executed automatically after session starts. */
-let pendingJiraImport: { issues: JiraImportIssue[]; targetStatus: string } | null = null;
+let pendingJiraImport: { issues: JiraImportIssue[]; statusMapping: Record<string, string> } | null = null;
 
 /**
  * Show the Jira export dialog.
@@ -3711,11 +3711,17 @@ function showJiraStatusMapping(
     'notes': 'Notes',
   };
 
-  // Build a smart default mapping
+  // Build a smart default mapping — prefer saved mapping, then auto-detect
+  const savedExportMapping = ((state as Record<string, unknown>)?.jiraStatusMapping as Record<string, { export: Record<string, string>; import: Record<string, string> }> || {})[projectKey]?.export || {};
   const defaultMap: Record<string, string> = {};
-  const jiraNames = jiraStatuses.map((s) => s.name.toLowerCase());
   for (const vbStatus of presentStatuses) {
-    // Try to find a matching Jira status name
+    // Use saved mapping first
+    if (savedExportMapping[vbStatus]) {
+      // Verify the saved Jira status still exists in this project
+      const match = jiraStatuses.find((s) => s.name === savedExportMapping[vbStatus]);
+      if (match) { defaultMap[vbStatus] = match.name; continue; }
+    }
+    // Otherwise try to find a matching Jira status name
     const label = STATUS_LABELS[vbStatus]?.toLowerCase() || vbStatus;
     const exactMatch = jiraStatuses.find((s) => s.name.toLowerCase() === label);
     if (exactMatch) {
@@ -3761,6 +3767,10 @@ function showJiraStatusMapping(
     <div class="jira-mapping-grid">
       ${mappingRows}
     </div>
+    <label class="jira-save-mapping-label" style="display:flex;align-items:center;gap:6px;margin:8px 0 4px;font-size:11px;cursor:pointer;">
+      <input type="checkbox" id="jira-export-save-mapping" checked />
+      Remember this mapping for <strong>${escapeHtml(projectKey)}</strong>
+    </label>
     <div class="modal-actions">
       <button class="secondary" id="jira-mapping-back">&#8592; Back</button>
       <button id="jira-mapping-export">&#128640; Export to Jira</button>
@@ -3790,6 +3800,15 @@ function showJiraStatusMapping(
         statusMapping[vbStatus] = sel.value;
       }
     });
+
+    // Save mapping if checkbox is checked
+    const saveCb = overlay.querySelector('#jira-export-save-mapping') as HTMLInputElement;
+    if (saveCb?.checked && Object.keys(statusMapping).length > 0) {
+      vscode.postMessage({
+        type: 'setJiraStatusMapping',
+        payload: { jiraProjectKey: projectKey, direction: 'export', mapping: statusMapping },
+      });
+    }
 
     // Show progress
     overlay.querySelector('.jira-dialog')!.innerHTML = `
@@ -3929,11 +3948,6 @@ function showJiraImportProjectPicker(
     `<option value="${escapeHtml(p.key)}" ${p.key === mappedJiraKey ? 'selected' : ''}>${escapeHtml(p.name)} (${escapeHtml(p.key)})</option>`
   ).join('');
 
-  const statusOptions = ['up-next', 'backlog', 'in-progress'].map((s) => {
-    const label = s === 'up-next' ? 'Up Next' : s === 'backlog' ? 'Backlog' : 'In Progress';
-    return `<option value="${s}" ${s === 'up-next' ? 'selected' : ''}>${label}</option>`;
-  }).join('');
-
   overlay.querySelector('.jira-dialog')!.innerHTML = `
     <h3>&#128229; Import from Jira</h3>
     <div class="jira-form">
@@ -3944,10 +3958,6 @@ function showJiraImportProjectPicker(
       <div class="jira-field">
         <label for="jira-import-jql">Filter <span style="opacity:0.6;font-weight:normal">(JQL — optional)</span></label>
         <input type="text" id="jira-import-jql" class="jira-input" placeholder='e.g. status = "To Do" AND type = Bug' />
-      </div>
-      <div class="jira-field">
-        <label for="jira-import-target-status">Import as</label>
-        <select id="jira-import-target-status" class="jira-select">${statusOptions}</select>
       </div>
       <div class="modal-actions">
         <button class="secondary" id="jira-import-cancel">Cancel</button>
@@ -3960,7 +3970,6 @@ function showJiraImportProjectPicker(
   overlay.querySelector('#jira-import-search')!.addEventListener('click', () => {
     const projectKey = (overlay.querySelector('#jira-import-project') as HTMLSelectElement).value;
     const jql = (overlay.querySelector('#jira-import-jql') as HTMLInputElement).value.trim();
-    const targetStatus = (overlay.querySelector('#jira-import-target-status') as HTMLSelectElement).value;
 
     // Show loading state
     const searchBtn = overlay.querySelector('#jira-import-search') as HTMLButtonElement;
@@ -3994,7 +4003,7 @@ function showJiraImportProjectPicker(
         errEl.textContent = 'No issues found matching your filter.';
         return;
       }
-      showJiraImportIssuePicker(overlay, payload.issues, payload.total, projectKey, jql, targetStatus, jiraProjects);
+      showJiraImportIssuePicker(overlay, payload.issues, payload.total, projectKey, jql, jiraProjects);
     };
 
     vscode.postMessage({ type: 'searchJiraIssues', payload: { projectKey, jql: jql || undefined, maxResults: 50 } });
@@ -4010,7 +4019,6 @@ function showJiraImportIssuePicker(
   total: number,
   projectKey: string,
   jql: string,
-  targetStatus: string,
   jiraProjects: { id: string; key: string; name: string }[]
 ): void {
   const issueTypeIcon = (t: string): string => {
@@ -4094,7 +4102,7 @@ function showJiraImportIssuePicker(
     showJiraImportProjectPicker(overlay, jiraProjects);
   });
 
-  // Import button
+  // Import button — go to status mapping step
   confirmBtn.addEventListener('click', () => {
     const checkedKeys = new Set<string>();
     overlay.querySelectorAll<HTMLInputElement>('input[name="jira-import-issue"]:checked').forEach((cb) => {
@@ -4104,9 +4112,127 @@ function showJiraImportIssuePicker(
     const selectedIssues = issues.filter((i) => checkedKeys.has(i.key));
     if (selectedIssues.length === 0) { return; }
 
+    // Determine which unique Jira statuses are present in the selected issues
+    const presentJiraStatuses = [...new Set(selectedIssues.map((i) => i.status))];
+    showJiraImportStatusMapping(overlay, projectKey, selectedIssues, presentJiraStatuses, jiraProjects, jql);
+  });
+}
+
+/**
+ * Show the import status mapping step — lets user map each Jira status to a VB column.
+ */
+function showJiraImportStatusMapping(
+  overlay: HTMLDivElement,
+  projectKey: string,
+  selectedIssues: JiraImportIssue[],
+  presentJiraStatuses: string[],
+  jiraProjects: { id: string; key: string; name: string }[],
+  jql: string
+): void {
+  const VB_STATUSES: { value: string; label: string }[] = [
+    { value: 'up-next', label: 'Up Next' },
+    { value: 'in-progress', label: 'In Progress' },
+    { value: 'backlog', label: 'Backlog' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'notes', label: 'Notes' },
+  ];
+
+  // Load any saved import mapping for this Jira project
+  const savedMapping = ((state as Record<string, unknown>)?.jiraStatusMapping as Record<string, { export: Record<string, string>; import: Record<string, string> }> || {})[projectKey]?.import || {};
+
+  // Build smart defaults
+  const defaultMap: Record<string, string> = {};
+  for (const jiraStatus of presentJiraStatuses) {
+    // Use saved mapping first
+    if (savedMapping[jiraStatus]) {
+      defaultMap[jiraStatus] = savedMapping[jiraStatus];
+      continue;
+    }
+    // Otherwise try to guess
+    const ls = jiraStatus.toLowerCase();
+    if (['in progress', 'in development', 'active'].includes(ls)) { defaultMap[jiraStatus] = 'in-progress'; }
+    else if (['done', 'closed', 'resolved', 'complete', 'completed'].includes(ls)) { defaultMap[jiraStatus] = 'completed'; }
+    else if (['backlog', 'open'].includes(ls)) { defaultMap[jiraStatus] = 'backlog'; }
+    else if (['to do', 'selected for development', 'new'].includes(ls)) { defaultMap[jiraStatus] = 'up-next'; }
+    else { defaultMap[jiraStatus] = 'up-next'; }
+  }
+
+  const vbOptions = VB_STATUSES.map((s) =>
+    `<option value="${s.value}">${escapeHtml(s.label)}</option>`
+  ).join('');
+
+  const mappingRows = presentJiraStatuses.map((jiraStatus) => `
+    <div class="jira-mapping-row">
+      <span class="jira-mapping-label">${escapeHtml(jiraStatus)}</span>
+      <span class="jira-mapping-arrow">&#8594;</span>
+      <select class="jira-select jira-import-status-select" data-jira-status="${escapeHtml(jiraStatus)}">
+        ${vbOptions}
+      </select>
+    </div>`
+  ).join('');
+
+  overlay.querySelector('.jira-dialog')!.innerHTML = `
+    <h3>&#128229; Status Mapping</h3>
+    <p class="jira-mapping-desc">Map Jira statuses to Vibe Board columns for the ${selectedIssues.length} selected issue${selectedIssues.length === 1 ? '' : 's'}.</p>
+    <div class="jira-mapping-grid">
+      ${mappingRows}
+    </div>
+    <label class="jira-save-mapping-label" style="display:flex;align-items:center;gap:6px;margin:8px 0 4px;font-size:11px;cursor:pointer;">
+      <input type="checkbox" id="jira-import-save-mapping" checked />
+      Remember this mapping for <strong>${escapeHtml(projectKey)}</strong>
+    </label>
+    <div class="modal-actions">
+      <button class="secondary" id="jira-import-mapping-back">&#8592; Back</button>
+      <button id="jira-import-mapping-confirm">&#128229; Import ${selectedIssues.length} Issue${selectedIssues.length === 1 ? '' : 's'}</button>
+    </div>`;
+
+  // Set default values on the selects
+  for (const jiraStatus of presentJiraStatuses) {
+    const sel = overlay.querySelector(`select[data-jira-status="${CSS.escape(jiraStatus)}"]`) as HTMLSelectElement | null;
+    if (sel && defaultMap[jiraStatus]) {
+      sel.value = defaultMap[jiraStatus];
+    }
+  }
+
+  // Back button — go back to issue picker
+  overlay.querySelector('#jira-import-mapping-back')!.addEventListener('click', () => {
+    // Re-search to go back to the issue picker (preserving the project and JQL)
+    overlay.querySelector('.jira-dialog')!.innerHTML = `
+      <h3>&#128229; Import from Jira</h3>
+      <p class="jira-loading">Loading issues&hellip;</p>`;
+
+    jiraSearchCallback = (payload) => {
+      jiraSearchCallback = null;
+      if (payload.error || payload.issues.length === 0) {
+        showJiraImportProjectPicker(overlay, jiraProjects);
+        return;
+      }
+      showJiraImportIssuePicker(overlay, payload.issues, payload.total, projectKey, jql, jiraProjects);
+    };
+    vscode.postMessage({ type: 'searchJiraIssues', payload: { projectKey, jql: jql || undefined, maxResults: 50 } });
+  });
+
+  // Import button
+  overlay.querySelector('#jira-import-mapping-confirm')!.addEventListener('click', () => {
+    // Collect the status mapping (Jira status → VB status)
+    const statusMapping: Record<string, string> = {};
+    overlay.querySelectorAll<HTMLSelectElement>('.jira-import-status-select').forEach((sel) => {
+      const jiraStatus = sel.getAttribute('data-jira-status')!;
+      statusMapping[jiraStatus] = sel.value;
+    });
+
+    // Save mapping if checkbox is checked
+    const saveCb = overlay.querySelector('#jira-import-save-mapping') as HTMLInputElement;
+    if (saveCb?.checked) {
+      vscode.postMessage({
+        type: 'setJiraStatusMapping',
+        payload: { jiraProjectKey: projectKey, direction: 'import', mapping: statusMapping },
+      });
+    }
+
     if (!state?.activeSessionId) {
       // Store the import for after session starts
-      pendingJiraImport = { issues: selectedIssues, targetStatus };
+      pendingJiraImport = { issues: selectedIssues, statusMapping };
       overlay.remove();
       flushPendingBoardClose();
       showStartSessionDialog();
@@ -4114,8 +4240,9 @@ function showJiraImportIssuePicker(
     }
 
     // Show importing state
-    confirmBtn.disabled = true;
-    confirmBtn.textContent = 'Importing\u2026';
+    const importBtn = overlay.querySelector('#jira-import-mapping-confirm') as HTMLButtonElement;
+    importBtn.disabled = true;
+    importBtn.textContent = 'Importing\u2026';
 
     jiraImportCallback = (payload) => {
       jiraImportCallback = null;
@@ -4135,7 +4262,7 @@ function showJiraImportIssuePicker(
       overlay.querySelector('#jira-import-close')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
     };
 
-    vscode.postMessage({ type: 'importFromJira', payload: { issues: selectedIssues, targetStatus } });
+    vscode.postMessage({ type: 'importFromJira', payload: { issues: selectedIssues, statusMapping } });
   });
 }
 

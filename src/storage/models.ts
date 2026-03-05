@@ -102,6 +102,7 @@ export interface VBWorkspaceData {
   activeProjectId?: string | null;
   jiraProjectMapping?: Record<string, string>; // VB projectId → Jira project key
   jiraEpicMapping?: Record<string, string>; // VB projectId → Jira epic key
+  jiraStatusMapping?: Record<string, { export: Record<string, string>; import: Record<string, string> }>; // Jira project key → { export: VB→Jira, import: Jira→VB }
   jiraPromptDismissed?: boolean; // true if user dismissed the end-session Jira export prompt
 }
 
@@ -212,6 +213,7 @@ export type WebviewToExtensionMessage =
   | { type: 'clearJiraCredentials'; payload: Record<string, never> }
   | { type: 'setJiraProjectMapping'; payload: { vbProjectId: string; jiraProjectKey: string } }
   | { type: 'setJiraEpicMapping'; payload: { vbProjectId: string; epicKey: string } }
+  | { type: 'setJiraStatusMapping'; payload: { jiraProjectKey: string; direction: 'export' | 'import'; mapping: Record<string, string> } }
   | { type: 'setJiraPromptDismissed'; payload: { dismissed: boolean } }
   | { type: 'getJiraProjects'; payload: Record<string, never> }
   | { type: 'getJiraEpics'; payload: { projectKey: string } }
@@ -220,7 +222,7 @@ export type WebviewToExtensionMessage =
   | { type: 'testJiraConnection'; payload: Record<string, never> }
   | { type: 'exportToJira'; payload: { projectKey: string; taskIds?: string[]; issueType?: string; statusMapping?: Record<string, string>; epicKey?: string } }
   | { type: 'searchJiraIssues'; payload: { projectKey: string; jql?: string; maxResults?: number } }
-  | { type: 'importFromJira'; payload: { issues: JiraImportIssue[]; targetStatus: TaskStatus } }
+  | { type: 'importFromJira'; payload: { issues: JiraImportIssue[]; targetStatus?: TaskStatus; statusMapping?: Record<string, string> } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
@@ -291,6 +293,7 @@ export function createDefaultWorkspaceData(): VBWorkspaceData {
     activeProjectId: null,
     jiraProjectMapping: {},
     jiraEpicMapping: {},
+    jiraStatusMapping: {},
     jiraPromptDismissed: false,
   };
 }
