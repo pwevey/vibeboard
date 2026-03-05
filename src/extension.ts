@@ -24,6 +24,7 @@ let initPromise: Promise<boolean> | null = null;
 function ensureInitialized(): Promise<boolean> {
   if (initPromise) { return initPromise; }
   initPromise = (async () => {
+    const t0 = Date.now();
     storageProvider = new StorageProvider();
     try {
       await storageProvider.initialize();
@@ -32,6 +33,7 @@ function ensureInitialized(): Promise<boolean> {
       vscode.window.showErrorMessage('Vibe Board: Failed to initialize storage. Make sure a workspace folder is open.');
       return false;
     }
+    console.log(`[VB] Storage initialized in ${Date.now() - t0}ms`);
 
     // Migrate any plain-text Jira credentials to secure storage (one-time)
     if (secretStorageService && !globalState?.get<boolean>('jiraMigrated')) {
@@ -45,12 +47,15 @@ function ensureInitialized(): Promise<boolean> {
     if (webviewProvider) {
       webviewProvider.setMessageHandler(messageHandler);
     }
+    console.log(`[VB] Full init completed in ${Date.now() - t0}ms`);
     return true;
   })();
   return initPromise;
 }
 
 export function activate(context: vscode.ExtensionContext): void {
+  const activateStart = Date.now();
+
   // Create the secure storage service early so it's available for lazy init
   secretStorageService = new SecretStorageService(context.secrets);
   globalState = context.globalState;
@@ -194,6 +199,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     });
   }, 2000);
+
+  console.log(`[VB] activate() completed in ${Date.now() - activateStart}ms`);
 }
 
 export function deactivate(): void {

@@ -6,12 +6,27 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
+        "--disable-extensions",
         "--extensionDevelopmentPath=${workspaceFolder}"
       ],
       "outFiles": [
         "${workspaceFolder}/dist/**/*.js"
       ],
-      "preLaunchTask": "vibeboard-build"
+      "preLaunchTask": "vibeboard-build",
+      "timeout": 30000
+    },
+    {
+      "name": "Run Extension (all extensions)",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ],
+      "preLaunchTask": "vibeboard-build",
+      "timeout": 30000
     }
   ]
 }
