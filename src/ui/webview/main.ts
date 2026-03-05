@@ -2142,6 +2142,10 @@ function showSettingsDialog(): void {
     <div class="settings-section-divider"></div>
     <h4 class="settings-section-title">&#127919; Jira Integration</h4>
     <p class="settings-section-desc">Export tasks as Jira issues. Your email and API token are stored securely in your OS keychain — never in plain text.</p>
+    <div class="jira-save-row" style="margin-bottom:8px;">
+      <button class="secondary" id="jira-test-btn">&#128267; Test Connection</button>
+      <span class="jira-save-status" id="jira-test-status"></span>
+    </div>
     <div class="start-settings">
       <label class="start-setting-row setting-text-row">
         <span class="start-setting-label">Base URL</span>
@@ -2158,7 +2162,6 @@ function showSettingsDialog(): void {
       <p class="settings-hint" style="margin-top:4px;">Generate a token at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" class="jira-link">id.atlassian.com</a></p>
       <div class="jira-save-row">
         <button class="secondary" id="jira-save-btn">Save</button>
-        <button class="secondary" id="jira-test-btn" style="margin-left:6px;">&#128267; Test Connection</button>
         <span class="jira-save-status" id="jira-save-status"></span>
       </div>
     </div>
@@ -2269,11 +2272,11 @@ function showSettingsDialog(): void {
 
   // Test Connection button
   document.getElementById('jira-test-btn')?.addEventListener('click', () => {
-    const status = document.getElementById('jira-save-status');
+    const testStatus = document.getElementById('jira-test-status');
     const testBtn = document.getElementById('jira-test-btn') as HTMLButtonElement | null;
-    if (status) {
-      status.textContent = '\u23f3 Testing\u2026';
-      status.style.color = '';
+    if (testStatus) {
+      testStatus.textContent = '\u23f3 Testing\u2026';
+      testStatus.style.color = '';
     }
     if (testBtn) { testBtn.disabled = true; }
     vscode.postMessage({ type: 'testJiraConnection', payload: {} });
@@ -3072,19 +3075,19 @@ function handleJiraStatusesResponse(payload: { statuses: { id: string; name: str
 
 /** Handle the jiraConnectionTest response from the extension — update settings UI. */
 function handleJiraConnectionTestResult(payload: { success: boolean; displayName?: string; error?: string }): void {
-  const status = document.getElementById('jira-save-status');
+  const testStatus = document.getElementById('jira-test-status');
   const testBtn = document.getElementById('jira-test-btn') as HTMLButtonElement | null;
   if (testBtn) { testBtn.disabled = false; }
-  if (!status) { return; }
+  if (!testStatus) { return; }
   if (payload.success) {
-    status.style.color = 'var(--vscode-testing-iconPassed, #73c991)';
-    status.textContent = `\u2713 Connected as ${payload.displayName || 'Jira user'}`;
+    testStatus.style.color = 'var(--vscode-testing-iconPassed, #73c991)';
+    testStatus.textContent = `\u2713 Connected as ${payload.displayName || 'Jira user'}`;
   } else {
-    status.style.color = 'var(--vscode-errorForeground, #f48771)';
-    status.textContent = `\u2717 ${payload.error || 'Connection failed'}`;
+    testStatus.style.color = 'var(--vscode-errorForeground, #f48771)';
+    testStatus.textContent = `\u2717 ${payload.error || 'Connection failed'}`;
   }
   // Auto-clear after 8 seconds for errors (longer to read)
-  setTimeout(() => { if (status) { status.textContent = ''; status.style.color = ''; } }, payload.success ? 4000 : 8000);
+  setTimeout(() => { if (testStatus) { testStatus.textContent = ''; testStatus.style.color = ''; } }, payload.success ? 4000 : 8000);
 }
 
 /**
