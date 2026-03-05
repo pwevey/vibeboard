@@ -2253,11 +2253,9 @@ function showSettingsDialog(): void {
         <span class="jira-save-status" id="jira-save-status"></span>
       </div>
     </div>
-    ${extensionSettings.jiraConfigured ? `
-    <div class="settings-section-divider"></div>
-    <h4 class="settings-section-title">&#128260; Status Mapping</h4>
-    <p class="settings-section-desc">Map Vibe Board columns to Jira statuses for export, and Jira statuses to Vibe Board columns for import.</p>
-    <div class="start-settings" id="jira-status-mapping-section">
+    <div class="start-settings" id="jira-status-mapping-section" style="margin-top:12px;${extensionSettings.jiraConfigured ? '' : 'display:none;'}">
+      <label class="start-setting-row" style="font-weight:600;font-size:11px;margin-bottom:4px;opacity:0.8;">&#128260; Status Mapping</label>
+      <p class="settings-section-desc" style="margin:0 0 6px;">Map Vibe Board columns to Jira statuses for export, and Jira statuses to Vibe Board columns for import.</p>
       <label class="start-setting-row setting-text-row">
         <span class="start-setting-label">Jira Project</span>
         <select id="jira-mapping-project-select" class="jira-select" style="flex:1;">
@@ -2266,7 +2264,6 @@ function showSettingsDialog(): void {
       </label>
       <div id="jira-mapping-content"></div>
     </div>
-    ` : ''}
 
   </div>`;
   document.body.appendChild(overlay);
@@ -2367,6 +2364,12 @@ function showSettingsDialog(): void {
     if (status) {
       status.textContent = '\u2713 Saved securely';
       setTimeout(() => { status.textContent = ''; }, 2500);
+    }
+
+    // Reveal the status mapping section if Jira just became configured
+    if (extensionSettings.jiraConfigured) {
+      const mappingSection = overlay.querySelector('#jira-status-mapping-section') as HTMLElement | null;
+      if (mappingSection) { mappingSection.style.display = ''; }
     }
   });
 
