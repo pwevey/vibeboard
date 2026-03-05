@@ -3246,6 +3246,66 @@ textarea:focus-visible {
   font-weight: 600;
 }
 
+/* ── Grouped task / issue list ── */
+
+.jira-group {
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.jira-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  font-size: 12px;
+  cursor: default;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.jira-group-header input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  accent-color: var(--vscode-checkbox-background);
+}
+
+.jira-group-toggle {
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.jira-group-toggle:hover {
+  opacity: 1;
+}
+
+.jira-group-count {
+  font-size: 11px;
+  opacity: 0.6;
+  font-weight: normal;
+  margin-left: 2px;
+}
+
+.jira-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 4px 4px;
+}
+
 .jira-task-divider {
   height: 1px;
   background: var(--vscode-widget-border);

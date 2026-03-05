@@ -3369,24 +3369,62 @@ function showJiraProjectAndTaskPicker(
 
   const buildTaskRows = (selectedJiraKey: string) => {
     let exportedCount = 0;
-    const rows = (exportableTasks as TaskWithExports[]).map((t) => {
-      const tagClass = `tag-${t.tag}`;
-      const exportInfo = getExportInfo(t.id, selectedJiraKey);
-      const isExported = !!exportInfo;
-      if (isExported) { exportedCount++; }
-      const exportedClass = isExported ? ' jira-task-exported' : '';
-      const checkedAttr = isExported ? '' : 'checked';
-      const badge = isExported
-        ? `<span class="jira-exported-badge" title="Exported as ${escapeHtml(exportInfo!.issueKey)}">${escapeHtml(exportInfo!.issueKey)}</span>`
-        : '';
-      return `<label class="jira-task-option${exportedClass}" data-exported="${isExported}" data-task-id="${t.id}">
-        <input type="checkbox" name="jira-task" value="${t.id}" ${checkedAttr} />
-        <span class="task-tag ${tagClass}">${t.tag}</span>
-        <span class="jira-task-title">${escapeHtml(t.title)}</span>
-        ${badge}
-      </label>`;
-    });
-    return { html: rows.join(''), exportedCount };
+
+    // Group tasks by VB status
+    const STATUS_ORDER = ['in-progress', 'up-next', 'backlog', 'completed', 'notes'];
+    const STATUS_LABELS: Record<string, string> = {
+      'in-progress': 'In Progress',
+      'up-next': 'Up Next',
+      'backlog': 'Backlog',
+      'completed': 'Completed',
+      'notes': 'Notes',
+    };
+
+    const grouped: Record<string, TaskWithExports[]> = {};
+    for (const t of exportableTasks as TaskWithExports[]) {
+      const status = t.status || 'up-next';
+      if (!grouped[status]) { grouped[status] = []; }
+      grouped[status].push(t);
+    }
+
+    let html = '';
+    for (const status of STATUS_ORDER) {
+      const group = grouped[status];
+      if (!group || group.length === 0) { continue; }
+
+      const label = STATUS_LABELS[status] || status;
+      const rows = group.map((t) => {
+        const tagClass = `tag-${t.tag}`;
+        const exportInfo = getExportInfo(t.id, selectedJiraKey);
+        const isExported = !!exportInfo;
+        if (isExported) { exportedCount++; }
+        const exportedClass = isExported ? ' jira-task-exported' : '';
+        const checkedAttr = isExported ? '' : 'checked';
+        const badge = isExported
+          ? `<span class="jira-exported-badge" title="Exported as ${escapeHtml(exportInfo!.issueKey)}">${escapeHtml(exportInfo!.issueKey)}</span>`
+          : '';
+        return `<label class="jira-task-option${exportedClass}" data-exported="${isExported}" data-task-id="${t.id}" data-group="${escapeHtml(status)}">
+          <input type="checkbox" name="jira-task" value="${t.id}" ${checkedAttr} />
+          <span class="task-tag ${tagClass}">${t.tag}</span>
+          <span class="jira-task-title">${escapeHtml(t.title)}</span>
+          ${badge}
+        </label>`;
+      }).join('');
+
+      html += `<div class="jira-group" data-group-key="${escapeHtml(status)}">
+        <div class="jira-group-header">
+          <input type="checkbox" class="jira-group-select-all" data-group="${escapeHtml(status)}" checked />
+          <button type="button" class="jira-group-toggle" data-group="${escapeHtml(status)}" aria-expanded="true">&#9660;</button>
+          <strong>${escapeHtml(label)}</strong>
+          <span class="jira-group-count">(${group.length})</span>
+        </div>
+        <div class="jira-group-body" data-group="${escapeHtml(status)}">
+          ${rows}
+        </div>
+      </div>`;
+    }
+
+    return { html, exportedCount };
   };
 
   const initial = buildTaskRows(initialJiraKey);
@@ -3435,7 +3473,6 @@ function showJiraProjectAndTaskPicker(
             <input type="checkbox" id="jira-select-all" checked />
             <strong>Select All</strong>
           </label>
-          <div class="jira-task-divider"></div>
           <div id="jira-task-rows">${initial.html}</div>
         </div>
       </div>
@@ -3455,6 +3492,32 @@ function showJiraProjectAndTaskPicker(
     countSpan.textContent = `(${checked} selected)`;
   };
 
+  const updateGroupSelectAll = (groupKey: string) => {
+    const groupCb = overlay.querySelector(`.jira-group-select-all[data-group="${CSS.escape(groupKey)}"]`) as HTMLInputElement | null;
+    if (!groupCb) { return; }
+    const groupTaskCbs = Array.from(taskCbs).filter((cb) => {
+      const row = cb.closest('.jira-task-option') as HTMLElement;
+      return row && row.getAttribute('data-group') === groupKey && row.style.display !== 'none';
+    });
+    if (groupTaskCbs.length === 0) { groupCb.checked = false; return; }
+    const allChecked = groupTaskCbs.every((c) => c.checked);
+    const noneChecked = !groupTaskCbs.some((c) => c.checked);
+    groupCb.checked = allChecked;
+    groupCb.indeterminate = !allChecked && !noneChecked;
+  };
+
+  const updateGlobalSelectAll = () => {
+    const visibleCbs = Array.from(taskCbs).filter((c) => {
+      const row = c.closest('.jira-task-option') as HTMLElement;
+      return row && row.style.display !== 'none';
+    });
+    if (visibleCbs.length === 0) { selectAllCb.checked = false; selectAllCb.indeterminate = false; return; }
+    const allChecked = visibleCbs.every((c) => c.checked);
+    const noneChecked = !visibleCbs.some((c) => c.checked);
+    selectAllCb.checked = allChecked;
+    selectAllCb.indeterminate = !allChecked && !noneChecked;
+  };
+
   const bindSelectAll = () => {
     selectAllCb.addEventListener('change', () => {
       taskCbs.forEach((cb) => {
@@ -3463,27 +3526,59 @@ function showJiraProjectAndTaskPicker(
           cb.checked = selectAllCb.checked;
         }
       });
+      // Update all group select-all checkboxes
+      overlay.querySelectorAll<HTMLInputElement>('.jira-group-select-all').forEach((gcb) => {
+        gcb.checked = selectAllCb.checked;
+        gcb.indeterminate = false;
+      });
       updateCount();
+    });
+  };
+
+  const bindGroupControls = () => {
+    // Group select-all checkboxes
+    overlay.querySelectorAll<HTMLInputElement>('.jira-group-select-all').forEach((gcb) => {
+      gcb.addEventListener('change', () => {
+        const groupKey = gcb.getAttribute('data-group')!;
+        taskCbs.forEach((cb) => {
+          const row = cb.closest('.jira-task-option') as HTMLElement;
+          if (row && row.getAttribute('data-group') === groupKey && row.style.display !== 'none') {
+            cb.checked = gcb.checked;
+          }
+        });
+        updateGlobalSelectAll();
+        updateCount();
+      });
+    });
+
+    // Group collapse/expand toggles
+    overlay.querySelectorAll<HTMLButtonElement>('.jira-group-toggle').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const groupKey = btn.getAttribute('data-group')!;
+        const body = overlay.querySelector(`.jira-group-body[data-group="${CSS.escape(groupKey)}"]`) as HTMLElement | null;
+        if (!body) { return; }
+        const expanded = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', String(!expanded));
+        btn.innerHTML = expanded ? '&#9654;' : '&#9660;';
+        body.style.display = expanded ? 'none' : '';
+      });
     });
   };
 
   const bindTaskCbs = () => {
     taskCbs.forEach((cb) => {
       cb.addEventListener('change', () => {
-        const visibleCbs = Array.from(taskCbs).filter((c) => {
-          const row = c.closest('.jira-task-option') as HTMLElement;
-          return row && row.style.display !== 'none';
-        });
-        const allChecked = visibleCbs.every((c) => c.checked);
-        const noneChecked = !visibleCbs.some((c) => c.checked);
-        selectAllCb.checked = allChecked;
-        selectAllCb.indeterminate = !allChecked && !noneChecked;
+        const row = cb.closest('.jira-task-option') as HTMLElement;
+        const groupKey = row?.getAttribute('data-group') || '';
+        if (groupKey) { updateGroupSelectAll(groupKey); }
+        updateGlobalSelectAll();
         updateCount();
       });
     });
   };
 
   bindSelectAll();
+  bindGroupControls();
   bindTaskCbs();
 
   // Hide/show exported tasks toggle
@@ -3496,6 +3591,15 @@ function showJiraProjectAndTaskPicker(
     overlay.querySelectorAll<HTMLElement>('.jira-task-option[data-exported="true"]').forEach((row) => {
       row.style.display = hide ? 'none' : '';
     });
+
+    // Hide groups that have no visible tasks; update group select-all checkboxes
+    overlay.querySelectorAll<HTMLElement>('.jira-group').forEach((group) => {
+      const groupKey = group.getAttribute('data-group-key') || '';
+      const visibleRows = group.querySelectorAll<HTMLElement>('.jira-task-option:not([style*="display: none"])');
+      group.style.display = visibleRows.length === 0 ? 'none' : '';
+      if (groupKey) { updateGroupSelectAll(groupKey); }
+    });
+    updateGlobalSelectAll();
     updateCount();
   };
   applyExportedFilter(); // Apply initial state
@@ -3519,6 +3623,7 @@ function showJiraProjectAndTaskPicker(
     taskCbs = overlay.querySelectorAll<HTMLInputElement>('input[name="jira-task"]');
     selectAllCb.checked = true;
     selectAllCb.indeterminate = false;
+    bindGroupControls();
     bindTaskCbs();
     applyExportedFilter();
     updateCount();
@@ -4037,7 +4142,15 @@ function showJiraImportIssuePicker(
     return 'priority-medium';
   };
 
-  const rows = issues.map((issue) => {
+  // Group issues by Jira status
+  const statusGroups = new Map<string, JiraImportIssue[]>();
+  for (const issue of issues) {
+    const s = issue.status;
+    if (!statusGroups.has(s)) { statusGroups.set(s, []); }
+    statusGroups.get(s)!.push(issue);
+  }
+
+  const buildIssueRow = (issue: JiraImportIssue, groupKey: string): string => {
     const badges: string[] = [];
     if (issue.attachments && issue.attachments.length > 0) {
       badges.push(`<span class="jira-badge" title="${issue.attachments.length} image(s)">&#128247; ${issue.attachments.length}</span>`);
@@ -4046,7 +4159,7 @@ function showJiraImportIssuePicker(
       badges.push(`<span class="jira-badge" title="${issue.comments.length} comment(s)">&#128172; ${issue.comments.length}</span>`);
     }
     return `
-    <label class="jira-task-option" data-issue-key="${escapeHtml(issue.key)}">
+    <label class="jira-task-option" data-issue-key="${escapeHtml(issue.key)}" data-group="${escapeHtml(groupKey)}">
       <input type="checkbox" name="jira-import-issue" value="${escapeHtml(issue.key)}" checked />
       <span class="jira-import-type" title="${escapeHtml(issue.issueType)}">${issueTypeIcon(issue.issueType)}</span>
       <span class="jira-issue-key">${escapeHtml(issue.key)}</span>
@@ -4054,7 +4167,25 @@ function showJiraImportIssuePicker(
       ${badges.length > 0 ? `<span class="jira-badges">${badges.join('')}</span>` : ''}
       <span class="jira-import-status ${priorityClass(issue.priority)}">${escapeHtml(issue.status)}</span>
     </label>`;
-  }).join('');
+  };
+
+  let groupedHtml = '';
+  for (const [statusName, groupIssues] of statusGroups) {
+    const groupKey = statusName;
+    const issueRows = groupIssues.map((issue) => buildIssueRow(issue, groupKey)).join('');
+    groupedHtml += `
+    <div class="jira-group" data-group-key="${escapeHtml(groupKey)}">
+      <div class="jira-group-header">
+        <input type="checkbox" class="jira-group-select-all" data-group="${escapeHtml(groupKey)}" checked />
+        <button class="jira-group-toggle" data-group="${escapeHtml(groupKey)}" aria-expanded="true">&#9660;</button>
+        <strong>${escapeHtml(statusName)}</strong>
+        <span class="jira-group-count">(${groupIssues.length})</span>
+      </div>
+      <div class="jira-group-body" data-group="${escapeHtml(groupKey)}">
+        ${issueRows}
+      </div>
+    </div>`;
+  }
 
   const showing = issues.length < total ? `Showing ${issues.length} of ${total}` : `${issues.length} issue${issues.length === 1 ? '' : 's'}`;
 
@@ -4068,7 +4199,7 @@ function showJiraImportIssuePicker(
             <input type="checkbox" id="jira-import-select-all" checked />
             <strong>Select All</strong>
           </label>
-          ${rows}
+          ${groupedHtml}
         </div>
       </div>
       <div class="modal-actions">
@@ -4079,23 +4210,81 @@ function showJiraImportIssuePicker(
 
   // Select All logic
   const selectAllCb = overlay.querySelector('#jira-import-select-all') as HTMLInputElement;
-  const allCheckboxes = overlay.querySelectorAll<HTMLInputElement>('input[name="jira-import-issue"]');
+  let allCheckboxes = overlay.querySelectorAll<HTMLInputElement>('input[name="jira-import-issue"]');
   const confirmBtn = overlay.querySelector('#jira-import-confirm') as HTMLButtonElement;
+
+  const updateImportGroupSelectAll = (groupKey: string) => {
+    const gcb = overlay.querySelector(`.jira-group-select-all[data-group="${CSS.escape(groupKey)}"]`) as HTMLInputElement | null;
+    if (!gcb) { return; }
+    const groupCbs = Array.from(allCheckboxes).filter((c) => {
+      const row = c.closest('.jira-task-option') as HTMLElement;
+      return row && row.getAttribute('data-group') === groupKey;
+    });
+    if (groupCbs.length === 0) { gcb.checked = false; return; }
+    const allChecked = groupCbs.every((c) => c.checked);
+    const noneChecked = !groupCbs.some((c) => c.checked);
+    gcb.checked = allChecked;
+    gcb.indeterminate = !allChecked && !noneChecked;
+  };
+
+  const updateImportGlobalSelectAll = () => {
+    if (allCheckboxes.length === 0) { selectAllCb.checked = false; selectAllCb.indeterminate = false; return; }
+    const allChecked = Array.from(allCheckboxes).every((c) => c.checked);
+    const noneChecked = !Array.from(allCheckboxes).some((c) => c.checked);
+    selectAllCb.checked = allChecked;
+    selectAllCb.indeterminate = !allChecked && !noneChecked;
+  };
 
   const updateCount = () => {
     const checked = overlay.querySelectorAll<HTMLInputElement>('input[name="jira-import-issue"]:checked');
     confirmBtn.textContent = `\uD83D\uDCE5 Import ${checked.length} Issue${checked.length === 1 ? '' : 's'}`;
     confirmBtn.disabled = checked.length === 0;
-    selectAllCb.checked = checked.length === allCheckboxes.length;
-    selectAllCb.indeterminate = checked.length > 0 && checked.length < allCheckboxes.length;
   };
 
   selectAllCb.addEventListener('change', () => {
     allCheckboxes.forEach((cb) => { cb.checked = selectAllCb.checked; });
+    overlay.querySelectorAll<HTMLInputElement>('.jira-group-select-all').forEach((gcb) => {
+      gcb.checked = selectAllCb.checked;
+      gcb.indeterminate = false;
+    });
     updateCount();
   });
 
-  allCheckboxes.forEach((cb) => cb.addEventListener('change', updateCount));
+  // Group select-all checkboxes
+  overlay.querySelectorAll<HTMLInputElement>('.jira-group-select-all').forEach((gcb) => {
+    gcb.addEventListener('change', () => {
+      const groupKey = gcb.getAttribute('data-group')!;
+      allCheckboxes.forEach((cb) => {
+        const row = cb.closest('.jira-task-option') as HTMLElement;
+        if (row && row.getAttribute('data-group') === groupKey) {
+          cb.checked = gcb.checked;
+        }
+      });
+      updateImportGlobalSelectAll();
+      updateCount();
+    });
+  });
+
+  // Group collapse/expand toggles
+  overlay.querySelectorAll<HTMLButtonElement>('.jira-group-toggle').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const groupKey = btn.getAttribute('data-group')!;
+      const body = overlay.querySelector(`.jira-group-body[data-group="${CSS.escape(groupKey)}"]`) as HTMLElement | null;
+      if (!body) { return; }
+      const expanded = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', String(!expanded));
+      btn.innerHTML = expanded ? '&#9654;' : '&#9660;';
+      body.style.display = expanded ? 'none' : '';
+    });
+  });
+
+  allCheckboxes.forEach((cb) => cb.addEventListener('change', () => {
+    const row = cb.closest('.jira-task-option') as HTMLElement;
+    const groupKey = row?.getAttribute('data-group') || '';
+    if (groupKey) { updateImportGroupSelectAll(groupKey); }
+    updateImportGlobalSelectAll();
+    updateCount();
+  }));
 
   // Back button
   overlay.querySelector('#jira-import-back')!.addEventListener('click', () => {
