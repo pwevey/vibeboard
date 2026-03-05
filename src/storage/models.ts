@@ -271,6 +271,8 @@ export interface JiraImportIssue {
   labels: string[];
   epicKey?: string;
   epicName?: string;
+  attachments?: { id: string; filename: string; mimeType: string; contentUrl: string }[];
+  comments?: { author: string; body: string; created: string }[];
 }
 
 // === Factory Functions ===

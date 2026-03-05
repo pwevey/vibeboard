@@ -3361,6 +3361,22 @@ textarea:focus-visible {
   opacity: 0.55;
 }
 
+.jira-badges {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.jira-badge {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  opacity: 0.7;
+  white-space: nowrap;
+  background: var(--vscode-badge-background, rgba(255,255,255,0.1));
+  color: var(--vscode-badge-foreground, inherit);
+}
+
 .jira-input {
   width: 100%;
   box-sizing: border-box;

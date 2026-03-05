@@ -539,7 +539,7 @@ export class JiraService {
         },
         body: JSON.stringify({
           jql,
-          fields: ['summary', 'description', 'status', 'priority', 'issuetype', 'labels', 'parent'],
+          fields: ['summary', 'description', 'status', 'priority', 'issuetype', 'labels', 'parent', 'attachment', 'comment'],
           maxResults,
         }),
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -562,21 +562,44 @@ export class JiraService {
             issuetype: { name: string };
             labels: string[];
             parent?: { key: string; fields?: { summary?: string } };
+            attachment?: { id: string; filename: string; mimeType: string; content: string }[];
+            comment?: { comments: { author: { displayName?: string; emailAddress?: string }; body: unknown; created: string }[] };
           };
         }[];
       };
 
-      const issues: JiraImportIssue[] = body.issues.map((i) => ({
-        key: i.key,
-        summary: i.fields.summary,
-        description: this.extractPlainText(i.fields.description),
-        status: i.fields.status?.name || 'Unknown',
-        priority: i.fields.priority?.name || 'Medium',
-        issueType: i.fields.issuetype?.name || 'Task',
-        labels: i.fields.labels || [],
-        epicKey: i.fields.parent?.key,
-        epicName: i.fields.parent?.fields?.summary,
-      }));
+      const issues: JiraImportIssue[] = body.issues.map((i) => {
+        // Filter attachments to images only (the ones that can be displayed)
+        const imageAttachments = (i.fields.attachment || []).filter((a) =>
+          a.mimeType.startsWith('image/')
+        ).map((a) => ({
+          id: a.id,
+          filename: a.filename,
+          mimeType: a.mimeType,
+          contentUrl: a.content,
+        }));
+
+        // Extract comments
+        const comments = (i.fields.comment?.comments || []).map((c) => ({
+          author: c.author?.displayName || c.author?.emailAddress || 'Unknown',
+          body: this.extractPlainText(c.body),
+          created: c.created,
+        })).filter((c) => c.body.trim().length > 0);
+
+        return {
+          key: i.key,
+          summary: i.fields.summary,
+          description: this.extractPlainText(i.fields.description),
+          status: i.fields.status?.name || 'Unknown',
+          priority: i.fields.priority?.name || 'Medium',
+          issueType: i.fields.issuetype?.name || 'Task',
+          labels: i.fields.labels || [],
+          epicKey: i.fields.parent?.key,
+          epicName: i.fields.parent?.fields?.summary,
+          ...(imageAttachments.length > 0 ? { attachments: imageAttachments } : {}),
+          ...(comments.length > 0 ? { comments } : {}),
+        };
+      });
 
       return { issues, total: body.total };
     } catch (err: unknown) {
@@ -618,5 +641,37 @@ export class JiraService {
     }
 
     return lines.join('').trim();
+  }
+
+  /**
+   * Download a Jira attachment and return it as a base64 data URI.
+   * Uses the attachment's `content` URL which requires authentication.
+   */
+  async downloadAttachment(
+    contentUrl: string,
+    mimeType: string
+  ): Promise<{ dataUri: string; error?: string }> {
+    const cfg = await this.getConfig();
+    if (!cfg) { return { dataUri: '', error: 'Jira credentials not configured.' }; }
+
+    try {
+      const response = await fetch(contentUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': this.authHeader(cfg.email, cfg.token),
+        },
+        signal: AbortSignal.timeout(30_000), // attachment downloads may be slower
+      });
+
+      if (!response.ok) {
+        return { dataUri: '', error: `Failed to download attachment: HTTP ${response.status}` };
+      }
+
+      const buffer = await response.arrayBuffer();
+      const base64 = Buffer.from(buffer).toString('base64');
+      return { dataUri: `data:${mimeType};base64,${base64}` };
+    } catch (err: unknown) {
+      return { dataUri: '', error: describeNetworkError(err) };
+    }
   }
 }

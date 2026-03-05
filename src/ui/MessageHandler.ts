@@ -1010,7 +1010,12 @@ export class MessageHandler {
       case 'importFromJira': {
         try {
           const { issues, targetStatus } = message.payload as {
-            issues: { key: string; summary: string; description: string; status: string; priority: string; issueType: string; labels: string[] }[];
+            issues: {
+              key: string; summary: string; description: string; status: string;
+              priority: string; issueType: string; labels: string[];
+              attachments?: { id: string; filename: string; mimeType: string; contentUrl: string }[];
+              comments?: { author: string; body: string; created: string }[];
+            }[];
             targetStatus: string;
           };
 
@@ -1049,7 +1054,7 @@ export class MessageHandler {
               ? `${issue.description}\n\n— Imported from Jira: ${issue.key} —`
               : `— Imported from Jira: ${issue.key} —`;
 
-            this.taskManager.addTask({
+            const task = this.taskManager.addTask({
               title: issue.summary.slice(0, 300),
               tag,
               status: validStatus,
@@ -1057,6 +1062,50 @@ export class MessageHandler {
               description,
               priority,
             });
+
+            // Download image attachments from Jira and store as VBAttachments
+            const vbAttachments: VBAttachment[] = [];
+            if (issue.attachments && issue.attachments.length > 0) {
+              for (const att of issue.attachments) {
+                try {
+                  const result = await this.jiraService.downloadAttachment(att.contentUrl, att.mimeType);
+                  if (result.dataUri) {
+                    vbAttachments.push({
+                      id: `jira-${att.id}`,
+                      filename: att.filename,
+                      mimeType: att.mimeType,
+                      dataUri: result.dataUri,
+                      addedAt: new Date().toISOString(),
+                    });
+                  }
+                } catch {
+                  // Skip failed attachment downloads — don't block the import
+                }
+              }
+            }
+
+            // Map Jira comments to copilotLog entries (follow-up log format)
+            const copilotLog: { prompt: string; timestamp: string }[] = [];
+            if (issue.comments && issue.comments.length > 0) {
+              for (const comment of issue.comments) {
+                copilotLog.push({
+                  prompt: `[${comment.author}] ${comment.body}`,
+                  timestamp: comment.created,
+                });
+              }
+            }
+
+            // Attach downloaded images and comments to the newly created task
+            if (vbAttachments.length > 0 || copilotLog.length > 0) {
+              const d = this.storage.getData();
+              const t = d.tasks.find((x) => x.id === task.id);
+              if (t) {
+                if (vbAttachments.length > 0) { t.attachments = vbAttachments; }
+                if (copilotLog.length > 0) { t.copilotLog = copilotLog; }
+                this.storage.setData(d);
+              }
+            }
+
             importCount++;
           }
 

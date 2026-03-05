@@ -39,6 +39,8 @@ interface JiraImportIssue {
   labels: string[];
   epicKey?: string;
   epicName?: string;
+  attachments?: { id: string; filename: string; mimeType: string; contentUrl: string }[];
+  comments?: { author: string; body: string; created: string }[];
 }
 
 interface VBSession {
@@ -4018,15 +4020,24 @@ function showJiraImportIssuePicker(
     return 'priority-medium';
   };
 
-  const rows = issues.map((issue) => `
+  const rows = issues.map((issue) => {
+    const badges: string[] = [];
+    if (issue.attachments && issue.attachments.length > 0) {
+      badges.push(`<span class="jira-badge" title="${issue.attachments.length} image(s)">&#128247; ${issue.attachments.length}</span>`);
+    }
+    if (issue.comments && issue.comments.length > 0) {
+      badges.push(`<span class="jira-badge" title="${issue.comments.length} comment(s)">&#128172; ${issue.comments.length}</span>`);
+    }
+    return `
     <label class="jira-task-option" data-issue-key="${escapeHtml(issue.key)}">
       <input type="checkbox" name="jira-import-issue" value="${escapeHtml(issue.key)}" checked />
       <span class="jira-import-type" title="${escapeHtml(issue.issueType)}">${issueTypeIcon(issue.issueType)}</span>
       <span class="jira-issue-key">${escapeHtml(issue.key)}</span>
       <span class="jira-task-title">${escapeHtml(issue.summary)}</span>
+      ${badges.length > 0 ? `<span class="jira-badges">${badges.join('')}</span>` : ''}
       <span class="jira-import-status ${priorityClass(issue.priority)}">${escapeHtml(issue.status)}</span>
-    </label>`
-  ).join('');
+    </label>`;
+  }).join('');
 
   const showing = issues.length < total ? `Showing ${issues.length} of ${total}` : `${issues.length} issue${issues.length === 1 ? '' : 's'}`;
 
