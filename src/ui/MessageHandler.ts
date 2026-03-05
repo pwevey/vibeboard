@@ -1127,6 +1127,10 @@ export class MessageHandler {
       const exportObj = {
         exportedAt: new Date().toISOString(),
         projects: exportProjects,
+        activeProjectId: data.activeProjectId || null,
+        jiraProjectMapping: data.jiraProjectMapping || {},
+        boards: data.boards || [],
+        activeBoardId: data.activeBoardId || null,
         summary: allTotals,
         sessions: jsonSessions,
         activeSession: data.activeSessionId ? {
@@ -1218,6 +1222,7 @@ export class MessageHandler {
       let tasks: any[] = [];
       let boards: any[] | undefined;
       let projects: any[] | undefined;
+      let jiraProjectMapping: Record<string, string> | undefined;
 
       if (imported.version === 1 && Array.isArray(imported.sessions) && Array.isArray(imported.tasks)) {
         // Raw workspace data format (direct copy of data.json)
@@ -1225,6 +1230,7 @@ export class MessageHandler {
         tasks = imported.tasks;
         boards = imported.boards;
         projects = imported.projects;
+        jiraProjectMapping = imported.jiraProjectMapping;
       } else if (Array.isArray(imported.sessions) && Array.isArray(imported.tasks)) {
         // Export format — sessions may have .summary attached
         sessions = imported.sessions.map((s: any) => {
@@ -1232,9 +1238,15 @@ export class MessageHandler {
           return sessionData;
         });
         tasks = imported.tasks;
-        // Import projects from export format
+        // Import projects and mappings from export format
         if (Array.isArray(imported.projects)) {
           projects = imported.projects;
+        }
+        if (imported.jiraProjectMapping && typeof imported.jiraProjectMapping === 'object') {
+          jiraProjectMapping = imported.jiraProjectMapping;
+        }
+        if (Array.isArray(imported.boards)) {
+          boards = imported.boards;
         }
       } else {
         vscode.window.showErrorMessage('Import failed: unrecognized file format. Use a Vibe Board JSON export or data.json backup.');
@@ -1291,6 +1303,11 @@ export class MessageHandler {
           data.projects = [];
           data.activeProjectId = null;
         }
+        if (jiraProjectMapping) {
+          data.jiraProjectMapping = jiraProjectMapping;
+        } else {
+          data.jiraProjectMapping = {};
+        }
       } else {
         // Merge — add non-duplicate sessions and tasks
         const existingSessionIds = new Set(data.sessions.map((s) => s.id));
@@ -1328,6 +1345,16 @@ export class MessageHandler {
             if (!existingProjectIds.has(p.id)) {
               data.projects = data.projects || [];
               data.projects.push(p);
+            }
+          }
+        }
+
+        // Merge Jira project mappings (imported values fill gaps, don't overwrite existing)
+        if (jiraProjectMapping) {
+          data.jiraProjectMapping = data.jiraProjectMapping || {};
+          for (const [vbId, jiraKey] of Object.entries(jiraProjectMapping)) {
+            if (!data.jiraProjectMapping[vbId]) {
+              data.jiraProjectMapping[vbId] = jiraKey;
             }
           }
         }
