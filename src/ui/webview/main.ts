@@ -4119,12 +4119,13 @@ function showJiraImportProjectPicker(
       if (payload.error) {
         searchBtn.disabled = false;
         searchBtn.textContent = '\uD83D\uDD0D Search Issues';
-        // Show error inline
+        // Show error inline (before the modal-actions row, not inside it)
         let errEl = overlay.querySelector('.jira-search-error') as HTMLParagraphElement | null;
         if (!errEl) {
           errEl = document.createElement('p');
           errEl.className = 'jira-error jira-search-error';
-          searchBtn.parentElement!.insertBefore(errEl, searchBtn);
+          const actionsRow = searchBtn.closest('.modal-actions')!;
+          actionsRow.parentElement!.insertBefore(errEl, actionsRow);
         }
         errEl.innerHTML = `&#9888; ${escapeHtml(payload.error)}`;
         return;
@@ -4136,7 +4137,8 @@ function showJiraImportProjectPicker(
         if (!errEl) {
           errEl = document.createElement('p');
           errEl.className = 'jira-error jira-search-error';
-          searchBtn.parentElement!.insertBefore(errEl, searchBtn);
+          const actionsRow = searchBtn.closest('.modal-actions')!;
+          actionsRow.parentElement!.insertBefore(errEl, actionsRow);
         }
         errEl.textContent = 'No issues found matching your filter.';
         return;
