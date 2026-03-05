@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { MessageHandler } from './MessageHandler';
-import { WebviewToExtensionMessage } from '../storage/models';
+import type { MessageHandler } from './MessageHandler';
+import type { WebviewToExtensionMessage } from '../storage/models';
 
 /**
  * WebviewProvider implements WebviewViewProvider for the sidebar panel.

@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { StorageProvider } from './storage/StorageProvider';
-import { TaskTag } from './storage/models';
-import { SessionManager } from './session/SessionManager';
-import { TaskManager } from './tasks/TaskManager';
-import { MessageHandler } from './ui/MessageHandler';
+import type { StorageProvider } from './storage/StorageProvider';
+import type { TaskTag } from './storage/models';
+import type { SessionManager } from './session/SessionManager';
+import type { TaskManager } from './tasks/TaskManager';
+import type { MessageHandler } from './ui/MessageHandler';
 import { WebviewProvider } from './ui/WebviewProvider';
 import { SecretStorageService } from './services/SecretStorageService';
 
@@ -24,16 +24,19 @@ let initPromise: Promise<boolean> | null = null;
 function ensureInitialized(): Promise<boolean> {
   if (initPromise) { return initPromise; }
   initPromise = (async () => {
-    const t0 = Date.now();
-    storageProvider = new StorageProvider();
+    // Dynamically load heavy modules — they're in a separate bundle (dist/core.js)
+    // so the extension activates instantly without parsing all that code upfront.
+    const core = require('./core') as typeof import('./core');
+
+    const sp = new core.StorageProvider();
+    storageProvider = sp;
     try {
-      await storageProvider.initialize();
+      await sp.initialize();
     } catch (err) {
       console.error('[VB] Failed to initialize storage:', err);
       vscode.window.showErrorMessage('Vibe Board: Failed to initialize storage. Make sure a workspace folder is open.');
       return false;
     }
-    console.log(`[VB] Storage initialized in ${Date.now() - t0}ms`);
 
     // Migrate any plain-text Jira credentials to secure storage (one-time)
     if (secretStorageService && !globalState?.get<boolean>('jiraMigrated')) {
@@ -41,21 +44,18 @@ function ensureInitialized(): Promise<boolean> {
       globalState?.update('jiraMigrated', true);
     }
 
-    sessionManager = new SessionManager(storageProvider);
-    taskManager = new TaskManager(storageProvider);
-    messageHandler = new MessageHandler(storageProvider, sessionManager, taskManager, secretStorageService!);
+    sessionManager = new core.SessionManager(sp);
+    taskManager = new core.TaskManager(sp);
+    messageHandler = new core.MessageHandler(sp, sessionManager, taskManager, secretStorageService!);
     if (webviewProvider) {
       webviewProvider.setMessageHandler(messageHandler);
     }
-    console.log(`[VB] Full init completed in ${Date.now() - t0}ms`);
     return true;
   })();
   return initPromise;
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-  const activateStart = Date.now();
-
   // Create the secure storage service early so it's available for lazy init
   secretStorageService = new SecretStorageService(context.secrets);
   globalState = context.globalState;
@@ -199,8 +199,6 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     });
   }, 2000);
-
-  console.log(`[VB] activate() completed in ${Date.now() - activateStart}ms`);
 }
 
 export function deactivate(): void {

@@ -5,11 +5,25 @@ import * as path from 'path';
 
 const isWatch = process.argv.includes('--watch');
 
-// === Extension bundle (Node/CommonJS) ===
+// === Extension entry point (lightweight — loaded immediately) ===
 const extensionConfig = {
   entryPoints: ['src/extension.ts'],
   bundle: true,
   outfile: 'dist/extension.js',
+  external: ['vscode', './core'],
+  format: 'cjs',
+  platform: 'node',
+  target: 'node18',
+  sourcemap: isWatch,
+  minify: !isWatch,
+  treeShaking: true,
+};
+
+// === Core bundle (heavy — loaded lazily via require('./core')) ===
+const coreConfig = {
+  entryPoints: ['src/core.ts'],
+  bundle: true,
+  outfile: 'dist/core.js',
   external: ['vscode'],
   format: 'cjs',
   platform: 'node',
@@ -59,13 +73,16 @@ async function build() {
   try {
     if (isWatch) {
       const extCtx = await esbuild.context(extensionConfig);
+      const coreCtx = await esbuild.context(coreConfig);
       const webCtx = await esbuild.context(webviewConfig);
       await extCtx.watch();
+      await coreCtx.watch();
       await webCtx.watch();
       await buildCSS();
       console.log('[vibeboard] Watching for changes...');
     } else {
       await esbuild.build(extensionConfig);
+      await esbuild.build(coreConfig);
       await esbuild.build(webviewConfig);
       await buildCSS();
       console.log('[vibeboard] Build complete.');

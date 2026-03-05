@@ -3310,6 +3310,32 @@ textarea:focus-visible {
   padding: 3px 6px;
 }
 
+.jira-create-epic-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.jira-create-epic-row .jira-input {
+  flex: 1;
+  font-size: 12px;
+  padding: 4px 6px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 3px;
+}
+
+.jira-btn-sm {
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
+.jira-btn-cancel {
+  opacity: 0.7;
+}
+
 .jira-status {
   font-weight: 600;
   padding: 4px 0;
