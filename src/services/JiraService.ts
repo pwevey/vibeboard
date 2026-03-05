@@ -386,20 +386,25 @@ export class JiraService {
       });
     }
 
-    const body = {
-      fields: {
-        project: { key: projectKey },
-        summary: task.title.slice(0, 255), // Jira summary max 255 chars
-        issuetype: { name: issueType },
-        description: {
-          type: 'doc',
-          version: 1,
-          content: descParagraphs,
-        },
-        labels: [task.tag],
-        priority: { name: PRIORITY_MAP[task.priority] || 'Medium' },
+    const fields: Record<string, unknown> = {
+      project: { key: projectKey },
+      summary: task.title.slice(0, 255), // Jira summary max 255 chars
+      issuetype: { name: issueType },
+      description: {
+        type: 'doc',
+        version: 1,
+        content: descParagraphs,
       },
+      labels: [task.tag],
+      priority: { name: PRIORITY_MAP[task.priority] || 'Medium' },
     };
+
+    // Native time tracking — use timeSpentSeconds for completed time
+    if (task.timeSpentMs > 0) {
+      fields.timetracking = { timeSpentSeconds: Math.floor(task.timeSpentMs / 1000) };
+    }
+
+    const body = { fields };
 
     const response = await fetch(`${cfg.baseUrl}/rest/api/3/issue`, {
       method: 'POST',
@@ -434,12 +439,121 @@ export class JiraService {
     }
 
     const result = await response.json() as { key: string; self: string };
+    const issueKey = result.key;
+
+    // Upload attachments (best-effort — failures are logged but don't fail the export)
+    if (task.attachments && task.attachments.length > 0) {
+      for (const att of task.attachments) {
+        try {
+          await this.uploadAttachment(cfg, issueKey, att);
+        } catch {
+          // Attachment upload failures are non-critical
+        }
+      }
+    }
+
+    // Add Copilot log as comments (best-effort)
+    if (task.copilotLog && task.copilotLog.length > 0) {
+      try {
+        await this.addCopilotLogComment(cfg, issueKey, task.copilotLog);
+      } catch {
+        // Comment failures are non-critical
+      }
+    }
+
     return {
       taskId: task.id,
       taskTitle: task.title,
-      issueKey: result.key,
-      issueUrl: `${cfg.baseUrl}/browse/${result.key}`,
+      issueKey,
+      issueUrl: `${cfg.baseUrl}/browse/${issueKey}`,
     };
+  }
+
+  /**
+   * Upload a single attachment to a Jira issue.
+   * Converts the base64 data URI to a binary buffer and sends via multipart/form-data.
+   */
+  private async uploadAttachment(
+    cfg: { baseUrl: string; email: string; token: string },
+    issueKey: string,
+    attachment: { filename: string; mimeType: string; dataUri: string }
+  ): Promise<void> {
+    // Extract base64 data from data URI (e.g. "data:image/png;base64,iVBOR...")
+    const base64Match = attachment.dataUri.match(/^data:[^;]+;base64,(.+)$/);
+    if (!base64Match) { return; }
+
+    const binaryData = Buffer.from(base64Match[1], 'base64');
+
+    // Build multipart/form-data manually
+    const boundary = `----VBAttachment${Date.now()}`;
+    const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${attachment.filename}"\r\nContent-Type: ${attachment.mimeType}\r\n\r\n`;
+    const footer = `\r\n--${boundary}--\r\n`;
+
+    const headerBuf = Buffer.from(header, 'utf-8');
+    const footerBuf = Buffer.from(footer, 'utf-8');
+    const bodyBuffer = Buffer.concat([headerBuf, binaryData, footerBuf]);
+
+    const response = await fetch(`${cfg.baseUrl}/rest/api/3/issue/${encodeURIComponent(issueKey)}/attachments`, {
+      method: 'POST',
+      headers: {
+        'Authorization': this.authHeader(cfg.email, cfg.token),
+        'X-Atlassian-Token': 'no-check',
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      },
+      body: bodyBuffer,
+      signal: AbortSignal.timeout(30_000), // larger timeout for file uploads
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`Attachment upload failed (HTTP ${response.status}): ${text.slice(0, 200)}`);
+    }
+  }
+
+  /**
+   * Add the Copilot prompt log as a single comment on a Jira issue.
+   * Groups all prompts into one comment with timestamps.
+   */
+  private async addCopilotLogComment(
+    cfg: { baseUrl: string; email: string; token: string },
+    issueKey: string,
+    copilotLog: { prompt: string; timestamp: string }[]
+  ): Promise<void> {
+    // Build a readable comment body
+    const lines = copilotLog.map((entry, i) => {
+      const time = new Date(entry.timestamp).toLocaleString();
+      return `${i + 1}. [${time}] ${entry.prompt}`;
+    });
+    const commentText = `Copilot Prompt Log (${copilotLog.length} message${copilotLog.length === 1 ? '' : 's'}):\n\n${lines.join('\n')}`;
+
+    const body = {
+      body: {
+        type: 'doc',
+        version: 1,
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: commentText }],
+          },
+        ],
+      },
+    };
+
+    const response = await fetch(`${cfg.baseUrl}/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment`, {
+      method: 'POST',
+      headers: {
+        'Authorization': this.authHeader(cfg.email, cfg.token),
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`Comment failed (HTTP ${response.status}): ${text.slice(0, 200)}`);
+    }
   }
 
   /** Format milliseconds to human-readable duration. */
