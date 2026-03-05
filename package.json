@@ -108,11 +108,6 @@
           "maximum": 60,
           "description": "Minutes between automatic backups (1-60). Backups only occur when data has changed."
         },
-        "vibeboard.includeProjectContext": {
-          "type": "boolean",
-          "default": true,
-          "description": "Include project-level Copilot Context instructions in prompts and follow-ups sent to Copilot"
-        },
         "vibeboard.jiraBaseUrl": {
           "type": "string",
           "default": "",

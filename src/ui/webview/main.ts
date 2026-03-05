@@ -153,7 +153,6 @@ interface VBSettings {
   autoBackupIntervalMin: number;
   autoPromptSession: boolean;
   carryOverTasks: boolean;
-  includeProjectContext: boolean;
   jiraConfigured: boolean;
   jiraBaseUrl: string;
   jiraEmail: string;
@@ -165,7 +164,6 @@ let extensionSettings: VBSettings = {
   autoBackupIntervalMin: 5,
   autoPromptSession: true,
   carryOverTasks: true,
-  includeProjectContext: true,
   jiraConfigured: false,
   jiraBaseUrl: '',
   jiraEmail: '',
@@ -950,6 +948,19 @@ function renderFollowUpSection(taskId: string): string {
       </div>`
     : '';
 
+  // Determine if project context is available and enabled for this task
+  const fuTask = state?.tasks?.find(t => t.id === taskId);
+  const fuSession = fuTask ? state?.sessions?.find(s => s.id === fuTask.sessionId) : null;
+  const fuProject = fuSession?.projectId ? state?.projects?.find(p => p.id === fuSession.projectId) : null;
+  const hasProjectContext = !!(fuProject?.copilotContext?.trim());
+  const projectContextEnabled = fuProject?.copilotContextEnabled !== false;
+  const contextCheckbox = hasProjectContext
+    ? `<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--vscode-descriptionForeground);margin-left:auto;cursor:pointer;" title="Include project context in this follow-up">
+        <input type="checkbox" id="follow-up-include-context" ${projectContextEnabled ? 'checked' : ''} />
+        <span>Project Context</span>
+      </label>`
+    : '';
+
   return `<div class="follow-up-section">
     <div class="follow-up-header">&#128172; Copilot needs more info — describe what's next:</div>
     <textarea id="follow-up-input" class="follow-up-textarea" placeholder="What else needs to be done..." rows="2"></textarea>
@@ -960,6 +971,7 @@ function renderFollowUpSection(taskId: string): string {
       <button class="btn-follow-up-send" id="btn-follow-up-send" data-task-id="${taskId}">Send to Copilot</button>
       <button class="btn-follow-up-done secondary" id="btn-follow-up-done" data-task-id="${taskId}">&#10003; Mark Complete</button>
       <button class="btn-follow-up-cancel secondary" id="btn-follow-up-cancel">Cancel</button>
+      ${contextCheckbox}
     </div>
   </div>`;
 }
@@ -1868,7 +1880,9 @@ function bindFollowUpEvents(): void {
     if (!followUpInput || !followUpTaskId) { return; }
     const prompt = followUpInput.value.trim();
     if (!prompt && pendingFollowUpAttachments.length === 0) { return; }
-    const payload: Record<string, unknown> = { taskId: followUpTaskId, prompt: prompt || '(image attachment)' };
+    const contextCheck = document.getElementById('follow-up-include-context') as HTMLInputElement | null;
+    const includeProjectContext = contextCheck ? contextCheck.checked : true;
+    const payload: Record<string, unknown> = { taskId: followUpTaskId, prompt: prompt || '(image attachment)', includeProjectContext };
     if (pendingFollowUpAttachments.length > 0) {
       payload.attachments = pendingFollowUpAttachments;
     }
@@ -2166,11 +2180,6 @@ function showSettingsDialog(): void {
         <input type="checkbox" class="setting-checkbox" data-setting="carryOverTasks" ${extensionSettings.carryOverTasks ? 'checked' : ''} />
         <span class="start-setting-label">Carry-Over Tasks</span>
         <span class="start-setting-desc">Carry over unfinished tasks to the next session</span>
-      </label>
-      <label class="start-setting-row">
-        <input type="checkbox" class="setting-checkbox" data-setting="includeProjectContext" ${extensionSettings.includeProjectContext ? 'checked' : ''} />
-        <span class="start-setting-label">Include Project Context</span>
-        <span class="start-setting-desc">Prepend project-level Copilot Context to prompts and follow-ups</span>
       </label>
     </div>
     <div class="settings-section-divider"></div>
@@ -2489,6 +2498,7 @@ function showRenameProjectDialog(projectId: string, currentName: string): void {
   const project = state?.projects?.find((p) => p.id === projectId);
   const currentColor = project?.color || PROJECT_COLORS[0];
   const currentContext = project?.copilotContext || '';
+  const contextEnabled = project?.copilotContextEnabled !== false;
 
   const colorBtns = PROJECT_COLORS.map((c) =>
     `<button class="project-color-btn${c === currentColor ? ' selected' : ''}" data-color="${c}" style="background:${c};" title="${c}"></button>`
@@ -2505,8 +2515,11 @@ function showRenameProjectDialog(projectId: string, currentName: string): void {
     <input type="text" id="project-rename-input" value="${escapeAttr(currentName)}" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:4px;">Color</label>
     <div class="project-color-picker">${colorBtns}</div>
-    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;margin-top:8px;">Copilot Context <span style="opacity:0.6;">(optional)</span></label>
-    <textarea id="project-context-input" placeholder="e.g. Always add comments, run tests, update help docs..." rows="3" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;resize:vertical;font-family:inherit;font-size:12px;">${escapeHtml(currentContext)}</textarea>
+    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:flex;align-items:center;gap:6px;margin-top:8px;margin-bottom:4px;cursor:pointer;">
+      <input type="checkbox" id="project-context-toggle" ${contextEnabled ? 'checked' : ''} />
+      <span>Copilot Context</span>
+    </label>
+    <textarea id="project-context-input" placeholder="e.g. Always add comments, run tests, update help docs..." rows="3" style="width:100%;padding:6px;margin:0 0 4px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;resize:vertical;font-family:inherit;font-size:12px;${contextEnabled ? '' : 'opacity:0.4;pointer-events:none;'}">${escapeHtml(currentContext)}</textarea>
     <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:0 0 8px;">These instructions are included with every Copilot prompt for tasks in this project.</p>
     <div class="modal-actions">
       <button class="secondary" id="modal-cancel">Cancel</button>
@@ -2514,6 +2527,19 @@ function showRenameProjectDialog(projectId: string, currentName: string): void {
     </div>
   </div>`;
   document.body.appendChild(overlay);
+
+  // Toggle context textarea enabled/disabled
+  const contextToggle = document.getElementById('project-context-toggle') as HTMLInputElement;
+  const contextTextarea = document.getElementById('project-context-input') as HTMLTextAreaElement;
+  contextToggle?.addEventListener('change', () => {
+    if (contextToggle.checked) {
+      contextTextarea.style.opacity = '1';
+      contextTextarea.style.pointerEvents = 'auto';
+    } else {
+      contextTextarea.style.opacity = '0.4';
+      contextTextarea.style.pointerEvents = 'none';
+    }
+  });
 
   let selectedColor = currentColor;
   overlay.querySelectorAll<HTMLElement>('.project-color-btn').forEach((btn) => {
@@ -2532,8 +2558,10 @@ function showRenameProjectDialog(projectId: string, currentName: string): void {
     const name = input?.value.trim();
     if (!name) { return; }
     const contextInput = document.getElementById('project-context-input') as HTMLTextAreaElement;
+    const contextToggleEl = document.getElementById('project-context-toggle') as HTMLInputElement;
     const copilotContext = contextInput?.value.trim() || undefined;
-    vscode.postMessage({ type: 'updateProject', payload: { projectId, changes: { name, color: selectedColor, copilotContext } } });
+    const copilotContextEnabled = contextToggleEl?.checked ?? true;
+    vscode.postMessage({ type: 'updateProject', payload: { projectId, changes: { name, color: selectedColor, copilotContext, copilotContextEnabled } } });
     overlay.remove();
   };
 

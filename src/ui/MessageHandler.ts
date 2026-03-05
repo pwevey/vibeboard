@@ -314,8 +314,7 @@ export class MessageHandler {
         }
 
         // Prepend context instructions (project-level then task-level)
-        const includeProject = vscode.workspace.getConfiguration('vibeboard').get<boolean>('includeProjectContext', true);
-        const contextPrefix = this.buildContextPrefix(data, task, !includeProject);
+        const contextPrefix = this.buildContextPrefix(data, task);
         if (contextPrefix) {
           prompt = contextPrefix + '\n\n' + prompt;
         }
@@ -343,6 +342,7 @@ export class MessageHandler {
         const followUpTaskId = message.payload.taskId;
         const followUpPrompt = message.payload.prompt || '';
         const followUpAttachments: VBAttachment[] = message.payload.attachments || [];
+        const followUpIncludeContext = message.payload.includeProjectContext !== false;
 
         // Append follow-up to the task's copilot log
         const fuData = this.storage.getData();
@@ -362,8 +362,7 @@ export class MessageHandler {
         this.sendStateUpdate();
 
         // Prepend context instructions to follow-up
-        const includeProjectCtx = vscode.workspace.getConfiguration('vibeboard').get<boolean>('includeProjectContext', true);
-        const fuContextPrefix = this.buildContextPrefix(fuData, fuTask, !includeProjectCtx);
+        const fuContextPrefix = this.buildContextPrefix(fuData, fuTask, !followUpIncludeContext);
         const fullFollowUp = fuContextPrefix ? fuContextPrefix + '\n\n' + followUpPrompt : followUpPrompt;
 
         // Send the follow-up to Copilot Chat
@@ -748,6 +747,7 @@ export class MessageHandler {
           if (changes.name !== undefined) { proj.name = changes.name; }
           if (changes.color !== undefined) { proj.color = changes.color; }
           if (changes.copilotContext !== undefined) { proj.copilotContext = changes.copilotContext || undefined; }
+          if (changes.copilotContextEnabled !== undefined) { proj.copilotContextEnabled = changes.copilotContextEnabled; }
           this.storage.setData(d);
           this.sendStateUpdate();
         }
@@ -779,7 +779,7 @@ export class MessageHandler {
 
       case 'updateSetting': {
         const { key, value } = message.payload as { key: string; value: unknown };
-        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'includeProjectContext', 'jiraBaseUrl'];
+        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl'];
         if (allowedKeys.includes(key)) {
           await vscode.workspace.getConfiguration('vibeboard').update(key, value, vscode.ConfigurationTarget.Global);
           this.invalidateSettingsCache();
@@ -997,7 +997,6 @@ export class MessageHandler {
       autoBackupIntervalMin: config.get<number>('autoBackupIntervalMin', 5),
       autoPromptSession: config.get<boolean>('autoPromptSession', true),
       carryOverTasks: config.get<boolean>('carryOverTasks', true),
-      includeProjectContext: config.get<boolean>('includeProjectContext', true),
       jiraBaseUrl: config.get<string>('jiraBaseUrl', ''),
       jiraEmail: jiraSummary.email,
       jiraConfigured: jiraSummary.configured,
@@ -1019,14 +1018,14 @@ export class MessageHandler {
    * Build a context instruction prefix from project-level and task-level context.
    * Returns an empty string if no context is set.
    */
-  private buildContextPrefix(data: { projects?: { id: string; copilotContext?: string }[]; activeProjectId?: string | null; sessions?: { id: string; projectId?: string }[] }, task?: { sessionId: string; copilotContext?: string }, skipProjectContext = false): string {
+  private buildContextPrefix(data: { projects?: { id: string; copilotContext?: string; copilotContextEnabled?: boolean }[]; activeProjectId?: string | null; sessions?: { id: string; projectId?: string }[] }, task?: { sessionId: string; copilotContext?: string }, skipProjectContext = false): string {
     const parts: string[] = [];
 
     // Project-level context: find the project for the task's session
     if (!skipProjectContext && task && data.projects && data.sessions) {
       const session = data.sessions.find((s) => s.id === task.sessionId);
       const project = session?.projectId ? data.projects.find((p) => p.id === session.projectId) : null;
-      if (project?.copilotContext?.trim()) {
+      if (project?.copilotContext?.trim() && project.copilotContextEnabled !== false) {
         parts.push(`[Project Context]\n${project.copilotContext.trim()}`);
       }
     }

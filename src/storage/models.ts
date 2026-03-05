@@ -31,6 +31,7 @@ export interface VBProject {
   createdAt: string;       // ISO 8601
   color?: string;          // optional hex color for visual distinction
   copilotContext?: string; // project-level instructions passed to Copilot with every prompt
+  copilotContextEnabled?: boolean; // whether project context is active (default true)
 }
 
 // === Core Models ===
@@ -203,7 +204,7 @@ export type WebviewToExtensionMessage =
   | { type: 'retryAutomationTask'; payload: { queueIndex: number } }
   | { type: 'createProject'; payload: { id?: string; name: string; color?: string; copilotContext?: string } }
   | { type: 'renameProject'; payload: { projectId: string; name: string } }
-  | { type: 'updateProject'; payload: { projectId: string; changes: Partial<Pick<VBProject, 'name' | 'color' | 'copilotContext'>> } }
+  | { type: 'updateProject'; payload: { projectId: string; changes: Partial<Pick<VBProject, 'name' | 'color' | 'copilotContext' | 'copilotContextEnabled'>> } }
   | { type: 'deleteProject'; payload: { projectId: string } }
   | { type: 'setActiveProject'; payload: { projectId: string | null } }
   | { type: 'updateSetting'; payload: { key: string; value: unknown } }
