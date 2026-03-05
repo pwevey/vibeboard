@@ -3678,13 +3678,8 @@ function showJiraProjectAndTaskPicker(
       opts += '<option value="__create__">\uFF0B Create new epic\u2026</option>';
       epicSelect.innerHTML = opts;
 
-      // Auto-select: new epic first, then saved mapping, then most recent epic
-      if (payload.newEpicKey) {
-        epicSelect.value = payload.newEpicKey;
-      } else if (mappedEpicKey) {
-        epicSelect.value = mappedEpicKey;
-      } else if (payload.epics.length > 0) {
-        // Default to the most recently created epic (first in list, sorted by created DESC)
+      // Always default to the most recently created epic (first in list, sorted by created DESC)
+      if (payload.epics.length > 0) {
         epicSelect.value = payload.epics[0].key;
       }
     };
