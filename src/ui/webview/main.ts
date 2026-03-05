@@ -2143,6 +2143,7 @@ function showSettingsDialog(): void {
     </div>
     <div class="settings-section-divider"></div>
     <h4 class="settings-section-title">&#127919; Jira Integration</h4>
+    <p class="settings-section-desc">Export tasks as Jira issues. Your email and API token are stored securely in your OS keychain — never in plain text.</p>
     <div class="start-settings" style="margin-bottom:8px;">
       <label class="start-setting-row">
         <input type="checkbox" id="jira-prompt-toggle" ${!(state as Record<string, unknown>)?.jiraPromptDismissed ? 'checked' : ''} />
