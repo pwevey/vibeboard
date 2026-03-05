@@ -3338,7 +3338,7 @@ function showJiraProjectAndTaskPicker(
   const mappingRow = activeVBProject
     ? `<label class="jira-project-mapping-row">
          <input type="checkbox" id="jira-save-mapping" ${mappedJiraKey ? 'checked' : ''} />
-         <label>Remember for <strong>${escapeHtml(activeVBProject.name)}</strong></label>
+         Remember for <strong>${escapeHtml(activeVBProject.name)}</strong>
        </label>`
     : '';
 
