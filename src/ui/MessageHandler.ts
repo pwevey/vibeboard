@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { WebviewToExtensionMessage, TASK_TEMPLATES, createDefaultWorkspaceData, ExportTimePeriod, VBAttachment, VBProject, VBTask } from '../storage/models';
+import { WebviewToExtensionMessage, TASK_TEMPLATES, createDefaultWorkspaceData, ExportTimePeriod, VBAttachment, VBProject, VBTask, TaskTag, TaskStatus } from '../storage/models';
 import { SessionManager } from '../session/SessionManager';
 import { TaskManager } from '../tasks/TaskManager';
 import { StorageProvider } from '../storage/StorageProvider';
@@ -987,6 +987,87 @@ export class MessageHandler {
             payload: { success: false, created: 0, failed: 0, issues: [], errors: [`Unexpected error: ${msg}`] },
           });
           vscode.window.showErrorMessage(`Vibe Board: Jira export failed — ${msg}`);
+        }
+        break;
+      }
+
+      case 'searchJiraIssues': {
+        try {
+          const { projectKey, jql, maxResults } = message.payload as {
+            projectKey: string;
+            jql?: string;
+            maxResults?: number;
+          };
+          const result = await this.jiraService.searchIssues(projectKey, jql, maxResults);
+          this.webview?.postMessage({ type: 'jiraSearchResults', payload: result });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.webview?.postMessage({ type: 'jiraSearchResults', payload: { issues: [], total: 0, error: `Unexpected error: ${msg}` } });
+        }
+        break;
+      }
+
+      case 'importFromJira': {
+        try {
+          const { issues, targetStatus } = message.payload as {
+            issues: { key: string; summary: string; description: string; status: string; priority: string; issueType: string; labels: string[] }[];
+            targetStatus: string;
+          };
+
+          const data = this.storage.getData();
+          if (!data.activeSessionId) {
+            this.webview?.postMessage({ type: 'jiraImportResult', payload: { success: false, imported: 0, error: 'No active session. Start a session first.' } });
+            break;
+          }
+
+          const mapPriority = (jiraPriority: string): 'high' | 'medium' | 'low' => {
+            const p = jiraPriority.toLowerCase();
+            if (p === 'highest' || p === 'high' || p === 'critical' || p === 'blocker') { return 'high'; }
+            if (p === 'lowest' || p === 'low' || p === 'trivial') { return 'low'; }
+            return 'medium';
+          };
+
+          const mapTag = (issueType: string, labels: string[]): TaskTag => {
+            const it = issueType.toLowerCase();
+            if (it === 'bug') { return 'bug'; }
+            if (it === 'epic' || it === 'story' || it === 'feature') { return 'feature'; }
+            if (labels.some((l) => l.toLowerCase() === 'refactor')) { return 'refactor'; }
+            if (labels.some((l) => l.toLowerCase() === 'plan' || l.toLowerCase() === 'spike')) { return 'plan'; }
+            if (it === 'sub-task' || it === 'subtask') { return 'todo'; }
+            return 'todo';
+          };
+
+          const validStatus = (['in-progress', 'up-next', 'backlog', 'completed', 'notes'] as const).includes(targetStatus as TaskStatus)
+            ? targetStatus as TaskStatus
+            : 'up-next';
+
+          let importCount = 0;
+          for (const issue of issues) {
+            const tag = mapTag(issue.issueType, issue.labels);
+            const priority = mapPriority(issue.priority);
+            const description = issue.description
+              ? `${issue.description}\n\n— Imported from Jira: ${issue.key} —`
+              : `— Imported from Jira: ${issue.key} —`;
+
+            this.taskManager.addTask({
+              title: issue.summary.slice(0, 300),
+              tag,
+              status: validStatus,
+              sessionId: data.activeSessionId,
+              description,
+              priority,
+            });
+            importCount++;
+          }
+
+          this.webview?.postMessage({ type: 'jiraImportResult', payload: { success: true, imported: importCount } });
+          vscode.window.showInformationMessage(
+            `Vibe Board: Imported ${importCount} issue${importCount === 1 ? '' : 's'} from Jira.`
+          );
+          this.sendStateUpdate();
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.webview?.postMessage({ type: 'jiraImportResult', payload: { success: false, imported: 0, error: `Unexpected error: ${msg}` } });
         }
         break;
       }

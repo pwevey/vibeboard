@@ -3336,6 +3336,51 @@ textarea:focus-visible {
   opacity: 0.7;
 }
 
+/* Jira import specific */
+.jira-import-type {
+  font-size: 13px;
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+
+.jira-import-status {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.jira-import-status.priority-high {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.jira-import-status.priority-low {
+  opacity: 0.55;
+}
+
+.jira-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  padding: 5px 8px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 3px;
+}
+
+.jira-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.jira-search-error {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
 .jira-status {
   font-weight: 600;
   padding: 4px 0;

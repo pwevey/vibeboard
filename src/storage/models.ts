@@ -219,6 +219,8 @@ export type WebviewToExtensionMessage =
   | { type: 'getJiraStatuses'; payload: { projectKey: string } }
   | { type: 'testJiraConnection'; payload: Record<string, never> }
   | { type: 'exportToJira'; payload: { projectKey: string; taskIds?: string[]; issueType?: string; statusMapping?: Record<string, string>; epicKey?: string } }
+  | { type: 'searchJiraIssues'; payload: { projectKey: string; jql?: string; maxResults?: number } }
+  | { type: 'importFromJira'; payload: { issues: JiraImportIssue[]; targetStatus: TaskStatus } }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
@@ -235,7 +237,9 @@ export type ExtensionToWebviewMessage =
   | { type: 'jiraEpics'; payload: { epics: { key: string; name: string }[]; error?: string; newEpicKey?: string } }
   | { type: 'jiraStatuses'; payload: { statuses: JiraStatus[]; error?: string } }
   | { type: 'jiraConnectionTest'; payload: { success: boolean; displayName?: string; error?: string } }
-  | { type: 'jiraExportResult'; payload: { success: boolean; created: number; failed: number; issues: JiraCreatedIssue[]; errors: string[] } };
+  | { type: 'jiraExportResult'; payload: { success: boolean; created: number; failed: number; issues: JiraCreatedIssue[]; errors: string[] } }
+  | { type: 'jiraSearchResults'; payload: { issues: JiraImportIssue[]; total: number; error?: string } }
+  | { type: 'jiraImportResult'; payload: { success: boolean; imported: number; error?: string } };
 
 // === Jira Types ===
 
@@ -255,6 +259,18 @@ export interface JiraCreatedIssue {
   taskTitle: string;
   issueKey: string;
   issueUrl: string;
+}
+
+export interface JiraImportIssue {
+  key: string;
+  summary: string;
+  description: string;
+  status: string;
+  priority: string;
+  issueType: string;
+  labels: string[];
+  epicKey?: string;
+  epicName?: string;
 }
 
 // === Factory Functions ===

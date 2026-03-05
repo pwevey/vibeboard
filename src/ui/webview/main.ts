@@ -29,6 +29,18 @@ interface VBTask {
   sentToCopilot?: boolean;
 }
 
+interface JiraImportIssue {
+  key: string;
+  summary: string;
+  description: string;
+  status: string;
+  priority: string;
+  issueType: string;
+  labels: string[];
+  epicKey?: string;
+  epicName?: string;
+}
+
 interface VBSession {
   id: string;
   name: string;
@@ -250,6 +262,12 @@ window.addEventListener('message', (event) => {
       break;
     case 'jiraConnectionTest':
       handleJiraConnectionTestResult(message.payload);
+      break;
+    case 'jiraSearchResults':
+      if (jiraSearchCallback) { jiraSearchCallback(message.payload); }
+      break;
+    case 'jiraImportResult':
+      if (jiraImportCallback) { jiraImportCallback(message.payload); }
       break;
   }
 });
@@ -1086,6 +1104,7 @@ function renderNoSessionState(): string {
       </div>
       <div class="start-import-actions">
         <button class="secondary" id="btn-import-data" title="Import data from a Vibe Board JSON export or data.json backup">&#128229; Import JSON</button>
+        <button class="secondary" id="btn-import-jira" title="Import issues from Jira into Vibe Board — requires Jira credentials in Settings">&#127919; Import from Jira</button>
       </div></div>`;
 
     // Session history — filtered by active project
@@ -1360,6 +1379,7 @@ function bindEvents(): void {
   document.getElementById('btn-export-md')?.addEventListener('click', () => showExportProjectPicker('markdown'));
   document.getElementById('btn-export-jira')?.addEventListener('click', () => showJiraExportDialog());
   document.getElementById('btn-import-data')?.addEventListener('click', () => vscode.postMessage({ type: 'importData', payload: {} }));
+  document.getElementById('btn-import-jira')?.addEventListener('click', () => showJiraImportDialog());
 
   // Project management
   document.getElementById('btn-create-project')?.addEventListener('click', () => showCreateProjectDialog());
@@ -3113,7 +3133,7 @@ function showExportTimePicker(format: 'csv' | 'markdown', projectIds?: string[])
 }
 
 // ============================================================
-// Jira Export
+// Jira Export & Import
 // ============================================================
 
 /** Pending callback for when Jira projects arrive from the extension. */
@@ -3127,6 +3147,12 @@ let jiraEpicsCallback: ((payload: { epics: { key: string; name: string }[]; erro
 
 /** Pending overlay for Jira export result display. */
 let jiraResultOverlay: HTMLDivElement | null = null;
+
+/** Pending callback for Jira issue search results. */
+let jiraSearchCallback: ((payload: { issues: JiraImportIssue[]; total: number; error?: string }) => void) | null = null;
+
+/** Pending callback for Jira import results. */
+let jiraImportCallback: ((payload: { success: boolean; imported: number; error?: string }) => void) | null = null;
 
 /**
  * Show the Jira export dialog.
@@ -3820,6 +3846,276 @@ function handleJiraExportResult(payload: {
   overlay.querySelector('#jira-result-close')!.addEventListener('click', () => {
     overlay.remove();
     flushPendingBoardClose();
+  });
+}
+
+// ============================================================
+// Jira Import
+// ============================================================
+
+/**
+ * Show the Jira import dialog.
+ * Step 1: Check credentials → fetch projects → show project picker with JQL filter.
+ * Step 2: Search issues → show issue list with checkboxes.
+ * Step 3: Import selected issues as VB tasks.
+ */
+function showJiraImportDialog(): void {
+  if (!extensionSettings.jiraConfigured) {
+    showJiraCredentialsPrompt();
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Import from Jira');
+  overlay.innerHTML = `<div class="modal-card jira-dialog">
+    <h3>&#128229; Import from Jira</h3>
+    <p class="jira-loading">Fetching Jira projects&hellip;</p>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) { overlay.remove(); flushPendingBoardClose(); }
+  });
+
+  jiraProjectsCallback = (payload) => {
+    jiraProjectsCallback = null;
+    if (payload.error) {
+      overlay.querySelector('.jira-dialog')!.innerHTML = `
+        <h3>&#128229; Import from Jira</h3>
+        <p class="jira-error">&#9888; ${escapeHtml(payload.error)}</p>
+        <div class="modal-actions"><button id="jira-import-error-close">Close</button></div>`;
+      overlay.querySelector('#jira-import-error-close')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
+      return;
+    }
+    if (payload.projects.length === 0) {
+      overlay.querySelector('.jira-dialog')!.innerHTML = `
+        <h3>&#128229; Import from Jira</h3>
+        <p class="jira-error">No Jira projects found. Check your permissions.</p>
+        <div class="modal-actions"><button id="jira-import-error-close">Close</button></div>`;
+      overlay.querySelector('#jira-import-error-close')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
+      return;
+    }
+    showJiraImportProjectPicker(overlay, payload.projects);
+  };
+
+  vscode.postMessage({ type: 'getJiraProjects', payload: {} });
+}
+
+/**
+ * Show the project picker + JQL filter + search for the import dialog.
+ */
+function showJiraImportProjectPicker(
+  overlay: HTMLDivElement,
+  jiraProjects: { id: string; key: string; name: string }[]
+): void {
+  const activeProjectId = (state as Record<string, unknown>)?.activeProjectId as string | null || null;
+  const jiraProjectMapping = (state as Record<string, unknown>)?.jiraProjectMapping as Record<string, string> || {};
+  const mappedJiraKey = activeProjectId ? (jiraProjectMapping[activeProjectId] || '') : '';
+
+  const projectOptions = jiraProjects.map((p) =>
+    `<option value="${escapeHtml(p.key)}" ${p.key === mappedJiraKey ? 'selected' : ''}>${escapeHtml(p.name)} (${escapeHtml(p.key)})</option>`
+  ).join('');
+
+  const statusOptions = ['up-next', 'backlog', 'in-progress'].map((s) => {
+    const label = s === 'up-next' ? 'Up Next' : s === 'backlog' ? 'Backlog' : 'In Progress';
+    return `<option value="${s}" ${s === 'up-next' ? 'selected' : ''}>${label}</option>`;
+  }).join('');
+
+  overlay.querySelector('.jira-dialog')!.innerHTML = `
+    <h3>&#128229; Import from Jira</h3>
+    <div class="jira-form">
+      <div class="jira-field">
+        <label for="jira-import-project">Jira Project</label>
+        <select id="jira-import-project" class="jira-select">${projectOptions}</select>
+      </div>
+      <div class="jira-field">
+        <label for="jira-import-jql">Filter <span style="opacity:0.6;font-weight:normal">(JQL — optional)</span></label>
+        <input type="text" id="jira-import-jql" class="jira-input" placeholder='e.g. status = "To Do" AND type = Bug' />
+      </div>
+      <div class="jira-field">
+        <label for="jira-import-target-status">Import as</label>
+        <select id="jira-import-target-status" class="jira-select">${statusOptions}</select>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary" id="jira-import-cancel">Cancel</button>
+        <button id="jira-import-search">&#128269; Search Issues</button>
+      </div>
+    </div>`;
+
+  overlay.querySelector('#jira-import-cancel')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
+
+  overlay.querySelector('#jira-import-search')!.addEventListener('click', () => {
+    const projectKey = (overlay.querySelector('#jira-import-project') as HTMLSelectElement).value;
+    const jql = (overlay.querySelector('#jira-import-jql') as HTMLInputElement).value.trim();
+    const targetStatus = (overlay.querySelector('#jira-import-target-status') as HTMLSelectElement).value;
+
+    // Show loading state
+    const searchBtn = overlay.querySelector('#jira-import-search') as HTMLButtonElement;
+    searchBtn.disabled = true;
+    searchBtn.textContent = 'Searching\u2026';
+
+    jiraSearchCallback = (payload) => {
+      jiraSearchCallback = null;
+      if (payload.error) {
+        searchBtn.disabled = false;
+        searchBtn.textContent = '\uD83D\uDD0D Search Issues';
+        // Show error inline
+        let errEl = overlay.querySelector('.jira-search-error') as HTMLParagraphElement | null;
+        if (!errEl) {
+          errEl = document.createElement('p');
+          errEl.className = 'jira-error jira-search-error';
+          searchBtn.parentElement!.insertBefore(errEl, searchBtn);
+        }
+        errEl.innerHTML = `&#9888; ${escapeHtml(payload.error)}`;
+        return;
+      }
+      if (payload.issues.length === 0) {
+        searchBtn.disabled = false;
+        searchBtn.textContent = '\uD83D\uDD0D Search Issues';
+        let errEl = overlay.querySelector('.jira-search-error') as HTMLParagraphElement | null;
+        if (!errEl) {
+          errEl = document.createElement('p');
+          errEl.className = 'jira-error jira-search-error';
+          searchBtn.parentElement!.insertBefore(errEl, searchBtn);
+        }
+        errEl.textContent = 'No issues found matching your filter.';
+        return;
+      }
+      showJiraImportIssuePicker(overlay, payload.issues, payload.total, projectKey, jql, targetStatus, jiraProjects);
+    };
+
+    vscode.postMessage({ type: 'searchJiraIssues', payload: { projectKey, jql: jql || undefined, maxResults: 50 } });
+  });
+}
+
+/**
+ * Show the issue picker — user selects which Jira issues to import.
+ */
+function showJiraImportIssuePicker(
+  overlay: HTMLDivElement,
+  issues: JiraImportIssue[],
+  total: number,
+  projectKey: string,
+  jql: string,
+  targetStatus: string,
+  jiraProjects: { id: string; key: string; name: string }[]
+): void {
+  const issueTypeIcon = (t: string): string => {
+    const lt = t.toLowerCase();
+    if (lt === 'bug') { return '&#128027;'; }
+    if (lt === 'story' || lt === 'feature') { return '&#128218;'; }
+    if (lt === 'epic') { return '&#9889;'; }
+    if (lt === 'sub-task' || lt === 'subtask') { return '&#128279;'; }
+    return '&#9744;';
+  };
+
+  const priorityClass = (p: string): string => {
+    const lp = p.toLowerCase();
+    if (lp === 'highest' || lp === 'high' || lp === 'critical' || lp === 'blocker') { return 'priority-high'; }
+    if (lp === 'lowest' || lp === 'low' || lp === 'trivial') { return 'priority-low'; }
+    return 'priority-medium';
+  };
+
+  const rows = issues.map((issue) => `
+    <label class="jira-task-option" data-issue-key="${escapeHtml(issue.key)}">
+      <input type="checkbox" name="jira-import-issue" value="${escapeHtml(issue.key)}" checked />
+      <span class="jira-import-type" title="${escapeHtml(issue.issueType)}">${issueTypeIcon(issue.issueType)}</span>
+      <span class="jira-issue-key">${escapeHtml(issue.key)}</span>
+      <span class="jira-task-title">${escapeHtml(issue.summary)}</span>
+      <span class="jira-import-status ${priorityClass(issue.priority)}">${escapeHtml(issue.status)}</span>
+    </label>`
+  ).join('');
+
+  const showing = issues.length < total ? `Showing ${issues.length} of ${total}` : `${issues.length} issue${issues.length === 1 ? '' : 's'}`;
+
+  overlay.querySelector('.jira-dialog')!.innerHTML = `
+    <h3>&#128229; Import from Jira</h3>
+    <div class="jira-form">
+      <div class="jira-field">
+        <label>Issues from <strong>${escapeHtml(projectKey)}</strong> <span class="jira-task-count">(${showing})</span></label>
+        <div class="jira-task-list">
+          <label class="jira-task-option jira-select-all">
+            <input type="checkbox" id="jira-import-select-all" checked />
+            <strong>Select All</strong>
+          </label>
+          ${rows}
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary" id="jira-import-back">&#8592; Back</button>
+        <button id="jira-import-confirm">&#128229; Import ${issues.length} Issue${issues.length === 1 ? '' : 's'}</button>
+      </div>
+    </div>`;
+
+  // Select All logic
+  const selectAllCb = overlay.querySelector('#jira-import-select-all') as HTMLInputElement;
+  const allCheckboxes = overlay.querySelectorAll<HTMLInputElement>('input[name="jira-import-issue"]');
+  const confirmBtn = overlay.querySelector('#jira-import-confirm') as HTMLButtonElement;
+
+  const updateCount = () => {
+    const checked = overlay.querySelectorAll<HTMLInputElement>('input[name="jira-import-issue"]:checked');
+    confirmBtn.textContent = `\uD83D\uDCE5 Import ${checked.length} Issue${checked.length === 1 ? '' : 's'}`;
+    confirmBtn.disabled = checked.length === 0;
+    selectAllCb.checked = checked.length === allCheckboxes.length;
+    selectAllCb.indeterminate = checked.length > 0 && checked.length < allCheckboxes.length;
+  };
+
+  selectAllCb.addEventListener('change', () => {
+    allCheckboxes.forEach((cb) => { cb.checked = selectAllCb.checked; });
+    updateCount();
+  });
+
+  allCheckboxes.forEach((cb) => cb.addEventListener('change', updateCount));
+
+  // Back button
+  overlay.querySelector('#jira-import-back')!.addEventListener('click', () => {
+    showJiraImportProjectPicker(overlay, jiraProjects);
+  });
+
+  // Import button
+  confirmBtn.addEventListener('click', () => {
+    const checkedKeys = new Set<string>();
+    overlay.querySelectorAll<HTMLInputElement>('input[name="jira-import-issue"]:checked').forEach((cb) => {
+      checkedKeys.add(cb.value);
+    });
+
+    const selectedIssues = issues.filter((i) => checkedKeys.has(i.key));
+    if (selectedIssues.length === 0) { return; }
+
+    if (!state?.activeSessionId) {
+      overlay.querySelector('.jira-dialog')!.innerHTML = `
+        <h3>&#128229; Import from Jira</h3>
+        <p class="jira-error">&#9888; No active session. Start a session first, then try again.</p>
+        <div class="modal-actions"><button id="jira-import-close">Close</button></div>`;
+      overlay.querySelector('#jira-import-close')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
+      return;
+    }
+
+    // Show importing state
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Importing\u2026';
+
+    jiraImportCallback = (payload) => {
+      jiraImportCallback = null;
+      if (payload.error) {
+        overlay.querySelector('.jira-dialog')!.innerHTML = `
+          <h3>&#128229; Import from Jira</h3>
+          <p class="jira-error">&#9888; ${escapeHtml(payload.error)}</p>
+          <div class="modal-actions"><button id="jira-import-close">Close</button></div>`;
+        overlay.querySelector('#jira-import-close')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
+        return;
+      }
+
+      overlay.querySelector('.jira-dialog')!.innerHTML = `
+        <h3>&#128229; Import from Jira</h3>
+        <p class="jira-status">&#9989; Successfully imported ${payload.imported} issue${payload.imported === 1 ? '' : 's'}!</p>
+        <div class="modal-actions"><button id="jira-import-close">Close</button></div>`;
+      overlay.querySelector('#jira-import-close')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
+    };
+
+    vscode.postMessage({ type: 'importFromJira', payload: { issues: selectedIssues, targetStatus } });
   });
 }
 

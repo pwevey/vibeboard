@@ -5,7 +5,7 @@
  */
 
 import * as vscode from 'vscode';
-import { VBTask, JiraProject, JiraCreatedIssue, JiraStatus } from '../storage/models';
+import { VBTask, JiraProject, JiraCreatedIssue, JiraStatus, JiraImportIssue } from '../storage/models';
 import { SecretStorageService, JiraCredentials } from './SecretStorageService';
 
 /** Jira REST API v3 priority mapping. */
@@ -500,5 +500,123 @@ export class JiraService {
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     if (hours > 0) { return `${hours}h ${minutes}m`; }
     return `${minutes}m`;
+  }
+
+  // ================================================================
+  // Jira Import
+  // ================================================================
+
+  /**
+   * Represents a Jira issue fetched for import into Vibe Board.
+   */
+  // (JiraImportIssue is defined in models.ts and re-used here via the return type.)
+
+  /**
+   * Search for Jira issues in a project using JQL.
+   * Returns a list of issues with key fields mapped for display in the import picker.
+   */
+  async searchIssues(
+    projectKey: string,
+    jqlExtra?: string,
+    maxResults: number = 50
+  ): Promise<{ issues: JiraImportIssue[]; total: number; error?: string }> {
+    const cfg = await this.getConfig();
+    if (!cfg) { return { issues: [], total: 0, error: 'Jira credentials not configured.' }; }
+
+    try {
+      let jql = `project = ${projectKey}`;
+      if (jqlExtra && jqlExtra.trim()) {
+        jql += ` AND (${jqlExtra.trim()})`;
+      }
+      jql += ' ORDER BY created DESC';
+
+      const response = await fetch(`${cfg.baseUrl}/rest/api/3/search/jql`, {
+        method: 'POST',
+        headers: {
+          'Authorization': this.authHeader(cfg.email, cfg.token),
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jql,
+          fields: ['summary', 'description', 'status', 'priority', 'issuetype', 'labels', 'parent'],
+          maxResults,
+        }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        return { issues: [], total: 0, error: describeHttpError(response.status, text) };
+      }
+
+      const body = await response.json() as {
+        total: number;
+        issues: {
+          key: string;
+          fields: {
+            summary: string;
+            description: unknown;
+            status: { name: string };
+            priority: { name: string };
+            issuetype: { name: string };
+            labels: string[];
+            parent?: { key: string; fields?: { summary?: string } };
+          };
+        }[];
+      };
+
+      const issues: JiraImportIssue[] = body.issues.map((i) => ({
+        key: i.key,
+        summary: i.fields.summary,
+        description: this.extractPlainText(i.fields.description),
+        status: i.fields.status?.name || 'Unknown',
+        priority: i.fields.priority?.name || 'Medium',
+        issueType: i.fields.issuetype?.name || 'Task',
+        labels: i.fields.labels || [],
+        epicKey: i.fields.parent?.key,
+        epicName: i.fields.parent?.fields?.summary,
+      }));
+
+      return { issues, total: body.total };
+    } catch (err: unknown) {
+      return { issues: [], total: 0, error: describeNetworkError(err) };
+    }
+  }
+
+  /**
+   * Extract plain text from Jira's ADF (Atlassian Document Format) description.
+   * Handles both ADF objects and legacy string descriptions.
+   */
+  private extractPlainText(adf: unknown): string {
+    if (!adf) { return ''; }
+    if (typeof adf === 'string') { return adf; }
+    if (typeof adf !== 'object') { return ''; }
+
+    const lines: string[] = [];
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== 'object') { return; }
+      const n = node as { type?: string; text?: string; content?: unknown[] };
+      if (n.type === 'text' && typeof n.text === 'string') {
+        lines.push(n.text);
+      }
+      if (n.type === 'hardBreak') {
+        lines.push('\n');
+      }
+      if (Array.isArray(n.content)) {
+        for (const child of n.content) { walk(child); }
+      }
+    };
+
+    const doc = adf as { content?: unknown[] };
+    if (Array.isArray(doc.content)) {
+      for (let i = 0; i < doc.content.length; i++) {
+        walk(doc.content[i]);
+        // Add newline between top-level blocks (paragraphs, etc.)
+        if (i < doc.content.length - 1) { lines.push('\n'); }
+      }
+    }
+
+    return lines.join('').trim();
   }
 }
