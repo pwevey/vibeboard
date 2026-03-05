@@ -2143,7 +2143,6 @@ function showSettingsDialog(): void {
     </div>
     <div class="settings-section-divider"></div>
     <h4 class="settings-section-title">&#127919; Jira Integration</h4>
-    <p class="settings-section-desc">Export tasks as Jira issues. Your email and API token are stored securely in your OS keychain — never in plain text.</p>
     <div class="start-settings" style="margin-bottom:8px;">
       <label class="start-setting-row">
         <input type="checkbox" id="jira-prompt-toggle" ${!(state as Record<string, unknown>)?.jiraPromptDismissed ? 'checked' : ''} />
@@ -4607,6 +4606,7 @@ function renderHelpContent(section: string): string {
           <li><strong>Setup</strong> &mdash; Configure your Jira credentials in the Settings dialog (gear icon). Email and API token are stored securely in your OS keychain &mdash; never in plain text.</li>
           <li><strong>API Token</strong> &mdash; Generate one at <em>id.atlassian.com &rarr; Security &rarr; API tokens</em>.</li>
           <li><strong>Export Dialog</strong> &mdash; Click the Jira button on the start page to open a full-screen picker showing your Jira projects and session tasks.</li>
+          <li><strong>End-Session Export Prompt</strong> &mdash; When ending a session, Vibe Board prompts you to export unexported tasks to Jira. Toggle this on or off in <strong>&#9881; Settings &rarr; Jira Integration</strong>.</li>
         </ul>
         <h4>Project Mapping</h4>
         <ul>
