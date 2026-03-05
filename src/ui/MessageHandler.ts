@@ -796,93 +796,123 @@ export class MessageHandler {
       }
 
       case 'getJiraProjects': {
-        const result = await this.jiraService.getProjects();
-        this.webview?.postMessage({ type: 'jiraProjects', payload: result });
+        try {
+          const result = await this.jiraService.getProjects();
+          this.webview?.postMessage({ type: 'jiraProjects', payload: result });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.webview?.postMessage({ type: 'jiraProjects', payload: { projects: [], error: `Unexpected error: ${msg}` } });
+        }
         break;
       }
 
       case 'getJiraStatuses': {
-        const { projectKey: statusProjectKey } = message.payload as { projectKey: string };
-        const statusResult = await this.jiraService.getStatuses(statusProjectKey);
-        this.webview?.postMessage({ type: 'jiraStatuses', payload: statusResult });
+        try {
+          const { projectKey: statusProjectKey } = message.payload as { projectKey: string };
+          const statusResult = await this.jiraService.getStatuses(statusProjectKey);
+          this.webview?.postMessage({ type: 'jiraStatuses', payload: statusResult });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.webview?.postMessage({ type: 'jiraStatuses', payload: { statuses: [], error: `Unexpected error: ${msg}` } });
+        }
+        break;
+      }
+
+      case 'testJiraConnection': {
+        try {
+          const result = await this.jiraService.testConnection();
+          this.webview?.postMessage({ type: 'jiraConnectionTest', payload: result });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.webview?.postMessage({ type: 'jiraConnectionTest', payload: { success: false, error: `Unexpected error: ${msg}` } });
+        }
         break;
       }
 
       case 'exportToJira': {
-        const data = this.storage.getData();
-        const { projectKey, taskIds, issueType, statusMapping } = message.payload as {
-          projectKey: string;
-          taskIds?: string[];
-          issueType?: string;
-          statusMapping?: Record<string, string>;
-        };
+        try {
+          const data = this.storage.getData();
+          const { projectKey, taskIds, issueType, statusMapping } = message.payload as {
+            projectKey: string;
+            taskIds?: string[];
+            issueType?: string;
+            statusMapping?: Record<string, string>;
+          };
 
-        // If taskIds provided, export those; otherwise export all tasks in active session
-        let tasksToExport: VBTask[];
-        if (taskIds && taskIds.length > 0) {
-          tasksToExport = data.tasks.filter((t) => taskIds.includes(t.id));
-        } else if (data.activeSessionId) {
-          tasksToExport = data.tasks.filter((t) => t.sessionId === data.activeSessionId);
-        } else {
-          tasksToExport = data.tasks;
-        }
+          // If taskIds provided, export those; otherwise export all tasks in active session
+          let tasksToExport: VBTask[];
+          if (taskIds && taskIds.length > 0) {
+            tasksToExport = data.tasks.filter((t) => taskIds.includes(t.id));
+          } else if (data.activeSessionId) {
+            tasksToExport = data.tasks.filter((t) => t.sessionId === data.activeSessionId);
+          } else {
+            tasksToExport = data.tasks;
+          }
 
-        if (tasksToExport.length === 0) {
+          if (tasksToExport.length === 0) {
+            this.webview?.postMessage({
+              type: 'jiraExportResult',
+              payload: { success: false, created: 0, failed: 0, issues: [], errors: ['No tasks to export.'] },
+            });
+            break;
+          }
+
+          const { created, errors } = await this.jiraService.createIssues(
+            tasksToExport,
+            projectKey,
+            issueType || 'Task',
+            undefined,
+            statusMapping
+          );
+
+          const success = created.length > 0 && errors.length === 0;
+
+          // Stamp exported tasks with Jira issue keys (per-project)
+          if (created.length > 0) {
+            const d = this.storage.getData();
+            const now = new Date().toISOString();
+            for (const issue of created) {
+              const task = d.tasks.find((t) => t.id === issue.taskId);
+              if (task) {
+                // Legacy fields (last export)
+                task.jiraIssueKey = issue.issueKey;
+                task.jiraExportedAt = now;
+                // Per-project tracking
+                if (!task.jiraExports) { task.jiraExports = {}; }
+                const projKey = issue.issueKey.replace(/-\d+$/, '');
+                task.jiraExports[projKey] = { issueKey: issue.issueKey, exportedAt: now };
+              }
+            }
+            this.storage.setData(d);
+          }
+
           this.webview?.postMessage({
             type: 'jiraExportResult',
-            payload: { success: false, created: 0, failed: 0, issues: [], errors: ['No tasks to export.'] },
+            payload: {
+              success,
+              created: created.length,
+              failed: errors.length,
+              issues: created,
+              errors,
+            },
           });
-          break;
-        }
 
-        const { created, errors } = await this.jiraService.createIssues(
-          tasksToExport,
-          projectKey,
-          issueType || 'Task',
-          undefined,
-          statusMapping
-        );
-
-        const success = created.length > 0 && errors.length === 0;
-
-        // Stamp exported tasks with Jira issue keys (per-project)
-        if (created.length > 0) {
-          const d = this.storage.getData();
-          const now = new Date().toISOString();
-          for (const issue of created) {
-            const task = d.tasks.find((t) => t.id === issue.taskId);
-            if (task) {
-              // Legacy fields (last export)
-              task.jiraIssueKey = issue.issueKey;
-              task.jiraExportedAt = now;
-              // Per-project tracking
-              if (!task.jiraExports) { task.jiraExports = {}; }
-              const projKey = issue.issueKey.replace(/-\d+$/, '');
-              task.jiraExports[projKey] = { issueKey: issue.issueKey, exportedAt: now };
-            }
+          if (created.length > 0) {
+            vscode.window.showInformationMessage(
+              `Vibe Board: Created ${created.length} Jira issue${created.length === 1 ? '' : 's'}${errors.length > 0 ? ` (${errors.length} failed)` : ''}.`
+            );
+            // Refresh webview state so exported badges appear
+            this.sendStateUpdate();
+          } else {
+            vscode.window.showErrorMessage('Vibe Board: Failed to create Jira issues. Check the export results for details.');
           }
-          this.storage.setData(d);
-        }
-
-        this.webview?.postMessage({
-          type: 'jiraExportResult',
-          payload: {
-            success,
-            created: created.length,
-            failed: errors.length,
-            issues: created,
-            errors,
-          },
-        });
-
-        if (created.length > 0) {
-          vscode.window.showInformationMessage(
-            `Vibe Board: Created ${created.length} Jira issue${created.length === 1 ? '' : 's'}${errors.length > 0 ? ` (${errors.length} failed)` : ''}.`
-          );
-          // Refresh webview state so exported badges appear
-          this.sendStateUpdate();
-        } else {
-          vscode.window.showErrorMessage('Vibe Board: Failed to create Jira issues. Check the export results for details.');
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.webview?.postMessage({
+            type: 'jiraExportResult',
+            payload: { success: false, created: 0, failed: 0, issues: [], errors: [`Unexpected error: ${msg}`] },
+          });
+          vscode.window.showErrorMessage(`Vibe Board: Jira export failed — ${msg}`);
         }
         break;
       }

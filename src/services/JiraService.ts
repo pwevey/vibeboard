@@ -24,6 +24,52 @@ const STATUS_LABEL: Record<string, string> = {
   'notes': 'Notes',
 };
 
+/** Timeout in milliseconds for all Jira API requests. */
+const FETCH_TIMEOUT_MS = 15_000;
+
+/**
+ * Categorize an HTTP error status into a user-friendly message.
+ * Specifically calls out expired / invalid tokens for 401.
+ */
+function describeHttpError(status: number, bodyText: string): string {
+  switch (status) {
+    case 401:
+      return 'Authentication failed — your API token may have expired or is invalid. Generate a new token at id.atlassian.com.';
+    case 403:
+      return 'Permission denied — your API token does not have the required access. Check your Atlassian permissions.';
+    case 404:
+      return 'Not found — verify your Jira Base URL is correct (e.g. https://your-domain.atlassian.net).';
+    default:
+      if (status >= 500) {
+        return `Jira server error (HTTP ${status}) — the Jira instance may be temporarily unavailable. Try again later.`;
+      }
+      return `HTTP ${status}: ${bodyText.slice(0, 200)}`;
+  }
+}
+
+/**
+ * Describe a network-level error with user-friendly guidance.
+ */
+function describeNetworkError(err: unknown): string {
+  if (err instanceof Error) {
+    if (err.name === 'AbortError' || err.name === 'TimeoutError') {
+      return 'Request timed out — the Jira server did not respond within 15 seconds. Check your Base URL and network connection.';
+    }
+    const msg = err.message.toLowerCase();
+    if (msg.includes('enotfound') || msg.includes('getaddrinfo')) {
+      return 'Could not resolve the Jira hostname — verify your Base URL is correct.';
+    }
+    if (msg.includes('econnrefused')) {
+      return 'Connection refused — the Jira server is not accepting connections. Check your Base URL.';
+    }
+    if (msg.includes('certificate') || msg.includes('ssl') || msg.includes('tls')) {
+      return 'SSL/TLS error — there is a certificate problem connecting to Jira. Contact your administrator.';
+    }
+    return `Network error: ${err.message}`;
+  }
+  return `Network error: ${String(err)}`;
+}
+
 export class JiraService {
   constructor(private secretStorage: SecretStorageService) {}
 
@@ -55,6 +101,36 @@ export class JiraService {
   }
 
   /**
+   * Test the Jira connection by calling GET /rest/api/3/myself.
+   * Returns a success boolean and user display name, or error message.
+   */
+  async testConnection(): Promise<{ success: boolean; displayName?: string; error?: string }> {
+    const cfg = await this.getConfig();
+    if (!cfg) { return { success: false, error: 'Jira credentials not configured.' }; }
+
+    try {
+      const response = await fetch(`${cfg.baseUrl}/rest/api/3/myself`, {
+        method: 'GET',
+        headers: {
+          'Authorization': this.authHeader(cfg.email, cfg.token),
+          'Accept': 'application/json',
+        },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        return { success: false, error: describeHttpError(response.status, text) };
+      }
+
+      const body = await response.json() as { displayName?: string; emailAddress?: string };
+      return { success: true, displayName: body.displayName || body.emailAddress || 'Unknown user' };
+    } catch (err: unknown) {
+      return { success: false, error: describeNetworkError(err) };
+    }
+  }
+
+  /**
    * Fetch available Jira projects.
    */
   async getProjects(): Promise<{ projects: JiraProject[]; error?: string }> {
@@ -68,14 +144,12 @@ export class JiraService {
           'Authorization': this.authHeader(cfg.email, cfg.token),
           'Accept': 'application/json',
         },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
       if (!response.ok) {
         const text = await response.text();
-        const detail = response.status === 401 ? 'Invalid credentials — check your email and API token.'
-          : response.status === 403 ? 'Permission denied — ensure your token has project read access.'
-          : `HTTP ${response.status}: ${text.slice(0, 200)}`;
-        return { projects: [], error: detail };
+        return { projects: [], error: describeHttpError(response.status, text) };
       }
 
       const body = await response.json() as { values: { id: string; key: string; name: string }[] };
@@ -86,8 +160,7 @@ export class JiraService {
       }));
       return { projects };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { projects: [], error: `Network error: ${msg}` };
+      return { projects: [], error: describeNetworkError(err) };
     }
   }
 
@@ -106,14 +179,15 @@ export class JiraService {
           'Authorization': this.authHeader(cfg.email, cfg.token),
           'Accept': 'application/json',
         },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
       if (!response.ok) {
         const text = await response.text();
-        const detail = response.status === 401 ? 'Invalid credentials.'
-          : response.status === 404 ? `Project "${projectKey}" not found.`
-          : `HTTP ${response.status}: ${text.slice(0, 200)}`;
-        return { statuses: [], error: detail };
+        if (response.status === 404) {
+          return { statuses: [], error: `Project "${projectKey}" not found.` };
+        }
+        return { statuses: [], error: describeHttpError(response.status, text) };
       }
 
       // Response is an array of issue types, each with a "statuses" array
@@ -132,8 +206,7 @@ export class JiraService {
       statuses.sort((a, b) => a.name.localeCompare(b.name));
       return { statuses };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { statuses: [], error: `Network error: ${msg}` };
+      return { statuses: [], error: describeNetworkError(err) };
     }
   }
 
@@ -157,10 +230,12 @@ export class JiraService {
           'Authorization': this.authHeader(cfg.email, cfg.token),
           'Accept': 'application/json',
         },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
       if (!trRes.ok) {
-        return { success: false, error: `Failed to get transitions: HTTP ${trRes.status}` };
+        const trText = await trRes.text();
+        return { success: false, error: `Failed to get transitions: ${describeHttpError(trRes.status, trText)}` };
       }
 
       const trBody = await trRes.json() as {
@@ -182,17 +257,17 @@ export class JiraService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ transition: { id: match.id } }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
       if (!execRes.ok) {
         const text = await execRes.text();
-        return { success: false, error: `Transition failed: HTTP ${execRes.status} — ${text.slice(0, 200)}` };
+        return { success: false, error: `Transition failed: ${describeHttpError(execRes.status, text)}` };
       }
 
       return { success: true };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { success: false, error: `Network error: ${msg}` };
+      return { success: false, error: describeNetworkError(err) };
     }
   }
 
@@ -231,6 +306,16 @@ export class JiraService {
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         errors.push(`"${task.title}": ${msg}`);
+
+        // If authentication failed, abort remaining tasks — they will all fail the same way
+        if (msg.includes('Authentication failed') || msg.includes('timed out')) {
+          const remaining = tasks.length - i - 1;
+          if (remaining > 0) {
+            errors.push(`Skipped ${remaining} remaining task${remaining === 1 ? '' : 's'} due to the error above.`);
+          }
+          onProgress?.(tasks.length, tasks.length);
+          break;
+        }
       }
       onProgress?.(i + 1, tasks.length);
     }
@@ -301,9 +386,14 @@ export class JiraService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
+      // For 401, throw with the clear expired-token message
+      if (response.status === 401) {
+        throw new Error(describeHttpError(401, ''));
+      }
       const text = await response.text();
       let detail: string;
       try {
@@ -313,6 +403,9 @@ export class JiraService {
           : errObj.errorMessages?.join('; ') || text.slice(0, 300);
       } catch {
         detail = text.slice(0, 300);
+      }
+      if (response.status >= 500) {
+        throw new Error(describeHttpError(response.status, detail));
       }
       throw new Error(`HTTP ${response.status}: ${detail}`);
     }

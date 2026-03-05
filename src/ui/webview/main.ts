@@ -240,6 +240,9 @@ window.addEventListener('message', (event) => {
     case 'jiraExportResult':
       handleJiraExportResult(message.payload);
       break;
+    case 'jiraConnectionTest':
+      handleJiraConnectionTestResult(message.payload);
+      break;
   }
 });
 
@@ -2155,6 +2158,7 @@ function showSettingsDialog(): void {
       <p class="settings-hint" style="margin-top:4px;">Generate a token at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" class="jira-link">id.atlassian.com</a></p>
       <div class="jira-save-row">
         <button class="secondary" id="jira-save-btn">Save</button>
+        <button class="secondary" id="jira-test-btn" style="margin-left:6px;">&#128267; Test Connection</button>
         <span class="jira-save-status" id="jira-save-status"></span>
       </div>
     </div>
@@ -2261,6 +2265,18 @@ function showSettingsDialog(): void {
     if (tokenInput.value === jiraTokenMask) {
       tokenInput.value = '';
     }
+  });
+
+  // Test Connection button
+  document.getElementById('jira-test-btn')?.addEventListener('click', () => {
+    const status = document.getElementById('jira-save-status');
+    const testBtn = document.getElementById('jira-test-btn') as HTMLButtonElement | null;
+    if (status) {
+      status.textContent = '\u23f3 Testing\u2026';
+      status.style.color = '';
+    }
+    if (testBtn) { testBtn.disabled = true; }
+    vscode.postMessage({ type: 'testJiraConnection', payload: {} });
   });
 }
 
@@ -3052,6 +3068,23 @@ function handleJiraStatusesResponse(payload: { statuses: { id: string; name: str
   if (jiraStatusesCallback) {
     jiraStatusesCallback(payload);
   }
+}
+
+/** Handle the jiraConnectionTest response from the extension — update settings UI. */
+function handleJiraConnectionTestResult(payload: { success: boolean; displayName?: string; error?: string }): void {
+  const status = document.getElementById('jira-save-status');
+  const testBtn = document.getElementById('jira-test-btn') as HTMLButtonElement | null;
+  if (testBtn) { testBtn.disabled = false; }
+  if (!status) { return; }
+  if (payload.success) {
+    status.style.color = 'var(--vscode-testing-iconPassed, #73c991)';
+    status.textContent = `\u2713 Connected as ${payload.displayName || 'Jira user'}`;
+  } else {
+    status.style.color = 'var(--vscode-errorForeground, #f48771)';
+    status.textContent = `\u2717 ${payload.error || 'Connection failed'}`;
+  }
+  // Auto-clear after 8 seconds for errors (longer to read)
+  setTimeout(() => { if (status) { status.textContent = ''; status.style.color = ''; } }, payload.success ? 4000 : 8000);
 }
 
 /**
