@@ -165,6 +165,76 @@ export class JiraService {
   }
 
   /**
+   * Search for epics in a Jira project.
+   */
+  async searchEpics(projectKey: string): Promise<{ epics: { key: string; name: string }[]; error?: string }> {
+    const cfg = await this.getConfig();
+    if (!cfg) { return { epics: [], error: 'Jira credentials not configured.' }; }
+
+    try {
+      const jql = encodeURIComponent(`project = ${projectKey} AND issuetype = Epic ORDER BY summary ASC`);
+      const response = await fetch(`${cfg.baseUrl}/rest/api/3/search?jql=${jql}&fields=summary&maxResults=200`, {
+        method: 'GET',
+        headers: {
+          'Authorization': this.authHeader(cfg.email, cfg.token),
+          'Accept': 'application/json',
+        },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        return { epics: [], error: describeHttpError(response.status, text) };
+      }
+
+      const body = await response.json() as { issues: { key: string; fields: { summary: string } }[] };
+      const epics = body.issues.map((i) => ({ key: i.key, name: i.fields.summary }));
+      return { epics };
+    } catch (err: unknown) {
+      return { epics: [], error: describeNetworkError(err) };
+    }
+  }
+
+  /**
+   * Create a new epic in a Jira project.
+   */
+  async createEpic(projectKey: string, epicName: string): Promise<{ key: string; error?: string }> {
+    const cfg = await this.getConfig();
+    if (!cfg) { return { key: '', error: 'Jira credentials not configured.' }; }
+
+    try {
+      const body = {
+        fields: {
+          project: { key: projectKey },
+          summary: epicName.slice(0, 255),
+          issuetype: { name: 'Epic' },
+        },
+      };
+
+      const response = await fetch(`${cfg.baseUrl}/rest/api/3/issue`, {
+        method: 'POST',
+        headers: {
+          'Authorization': this.authHeader(cfg.email, cfg.token),
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        return { key: '', error: describeHttpError(response.status, text) };
+      }
+
+      const result = await response.json() as { key: string };
+      return { key: result.key };
+    } catch (err: unknown) {
+      return { key: '', error: describeNetworkError(err) };
+    }
+  }
+
+  /**
    * Fetch available statuses for a Jira project.
    * Returns a de-duplicated list of status names used by the project's issue types.
    */
@@ -207,92 +277,6 @@ export class JiraService {
       return { statuses };
     } catch (err: unknown) {
       return { statuses: [], error: describeNetworkError(err) };
-    }
-  }
-
-  /**
-   * Search for epics in a Jira project.
-   * Uses JQL to find issues of type Epic in the given project.
-   */
-  async searchEpics(projectKey: string): Promise<{ epics: { key: string; summary: string }[]; error?: string }> {
-    const cfg = await this.getConfig();
-    if (!cfg) { return { epics: [], error: 'Jira credentials not configured.' }; }
-
-    try {
-      const jql = encodeURIComponent(`project = "${projectKey}" AND issuetype = Epic ORDER BY summary ASC`);
-      const response = await fetch(`${cfg.baseUrl}/rest/api/3/search?jql=${jql}&fields=summary&maxResults=100`, {
-        method: 'GET',
-        headers: {
-          'Authorization': this.authHeader(cfg.email, cfg.token),
-          'Accept': 'application/json',
-        },
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        return { epics: [], error: describeHttpError(response.status, text) };
-      }
-
-      const body = await response.json() as {
-        issues: { key: string; fields: { summary: string } }[];
-      };
-      const epics = body.issues.map((i) => ({
-        key: i.key,
-        summary: i.fields.summary,
-      }));
-      return { epics };
-    } catch (err: unknown) {
-      return { epics: [], error: describeNetworkError(err) };
-    }
-  }
-
-  /**
-   * Create a new Epic in a Jira project.
-   * Returns the epic's issue key on success.
-   */
-  async createEpic(projectKey: string, epicName: string): Promise<{ key: string; error?: string }> {
-    const cfg = await this.getConfig();
-    if (!cfg) { return { key: '', error: 'Jira credentials not configured.' }; }
-
-    try {
-      const body = {
-        fields: {
-          project: { key: projectKey },
-          summary: epicName.slice(0, 255),
-          issuetype: { name: 'Epic' },
-        },
-      };
-
-      const response = await fetch(`${cfg.baseUrl}/rest/api/3/issue`, {
-        method: 'POST',
-        headers: {
-          'Authorization': this.authHeader(cfg.email, cfg.token),
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        let detail: string;
-        try {
-          const errObj = JSON.parse(text);
-          detail = errObj.errors
-            ? Object.values(errObj.errors).join('; ')
-            : errObj.errorMessages?.join('; ') || text.slice(0, 300);
-        } catch {
-          detail = text.slice(0, 300);
-        }
-        return { key: '', error: `Failed to create epic: ${detail}` };
-      }
-
-      const result = await response.json() as { key: string };
-      return { key: result.key };
-    } catch (err: unknown) {
-      return { key: '', error: describeNetworkError(err) };
     }
   }
 
@@ -368,7 +352,6 @@ export class JiraService {
     issueType: string = 'Task',
     onProgress?: (done: number, total: number) => void,
     statusMapping?: Record<string, string>,
-    exportMeta?: { projectContext?: string; sessionNames?: Record<string, string>; boardNames?: Record<string, string> },
     epicKey?: string
   ): Promise<{ created: JiraCreatedIssue[]; errors: string[] }> {
     const cfg = await this.getConfig();
@@ -380,7 +363,7 @@ export class JiraService {
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
       try {
-        const result = await this.createSingleIssue(cfg, task, projectKey, issueType, exportMeta, epicKey);
+        const result = await this.createSingleIssue(cfg, task, projectKey, issueType, epicKey);
         created.push(result);
 
         // Transition to mapped status if specified
@@ -419,7 +402,6 @@ export class JiraService {
     task: VBTask,
     projectKey: string,
     issueType: string,
-    exportMeta?: { projectContext?: string; sessionNames?: Record<string, string>; boardNames?: Record<string, string> },
     epicKey?: string
   ): Promise<JiraCreatedIssue> {
     // Build description in ADF (Atlassian Document Format)
@@ -439,21 +421,11 @@ export class JiraService {
       `Priority: ${task.priority}`,
       `Status: ${STATUS_LABEL[task.status] || task.status}`,
     ];
-    const sessionName = exportMeta?.sessionNames?.[task.sessionId];
-    if (sessionName) {
-      metaLines.push(`Session: ${sessionName}`);
+    if (task.timeSpentMs > 0) {
+      metaLines.push(`Time spent: ${this.formatDuration(task.timeSpentMs)}`);
     }
-    const boardName = exportMeta?.boardNames?.[task.boardId];
-    if (boardName) {
-      metaLines.push(`Board: ${boardName}`);
-    }
-    metaLines.push(`Created: ${new Date(task.createdAt).toLocaleDateString()}`);
-    metaLines.push(`Time spent: ${task.timeSpentMs > 0 ? this.formatDuration(task.timeSpentMs) : 'None'}`);
     if (task.completedAt) {
       metaLines.push(`Completed: ${new Date(task.completedAt).toLocaleDateString()}`);
-    }
-    if (task.carriedFromSessionId) {
-      metaLines.push('Carried over: Yes');
     }
     descParagraphs.push({
       type: 'paragraph',
@@ -462,40 +434,21 @@ export class JiraService {
       ],
     });
 
-    // Project context block
-    if (exportMeta?.projectContext?.trim()) {
-      descParagraphs.push({
-        type: 'paragraph',
-        content: [
-          { type: 'text', text: 'Project Context:\n' + exportMeta.projectContext.trim(), marks: [{ type: 'em' }] },
-        ],
-      });
-    }
-
-    const fields: Record<string, unknown> = {
-      project: { key: projectKey },
-      summary: task.title.slice(0, 255), // Jira summary max 255 chars
-      issuetype: { name: issueType },
-      description: {
-        type: 'doc',
-        version: 1,
-        content: descParagraphs,
+    const body = {
+      fields: {
+        project: { key: projectKey },
+        summary: task.title.slice(0, 255), // Jira summary max 255 chars
+        issuetype: { name: issueType },
+        description: {
+          type: 'doc',
+          version: 1,
+          content: descParagraphs,
+        },
+        labels: [task.tag],
+        priority: { name: PRIORITY_MAP[task.priority] || 'Medium' },
+        ...(epicKey ? { parent: { key: epicKey } } : {}),
       },
-      labels: [task.tag],
-      priority: { name: PRIORITY_MAP[task.priority] || 'Medium' },
     };
-
-    // Native time tracking — use timeSpentSeconds for completed time
-    if (task.timeSpentMs > 0) {
-      fields.timetracking = { timeSpentSeconds: Math.floor(task.timeSpentMs / 1000) };
-    }
-
-    // Link to epic if specified
-    if (epicKey) {
-      fields.parent = { key: epicKey };
-    }
-
-    const body = { fields };
 
     const response = await fetch(`${cfg.baseUrl}/rest/api/3/issue`, {
       method: 'POST',
@@ -530,121 +483,12 @@ export class JiraService {
     }
 
     const result = await response.json() as { key: string; self: string };
-    const issueKey = result.key;
-
-    // Upload attachments (best-effort — failures are logged but don't fail the export)
-    if (task.attachments && task.attachments.length > 0) {
-      for (const att of task.attachments) {
-        try {
-          await this.uploadAttachment(cfg, issueKey, att);
-        } catch {
-          // Attachment upload failures are non-critical
-        }
-      }
-    }
-
-    // Add Copilot log as comments (best-effort)
-    if (task.copilotLog && task.copilotLog.length > 0) {
-      try {
-        await this.addCopilotLogComment(cfg, issueKey, task.copilotLog);
-      } catch {
-        // Comment failures are non-critical
-      }
-    }
-
     return {
       taskId: task.id,
       taskTitle: task.title,
-      issueKey,
-      issueUrl: `${cfg.baseUrl}/browse/${issueKey}`,
+      issueKey: result.key,
+      issueUrl: `${cfg.baseUrl}/browse/${result.key}`,
     };
-  }
-
-  /**
-   * Upload a single attachment to a Jira issue.
-   * Converts the base64 data URI to a binary buffer and sends via multipart/form-data.
-   */
-  private async uploadAttachment(
-    cfg: { baseUrl: string; email: string; token: string },
-    issueKey: string,
-    attachment: { filename: string; mimeType: string; dataUri: string }
-  ): Promise<void> {
-    // Extract base64 data from data URI (e.g. "data:image/png;base64,iVBOR...")
-    const base64Match = attachment.dataUri.match(/^data:[^;]+;base64,(.+)$/);
-    if (!base64Match) { return; }
-
-    const binaryData = Buffer.from(base64Match[1], 'base64');
-
-    // Build multipart/form-data manually
-    const boundary = `----VBAttachment${Date.now()}`;
-    const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${attachment.filename}"\r\nContent-Type: ${attachment.mimeType}\r\n\r\n`;
-    const footer = `\r\n--${boundary}--\r\n`;
-
-    const headerBuf = Buffer.from(header, 'utf-8');
-    const footerBuf = Buffer.from(footer, 'utf-8');
-    const bodyBuffer = Buffer.concat([headerBuf, binaryData, footerBuf]);
-
-    const response = await fetch(`${cfg.baseUrl}/rest/api/3/issue/${encodeURIComponent(issueKey)}/attachments`, {
-      method: 'POST',
-      headers: {
-        'Authorization': this.authHeader(cfg.email, cfg.token),
-        'X-Atlassian-Token': 'no-check',
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      },
-      body: bodyBuffer,
-      signal: AbortSignal.timeout(30_000), // larger timeout for file uploads
-    });
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new Error(`Attachment upload failed (HTTP ${response.status}): ${text.slice(0, 200)}`);
-    }
-  }
-
-  /**
-   * Add the Copilot prompt log as a single comment on a Jira issue.
-   * Groups all prompts into one comment with timestamps.
-   */
-  private async addCopilotLogComment(
-    cfg: { baseUrl: string; email: string; token: string },
-    issueKey: string,
-    copilotLog: { prompt: string; timestamp: string }[]
-  ): Promise<void> {
-    // Build a readable comment body
-    const lines = copilotLog.map((entry, i) => {
-      const time = new Date(entry.timestamp).toLocaleString();
-      return `${i + 1}. [${time}] ${entry.prompt}`;
-    });
-    const commentText = `Copilot Prompt Log (${copilotLog.length} message${copilotLog.length === 1 ? '' : 's'}):\n\n${lines.join('\n')}`;
-
-    const body = {
-      body: {
-        type: 'doc',
-        version: 1,
-        content: [
-          {
-            type: 'paragraph',
-            content: [{ type: 'text', text: commentText }],
-          },
-        ],
-      },
-    };
-
-    const response = await fetch(`${cfg.baseUrl}/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment`, {
-      method: 'POST',
-      headers: {
-        'Authorization': this.authHeader(cfg.email, cfg.token),
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new Error(`Comment failed (HTTP ${response.status}): ${text.slice(0, 200)}`);
-    }
   }
 
   /** Format milliseconds to human-readable duration. */

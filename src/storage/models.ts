@@ -101,7 +101,7 @@ export interface VBWorkspaceData {
   projects?: VBProject[];
   activeProjectId?: string | null;
   jiraProjectMapping?: Record<string, string>; // VB projectId → Jira project key
-  jiraEpicMapping?: Record<string, string>; // VB projectId → Jira epic key (e.g. VB-50)
+  jiraEpicMapping?: Record<string, string>; // VB projectId → Jira epic key
   jiraPromptDismissed?: boolean; // true if user dismissed the end-session Jira export prompt
 }
 
@@ -232,7 +232,7 @@ export type ExtensionToWebviewMessage =
   | { type: 'automationProgress'; payload: AutomationProgress }
   | { type: 'settingsUpdate'; payload: Record<string, unknown> }
   | { type: 'jiraProjects'; payload: { projects: JiraProject[]; error?: string } }
-  | { type: 'jiraEpics'; payload: { epics: { key: string; summary: string }[]; error?: string; newEpicKey?: string } }
+  | { type: 'jiraEpics'; payload: { epics: { key: string; name: string }[]; error?: string; newEpicKey?: string } }
   | { type: 'jiraStatuses'; payload: { statuses: JiraStatus[]; error?: string } }
   | { type: 'jiraConnectionTest'; payload: { success: boolean; displayName?: string; error?: string } }
   | { type: 'jiraExportResult'; payload: { success: boolean; created: number; failed: number; issues: JiraCreatedIssue[]; errors: string[] } };

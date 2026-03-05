@@ -816,15 +816,15 @@ export class MessageHandler {
       }
 
       case 'setJiraEpicMapping': {
-        const { vbProjectId: epicVbId, epicKey } = message.payload as { vbProjectId: string; epicKey: string };
-        const d = this.storage.getData();
-        if (!d.jiraEpicMapping) { d.jiraEpicMapping = {}; }
-        if (epicKey) {
-          d.jiraEpicMapping[epicVbId] = epicKey;
+        const { vbProjectId: epicVbId, epicKey: mappedEpicKey } = message.payload as { vbProjectId: string; epicKey: string };
+        const ed = this.storage.getData();
+        if (!ed.jiraEpicMapping) { ed.jiraEpicMapping = {}; }
+        if (mappedEpicKey) {
+          ed.jiraEpicMapping[epicVbId] = mappedEpicKey;
         } else {
-          delete d.jiraEpicMapping[epicVbId];
+          delete ed.jiraEpicMapping[epicVbId];
         }
-        this.storage.setData(d);
+        this.storage.setData(ed);
         this.sendStateUpdate();
         break;
       }
@@ -848,22 +848,10 @@ export class MessageHandler {
         break;
       }
 
-      case 'getJiraStatuses': {
-        try {
-          const { projectKey: statusProjectKey } = message.payload as { projectKey: string };
-          const statusResult = await this.jiraService.getStatuses(statusProjectKey);
-          this.webview?.postMessage({ type: 'jiraStatuses', payload: statusResult });
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          this.webview?.postMessage({ type: 'jiraStatuses', payload: { statuses: [], error: `Unexpected error: ${msg}` } });
-        }
-        break;
-      }
-
       case 'getJiraEpics': {
         try {
-          const { projectKey: epicProjectKey } = message.payload as { projectKey: string };
-          const epicResult = await this.jiraService.searchEpics(epicProjectKey);
+          const { projectKey: epicsProjectKey } = message.payload as { projectKey: string };
+          const epicResult = await this.jiraService.searchEpics(epicsProjectKey);
           this.webview?.postMessage({ type: 'jiraEpics', payload: epicResult });
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -874,20 +862,30 @@ export class MessageHandler {
 
       case 'createJiraEpic': {
         try {
-          const { projectKey: epicProjKey, epicName } = message.payload as { projectKey: string; epicName: string };
-          const result = await this.jiraService.createEpic(epicProjKey, epicName);
-          if (result.error) {
-            // Still send epics list so UI can recover
-            const epics = await this.jiraService.searchEpics(epicProjKey);
-            this.webview?.postMessage({ type: 'jiraEpics', payload: { epics: epics.epics, error: `Epic creation failed: ${result.error}` } });
+          const { projectKey: epicProjectKey, epicName } = message.payload as { projectKey: string; epicName: string };
+          const createResult = await this.jiraService.createEpic(epicProjectKey, epicName);
+          if (createResult.error || !createResult.key) {
+            this.webview?.postMessage({ type: 'jiraEpics', payload: { epics: [], error: createResult.error || 'Failed to create epic.' } });
           } else {
-            // Reload epics so the new one appears — send back the new key to auto-select
-            const epics = await this.jiraService.searchEpics(epicProjKey);
-            this.webview?.postMessage({ type: 'jiraEpics', payload: { ...epics, newEpicKey: result.key } });
+            // Re-fetch epics so the new one appears in the list, and pass newEpicKey for auto-select
+            const refreshed = await this.jiraService.searchEpics(epicProjectKey);
+            this.webview?.postMessage({ type: 'jiraEpics', payload: { ...refreshed, newEpicKey: createResult.key } });
           }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           this.webview?.postMessage({ type: 'jiraEpics', payload: { epics: [], error: `Unexpected error: ${msg}` } });
+        }
+        break;
+      }
+
+      case 'getJiraStatuses': {
+        try {
+          const { projectKey: statusProjectKey } = message.payload as { projectKey: string };
+          const statusResult = await this.jiraService.getStatuses(statusProjectKey);
+          this.webview?.postMessage({ type: 'jiraStatuses', payload: statusResult });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.webview?.postMessage({ type: 'jiraStatuses', payload: { statuses: [], error: `Unexpected error: ${msg}` } });
         }
         break;
       }
@@ -906,7 +904,7 @@ export class MessageHandler {
       case 'exportToJira': {
         try {
           const data = this.storage.getData();
-          const { projectKey, taskIds, issueType, statusMapping, epicKey: exportEpicKey } = message.payload as {
+          const { projectKey, taskIds, issueType, statusMapping, epicKey } = message.payload as {
             projectKey: string;
             taskIds?: string[];
             issueType?: string;
@@ -932,28 +930,13 @@ export class MessageHandler {
             break;
           }
 
-          // Resolve export metadata: project context, session names, board names
-          const activeSession = data.activeSessionId ? data.sessions.find((s) => s.id === data.activeSessionId) : null;
-          const activeProjectId = (activeSession as Record<string, unknown>)?.projectId as string | undefined;
-          const activeProject = activeProjectId ? (data as Record<string, unknown>).projects as { id: string; copilotContext?: string; copilotContextEnabled?: boolean }[] | undefined : undefined;
-          const projObj = activeProject?.find((p) => p.id === activeProjectId);
-          const projectContext = projObj?.copilotContextEnabled !== false ? projObj?.copilotContext : undefined;
-
-          const sessionNames: Record<string, string> = {};
-          for (const s of data.sessions) { sessionNames[s.id] = s.name; }
-
-          const boardNames: Record<string, string> = {};
-          const boards = (data as Record<string, unknown>).boards as { id: string; name: string }[] | undefined;
-          if (boards) { for (const b of boards) { boardNames[b.id] = b.name; } }
-
           const { created, errors } = await this.jiraService.createIssues(
             tasksToExport,
             projectKey,
             issueType || 'Task',
             undefined,
             statusMapping,
-            { projectContext, sessionNames, boardNames },
-            exportEpicKey
+            epicKey
           );
 
           const success = created.length > 0 && errors.length === 0;

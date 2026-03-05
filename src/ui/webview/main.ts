@@ -3117,7 +3117,7 @@ let jiraProjectsCallback: ((payload: { projects: { id: string; key: string; name
 let jiraStatusesCallback: ((payload: { statuses: { id: string; name: string }[]; error?: string }) => void) | null = null;
 
 /** Pending callback for when Jira epics arrive from the extension. */
-let jiraEpicsCallback: ((payload: { epics: { key: string; summary: string }[]; error?: string }) => void) | null = null;
+let jiraEpicsCallback: ((payload: { epics: { key: string; name: string }[]; error?: string; newEpicKey?: string }) => void) | null = null;
 
 /** Pending overlay for Jira export result display. */
 let jiraResultOverlay: HTMLDivElement | null = null;
@@ -3193,7 +3193,7 @@ function handleJiraStatusesResponse(payload: { statuses: { id: string; name: str
 }
 
 /** Handle the jiraEpics response from the extension. */
-function handleJiraEpicsResponse(payload: { epics: { key: string; summary: string }[]; error?: string }): void {
+function handleJiraEpicsResponse(payload: { epics: { key: string; name: string }[]; error?: string; newEpicKey?: string }): void {
   if (jiraEpicsCallback) {
     jiraEpicsCallback(payload);
   }
@@ -3353,15 +3353,15 @@ function showJiraProjectAndTaskPicker(
   const mappingRow = activeVBProject
     ? `<label class="jira-project-mapping-row">
          <input type="checkbox" id="jira-save-mapping" ${mappedJiraKey ? 'checked' : ''} />
-         Remember for <strong>${escapeHtml(activeVBProject.name)}</strong>
+         <label>Remember for <strong>${escapeHtml(activeVBProject.name)}</strong></label>
        </label>`
     : '';
 
-  // Epic mapping row (only show when a VB project is active)
+  // Epic mapping row
   const epicMappingRow = activeVBProject
     ? `<label class="jira-project-mapping-row">
-         <input type="checkbox" id="jira-save-epic" ${mappedEpicKey ? 'checked' : ''} />
-         Remember for <strong>${escapeHtml(activeVBProject.name)}</strong>
+         <input type="checkbox" id="jira-save-epic-mapping" ${mappedEpicKey ? 'checked' : ''} />
+         <label>Remember for <strong>${escapeHtml(activeVBProject.name)}</strong></label>
        </label>`
     : '';
 
@@ -3376,8 +3376,8 @@ function showJiraProjectAndTaskPicker(
       <div class="jira-field">
         <label for="jira-epic-select">Epic <span style="opacity:0.6;font-weight:normal">(optional)</span></label>
         <select id="jira-epic-select" class="jira-select">
-          <option value="">— None —</option>
-          <option value="__loading" disabled>Loading epics…</option>
+          <option value="">&mdash; None &mdash;</option>
+          <option value="" disabled>Loading&hellip;</option>
         </select>
         ${epicMappingRow}
       </div>
@@ -3485,7 +3485,7 @@ function showJiraProjectAndTaskPicker(
   const saveMappingCb = overlay.querySelector('#jira-save-mapping') as HTMLInputElement | null;
   const projectSelect = overlay.querySelector('#jira-project-select') as HTMLSelectElement;
 
-  // When Jira project changes: refresh exported state + update mapping if "remember" is checked + reload epics
+  // When Jira project changes: refresh exported state + update mapping if "remember" is checked
   projectSelect.addEventListener('change', () => {
     refreshTasksForProject(projectSelect.value);
     if (saveMappingCb?.checked && activeProjectId) {
@@ -3509,96 +3509,81 @@ function showJiraProjectAndTaskPicker(
     });
   }
 
-  // === Epic loading and selection ===
+  // Epic dropdown logic
   const epicSelect = overlay.querySelector('#jira-epic-select') as HTMLSelectElement;
-  const saveEpicCb = overlay.querySelector('#jira-save-epic') as HTMLInputElement | null;
+  const saveEpicMappingCb = overlay.querySelector('#jira-save-epic-mapping') as HTMLInputElement | null;
 
   const loadEpicsForProject = (jiraKey: string) => {
-    // Reset to loading state
-    epicSelect.innerHTML = '<option value="">— None —</option><option value="__loading" disabled>Loading epics…</option>';
-    epicSelect.value = '';
+    // Show loading state
+    epicSelect.innerHTML = '<option value="">&mdash; None &mdash;</option><option value="" disabled>Loading&hellip;</option>';
 
     jiraEpicsCallback = (payload) => {
       jiraEpicsCallback = null;
-      epicSelect.innerHTML = '<option value="">— None —</option>';
-      if (!payload.error && payload.epics.length > 0) {
-        for (const epic of payload.epics) {
-          const opt = document.createElement('option');
-          opt.value = epic.key;
-          opt.textContent = `${epic.key} — ${epic.summary}`;
-          epicSelect.appendChild(opt);
-        }
+      if (payload.error) {
+        epicSelect.innerHTML = `<option value="">&mdash; None &mdash;</option><option value="" disabled>Error: ${escapeHtml(payload.error)}</option>`;
+        return;
       }
-      // "Create new" option
-      const createOpt = document.createElement('option');
-      createOpt.value = '__create';
-      createOpt.textContent = '＋ Create new epic…';
-      epicSelect.appendChild(createOpt);
+      let opts = '<option value="">&mdash; None &mdash;</option>';
+      for (const ep of payload.epics) {
+        opts += `<option value="${escapeHtml(ep.key)}">${escapeHtml(ep.name)} (${escapeHtml(ep.key)})</option>`;
+      }
+      opts += '<option value="__create__">\uFF0B Create new epic\u2026</option>';
+      epicSelect.innerHTML = opts;
 
-      // Auto-select mapped epic if it exists for this project
-      if (mappedEpicKey && epicSelect.querySelector(`option[value="${mappedEpicKey}"]`)) {
+      // Auto-select: if a new epic was just created, select it; otherwise use saved mapping
+      if (payload.newEpicKey) {
+        epicSelect.value = payload.newEpicKey;
+      } else if (mappedEpicKey) {
         epicSelect.value = mappedEpicKey;
       }
     };
+
     vscode.postMessage({ type: 'getJiraEpics', payload: { projectKey: jiraKey } });
   };
 
-  // Handle "Create new" selection
+  // Handle epic select change — create new epic flow
   epicSelect.addEventListener('change', () => {
-    if (epicSelect.value === '__create') {
-      const projectName = activeVBProject?.name || 'New Epic';
-      const epicName = prompt('Epic name:', projectName);
+    if (epicSelect.value === '__create__') {
+      const epicName = prompt('Enter a name for the new epic:');
       if (epicName && epicName.trim()) {
-        epicSelect.innerHTML = '<option value="">— None —</option><option value="__creating" disabled selected>Creating epic…</option>';
-        // Create the epic — the response comes back as jiraEpics with newEpicKey
+        epicSelect.innerHTML = '<option value="" disabled selected>Creating&hellip;</option>';
         jiraEpicsCallback = (payload) => {
           jiraEpicsCallback = null;
-          epicSelect.innerHTML = '<option value="">— None —</option>';
-          if (!payload.error && payload.epics.length > 0) {
-            for (const epic of payload.epics) {
-              const opt = document.createElement('option');
-              opt.value = epic.key;
-              opt.textContent = `${epic.key} — ${epic.summary}`;
-              epicSelect.appendChild(opt);
-            }
+          if (payload.error) {
+            epicSelect.innerHTML = `<option value="">&mdash; None &mdash;</option><option value="" disabled>Error: ${escapeHtml(payload.error)}</option>`;
+            return;
           }
-          const createOpt2 = document.createElement('option');
-          createOpt2.value = '__create';
-          createOpt2.textContent = '＋ Create new epic…';
-          epicSelect.appendChild(createOpt2);
-          // Auto-select the newly created epic
-          const newKey = (payload as Record<string, unknown>).newEpicKey as string | undefined;
-          if (newKey && epicSelect.querySelector(`option[value="${newKey}"]`)) {
-            epicSelect.value = newKey;
+          let opts = '<option value="">&mdash; None &mdash;</option>';
+          for (const ep of payload.epics) {
+            opts += `<option value="${escapeHtml(ep.key)}">${escapeHtml(ep.name)} (${escapeHtml(ep.key)})</option>`;
+          }
+          opts += '<option value="__create__">\uFF0B Create new epic\u2026</option>';
+          epicSelect.innerHTML = opts;
+          if (payload.newEpicKey) {
+            epicSelect.value = payload.newEpicKey;
           }
         };
         vscode.postMessage({ type: 'createJiraEpic', payload: { projectKey: projectSelect.value, epicName: epicName.trim() } });
       } else {
-        epicSelect.value = '';
+        epicSelect.value = ''; // Reset to None
       }
-    }
-    // Save epic mapping if "remember" is checked
-    if (saveEpicCb?.checked && activeProjectId && epicSelect.value !== '__create' && epicSelect.value !== '__creating') {
-      vscode.postMessage({
-        type: 'setJiraEpicMapping',
-        payload: { vbProjectId: activeProjectId, epicKey: epicSelect.value },
-      });
     }
   });
 
-  if (saveEpicCb && activeProjectId) {
-    saveEpicCb.addEventListener('change', () => {
+  // Epic mapping save
+  if (saveEpicMappingCb && activeProjectId) {
+    saveEpicMappingCb.addEventListener('change', () => {
       vscode.postMessage({
         type: 'setJiraEpicMapping',
         payload: {
           vbProjectId: activeProjectId,
-          epicKey: saveEpicCb.checked ? epicSelect.value : '',
+          epicKey: saveEpicMappingCb.checked ? epicSelect.value : '',
         },
       });
     });
   }
 
-  // Fetch epics for the initially selected project
+  // Load epics for the initially selected project
   loadEpicsForProject(initialJiraKey);
 
   // Cancel
@@ -3613,7 +3598,7 @@ function showJiraProjectAndTaskPicker(
     if (selectedIds.length === 0) { return; }
 
     const projectKey = projectSelect.value;
-    const selectedEpicKey = epicSelect.value && epicSelect.value !== '__create' && epicSelect.value !== '__creating' ? epicSelect.value : undefined;
+    const selectedEpicKey = epicSelect.value && epicSelect.value !== '__create__' ? epicSelect.value : undefined;
 
     // Determine which VB statuses are present in the selected tasks
     const selectedTasks = exportableTasks.filter((t: { id: string }) => selectedIds.includes(t.id));
