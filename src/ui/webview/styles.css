@@ -3177,21 +3177,6 @@ textarea:focus-visible {
   flex-direction: column;
   gap: 12px;
   margin-bottom: 16px;
-  overflow: hidden;
-  flex: 1;
-  min-height: 0;
-}
-
-.jira-field {
-  min-height: 0;
-}
-
-.jira-field:has(.jira-task-list) {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
 }
 
 .jira-field label {
@@ -3199,7 +3184,6 @@ textarea:focus-visible {
   font-size: 12px;
   font-weight: 600;
   margin-bottom: 4px;
-  flex-shrink: 0;
 }
 
 .jira-select {
@@ -3223,7 +3207,7 @@ textarea:focus-visible {
 }
 
 .jira-task-list {
-  min-height: 80px;
+  height: 350px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -3231,7 +3215,6 @@ textarea:focus-visible {
   border: 1px solid var(--vscode-widget-border);
   border-radius: 4px;
   padding: 4px;
-  flex: 1;
 }
 
 .jira-task-option {
