@@ -416,7 +416,7 @@ function renderSessionBar(session: VBSession | null): string {
   // Show project name if session belongs to one
   const sessionProject = session.projectId ? (state?.projects || []).find((p) => p.id === session.projectId) : null;
   const projectLabel = sessionProject
-    ? `<span class="session-project-label" ${sessionProject.color ? `style="border-color:${sessionProject.color};color:${sessionProject.color}"` : ''}>${escapeHtml(sessionProject.name)}</span>`
+    ? `<span class="session-project-label" id="session-project-edit" data-project-id="${sessionProject.id}" title="Click to edit project" style="cursor:pointer;${sessionProject.color ? `border-color:${sessionProject.color};color:${sessionProject.color}` : ''}">${escapeHtml(sessionProject.name)} <span style="font-size:10px;opacity:0.7;">&#9998;</span></span>`
     : '';
 
   return `<div class="session-bar" role="toolbar" aria-label="Session controls">
@@ -1197,6 +1197,14 @@ function bindEvents(): void {
 
   // Help
   document.getElementById('btn-help')?.addEventListener('click', () => showHelp());
+
+  // Edit project from session bar
+  document.getElementById('session-project-edit')?.addEventListener('click', () => {
+    const el = document.getElementById('session-project-edit');
+    const projectId = el?.dataset.projectId;
+    const project = projectId ? state?.projects?.find((p) => p.id === projectId) : null;
+    if (project) { showRenameProjectDialog(projectId!, project.name); }
+  });
 
   // Carried-over banner toggle
   document.getElementById('carried-over-toggle')?.addEventListener('click', () => {
