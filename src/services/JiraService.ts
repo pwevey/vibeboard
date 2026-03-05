@@ -172,7 +172,7 @@ export class JiraService {
     if (!cfg) { return { epics: [], error: 'Jira credentials not configured.' }; }
 
     try {
-      const jql = `project = ${projectKey} AND issuetype = Epic ORDER BY summary ASC`;
+      const jql = `project = ${projectKey} AND issuetype = Epic ORDER BY created DESC`;
       const response = await fetch(`${cfg.baseUrl}/rest/api/3/search/jql`, {
         method: 'POST',
         headers: {

@@ -3678,11 +3678,14 @@ function showJiraProjectAndTaskPicker(
       opts += '<option value="__create__">\uFF0B Create new epic\u2026</option>';
       epicSelect.innerHTML = opts;
 
-      // Auto-select: if a new epic was just created, select it; otherwise use saved mapping
+      // Auto-select: new epic first, then saved mapping, then most recent epic
       if (payload.newEpicKey) {
         epicSelect.value = payload.newEpicKey;
       } else if (mappedEpicKey) {
         epicSelect.value = mappedEpicKey;
+      } else if (payload.epics.length > 0) {
+        // Default to the most recently created epic (first in list, sorted by created DESC)
+        epicSelect.value = payload.epics[0].key;
       }
     };
 
@@ -5570,8 +5573,8 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Epic Linking</h4>
         <ul>
-          <li>The export dialog includes an <strong>Epic</strong> dropdown that lists all epics in the selected Jira project.</li>
-          <li>Select an epic to <strong>link every exported task</strong> to that epic automatically.</li>
+          <li>The export dialog includes an <strong>Epic</strong> dropdown that lists all epics in the selected Jira project, sorted by most recently created.</li>
+          <li>The <strong>most recently created epic</strong> is selected by default. If you have a saved project&ndash;epic mapping, that takes priority instead.</li>
           <li>Choose <strong>&ldquo;&#xFF0B; Create new epic&hellip;&rdquo;</strong> to create a brand-new epic in the Jira project and link tasks to it in one step.</li>
           <li>Check <strong>&ldquo;Remember for [Project]&rdquo;</strong> on the epic row to save the mapping between your active Vibe Board project and the selected epic.</li>
           <li>Next time you export from the same project, the mapped epic is <strong>pre-selected automatically</strong>.</li>
