@@ -3208,13 +3208,14 @@ textarea:focus-visible {
 
 .jira-task-list {
   height: 350px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  overflow-y: scroll;
   border: 1px solid var(--vscode-widget-border);
   border-radius: 4px;
   padding: 4px;
+}
+
+.jira-task-list > * + * {
+  margin-top: 2px;
 }
 
 .jira-task-option {
