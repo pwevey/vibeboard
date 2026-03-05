@@ -14,7 +14,7 @@ const extensionConfig = {
   format: 'cjs',
   platform: 'node',
   target: 'node18',
-  sourcemap: true,
+  sourcemap: isWatch,
   minify: !isWatch,
   treeShaking: true,
 };
@@ -27,20 +27,32 @@ const webviewConfig = {
   format: 'iife',
   platform: 'browser',
   target: 'es2020',
-  sourcemap: true,
+  sourcemap: isWatch,
   minify: !isWatch,
+  treeShaking: true,
 };
 
-// Copy CSS to dist
-function copyCSS() {
-  const src = path.resolve('src/ui/webview/styles.css');
-  const dest = path.resolve('dist/webview/styles.css');
-  const destDir = path.dirname(dest);
-  if (!fs.existsSync(destDir)) {
-    fs.mkdirSync(destDir, { recursive: true });
+// Build CSS — minify in production, copy raw in watch mode
+async function buildCSS() {
+  if (!isWatch) {
+    // Use esbuild to minify CSS
+    await esbuild.build({
+      entryPoints: ['src/ui/webview/styles.css'],
+      outfile: 'dist/webview/styles.css',
+      minify: true,
+      logLevel: 'silent',
+    });
+    console.log('[vibeboard] CSS minified to dist/webview/');
+  } else {
+    const src = path.resolve('src/ui/webview/styles.css');
+    const dest = path.resolve('dist/webview/styles.css');
+    const destDir = path.dirname(dest);
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+    fs.copyFileSync(src, dest);
+    console.log('[vibeboard] CSS copied to dist/webview/');
   }
-  fs.copyFileSync(src, dest);
-  console.log('[vibeboard] CSS copied to dist/webview/');
 }
 
 async function build() {
@@ -50,12 +62,12 @@ async function build() {
       const webCtx = await esbuild.context(webviewConfig);
       await extCtx.watch();
       await webCtx.watch();
-      copyCSS();
+      await buildCSS();
       console.log('[vibeboard] Watching for changes...');
     } else {
       await esbuild.build(extensionConfig);
       await esbuild.build(webviewConfig);
-      copyCSS();
+      await buildCSS();
       console.log('[vibeboard] Build complete.');
     }
   } catch (err) {

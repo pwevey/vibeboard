@@ -109,7 +109,7 @@ export class StorageProvider {
       this.writeTimer = null;
     }
 
-    const content = JSON.stringify(this.data, null, 2);
+    const content = JSON.stringify(this.data);
     const bytes = Buffer.from(content, 'utf-8');
     await vscode.workspace.fs.writeFile(this.storageUri, bytes);
 
@@ -187,7 +187,7 @@ export class StorageProvider {
       clearTimeout(this.writeTimer);
       this.writeTimer = null;
     }
-    const content = JSON.stringify(this.data, null, 2);
+    const content = JSON.stringify(this.data);
     const bytes = Buffer.from(content, 'utf-8');
     vscode.workspace.fs.writeFile(this.storageUri, bytes);
   }

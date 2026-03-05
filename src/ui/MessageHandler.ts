@@ -921,13 +921,22 @@ export class MessageHandler {
 
   /**
    * Push the full state to the webview.
+   * Strips undo/redo stacks to keep the payload lean — the webview only
+   * needs their lengths (sent as numbers) to enable/disable toolbar buttons.
    */
   sendStateUpdate(): void {
     if (!this.webview) {
       return;
     }
     const data = this.storage.getData();
-    this.webview.postMessage({ type: 'stateUpdate', payload: data });
+    // Build a lightweight payload — replace heavy stacks with counts
+    const { undoStack, redoStack, ...rest } = data;
+    const payload = {
+      ...rest,
+      undoCount: undoStack?.length ?? 0,
+      redoCount: redoStack?.length ?? 0,
+    };
+    this.webview.postMessage({ type: 'stateUpdate', payload });
     // Send current settings to webview (async for SecretStorage)
     this.sendSettingsUpdate();
   }

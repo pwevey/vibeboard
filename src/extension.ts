@@ -13,6 +13,7 @@ let taskManager: TaskManager | null = null;
 let messageHandler: MessageHandler | null = null;
 let webviewProvider: WebviewProvider | null = null;
 let secretStorageService: SecretStorageService | null = null;
+let globalState: vscode.Memento | null = null;
 let initPromise: Promise<boolean> | null = null;
 
 /**
@@ -32,9 +33,10 @@ function ensureInitialized(): Promise<boolean> {
       return false;
     }
 
-    // Migrate any plain-text Jira credentials to secure storage
-    if (secretStorageService) {
+    // Migrate any plain-text Jira credentials to secure storage (one-time)
+    if (secretStorageService && !globalState?.get<boolean>('jiraMigrated')) {
       await secretStorageService.migrateFromSettings();
+      globalState?.update('jiraMigrated', true);
     }
 
     sessionManager = new SessionManager(storageProvider);
@@ -51,6 +53,7 @@ function ensureInitialized(): Promise<boolean> {
 export function activate(context: vscode.ExtensionContext): void {
   // Create the secure storage service early so it's available for lazy init
   secretStorageService = new SecretStorageService(context.secrets);
+  globalState = context.globalState;
 
   // Register the sidebar webview provider immediately (lightweight — no I/O).
   // Actual storage init happens lazily when the webview resolves or a command runs.

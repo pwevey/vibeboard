@@ -53,8 +53,10 @@ interface VBWorkspaceData {
   activeSessionId: string | null;
   sessions: VBSession[];
   tasks: VBTask[];
-  undoStack?: unknown[];
-  redoStack?: unknown[];
+  /** Count of undo entries (stacks themselves are not sent to webview). */
+  undoCount?: number;
+  /** Count of redo entries (stacks themselves are not sent to webview). */
+  redoCount?: number;
   activeBoardId?: string;
   boards?: VBBoard[];
 }
@@ -382,8 +384,8 @@ function findTask(id: string): VBTask | undefined {
 // ============================================================
 
 function renderSessionBar(session: VBSession | null): string {
-  const hasUndo = !!(preAIFormSnapshot || (state?.undoStack && state.undoStack.length > 0));
-  const hasRedo = !!(redoAIFormSnapshot || (state?.redoStack && state.redoStack.length > 0));
+  const hasUndo = !!(preAIFormSnapshot || (state?.undoCount && state.undoCount > 0));
+  const hasRedo = !!(redoAIFormSnapshot || (state?.redoCount && state.redoCount > 0));
   const undoDisabled = hasUndo ? '' : ' disabled';
   const redoDisabled = hasRedo ? '' : ' disabled';
   const undoBtn = `<button class="icon-btn undo-redo-btn" id="btn-undo" title="Undo (Ctrl+Z)" aria-label="Undo last action"${undoDisabled}>&#8630;</button>`;
@@ -4819,10 +4821,10 @@ function syncUndoRedoButtons(): void {
   const undoBtn = document.getElementById('btn-undo') as HTMLButtonElement | null;
   const redoBtn = document.getElementById('btn-redo') as HTMLButtonElement | null;
   if (undoBtn) {
-    undoBtn.disabled = !(preAIFormSnapshot || (state?.undoStack && state.undoStack.length > 0));
+    undoBtn.disabled = !(preAIFormSnapshot || (state?.undoCount && state.undoCount > 0));
   }
   if (redoBtn) {
-    redoBtn.disabled = !(redoAIFormSnapshot || (state?.redoStack && state.redoStack.length > 0));
+    redoBtn.disabled = !(redoAIFormSnapshot || (state?.redoCount && state.redoCount > 0));
   }
 }
 

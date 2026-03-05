@@ -166,9 +166,9 @@ test('createDefaultWorkspaceData has correct shape', () => {
 
 test('TASK_TEMPLATES has expected entries', () => {
   const { TASK_TEMPLATES } = require('../storage/models');
-  assert.strictEqual(TASK_TEMPLATES.length, 5);
+  assert.strictEqual(TASK_TEMPLATES.length, 7);
   assert.strictEqual(TASK_TEMPLATES[0].name, 'Bug Report');
-  assert.strictEqual(TASK_TEMPLATES[4].name, 'AI Prompt Idea');
+  assert.strictEqual(TASK_TEMPLATES[6].name, 'Todo List');
 });
 
 // ── pauseSession / resumeSession ──
