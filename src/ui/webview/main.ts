@@ -2193,7 +2193,10 @@ function showSettingsDialog(): void {
   overlay.innerHTML = `<div class="modal-card settings-dialog">
     <div class="settings-dialog-header">
       <h3>&#9881; Settings</h3>
-      <button class="icon-btn" id="settings-close-btn" aria-label="Close settings">&times;</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="secondary settings-save-all-btn" id="settings-save-top">Save</button>
+        <button class="icon-btn" id="settings-close-btn" aria-label="Close settings">&times;</button>
+      </div>
     </div>
     <div class="start-settings">
       <label class="start-setting-row">
@@ -2248,10 +2251,6 @@ function showSettingsDialog(): void {
         <input type="password" class="setting-text jira-setting" data-setting="jiraApiToken" value="${extensionSettings.jiraConfigured ? '\u2022'.repeat(extensionSettings.jiraApiTokenLength || 8) : ''}" placeholder="Paste your API token" />
       </label>
       <p class="settings-hint" style="margin-top:4px;">Generate a token at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" class="jira-link">id.atlassian.com</a></p>
-      <div class="jira-save-row">
-        <button class="secondary" id="jira-save-btn">Save</button>
-        <span class="jira-save-status" id="jira-save-status"></span>
-      </div>
     </div>
     <div class="start-settings" id="jira-status-mapping-section" style="margin-top:12px;${extensionSettings.jiraConfigured ? '' : 'display:none;'}">
       <label class="start-setting-row" style="font-weight:600;font-size:11px;margin-bottom:4px;opacity:0.8;">&#128260; Status Mapping</label>
@@ -2263,6 +2262,10 @@ function showSettingsDialog(): void {
         </select>
       </label>
       <div id="jira-mapping-content"></div>
+    </div>
+    <div class="jira-save-row" style="margin-top:12px;justify-content:center;">
+      <button class="secondary settings-save-all-btn" id="settings-save-bottom">Save</button>
+      <span class="jira-save-status" id="settings-save-status"></span>
     </div>
 
   </div>`;
@@ -2320,16 +2323,19 @@ function showSettingsDialog(): void {
     vscode.postMessage({ type: 'setJiraPromptDismissed', payload: { dismissed: !checked } });
   });
 
-  // Jira Save button — sends credentials via secure saveJiraCredentials message
+  // Unified Save — saves Jira credentials + status mappings in one click
   let jiraTokenMask = '\u2022'.repeat(extensionSettings.jiraApiTokenLength || 8); // match real token length
-  document.getElementById('jira-save-btn')?.addEventListener('click', () => {
+
+  /** Save all settings: general (auto-saved on change), Jira credentials, and status mappings. */
+  const saveAllSettings = () => {
+    // 1. Save Jira credentials
     const baseUrlInput = overlay.querySelector('[data-setting="jiraBaseUrl"]') as HTMLInputElement;
     const emailInput = overlay.querySelector('[data-setting="jiraEmail"]') as HTMLInputElement;
-    const tokenInput = overlay.querySelector('[data-setting="jiraApiToken"]') as HTMLInputElement;
+    const tokenInputEl = overlay.querySelector('[data-setting="jiraApiToken"]') as HTMLInputElement;
 
     const baseUrl = baseUrlInput?.value.trim() || '';
     const email = emailInput?.value.trim() || '';
-    const tokenVal = tokenInput?.value.trim() || '';
+    const tokenVal = tokenInputEl?.value.trim() || '';
 
     // Determine if a real token was entered (not the mask)
     const hasNewToken = !!(tokenVal && tokenVal !== jiraTokenMask);
@@ -2355,15 +2361,8 @@ function showSettingsDialog(): void {
     extensionSettings.jiraConfigured = !!(baseUrl && email && tokenFilled);
 
     // Mask the token field after save
-    if (hasNewToken && tokenInput) {
-      tokenInput.value = jiraTokenMask;
-    }
-
-    // Show saved confirmation
-    const status = document.getElementById('jira-save-status');
-    if (status) {
-      status.textContent = '\u2713 Saved securely';
-      setTimeout(() => { status.textContent = ''; }, 2500);
+    if (hasNewToken && tokenInputEl) {
+      tokenInputEl.value = jiraTokenMask;
     }
 
     // Reveal the status mapping section if Jira just became configured
@@ -2371,6 +2370,71 @@ function showSettingsDialog(): void {
       const mappingSection = overlay.querySelector('#jira-status-mapping-section') as HTMLElement | null;
       if (mappingSection) { mappingSection.style.display = ''; }
     }
+
+    // 2. Save status mappings (if a project is selected and mapping rows exist)
+    const selectedProjectKey = (overlay.querySelector('#jira-mapping-project-select') as HTMLSelectElement | null)?.value || '';
+    const mappingContentEl = overlay.querySelector('#jira-mapping-content') as HTMLElement | null;
+    if (selectedProjectKey && mappingContentEl) {
+      const exportSelects = mappingContentEl.querySelectorAll<HTMLSelectElement>('select.settings-export-mapping');
+      const importSelects = mappingContentEl.querySelectorAll<HTMLSelectElement>('select.settings-import-mapping');
+
+      if (exportSelects.length > 0 || importSelects.length > 0) {
+        // Collect export mapping
+        const exportMapping: Record<string, string> = {};
+        exportSelects.forEach((sel) => {
+          const vbStatus = sel.getAttribute('data-vb-status')!;
+          if (sel.value) { exportMapping[vbStatus] = sel.value; }
+        });
+
+        // Collect import mapping
+        const importMapping: Record<string, string> = {};
+        importSelects.forEach((sel) => {
+          const jiraStatus = sel.getAttribute('data-jira-status')!;
+          if (sel.value) { importMapping[jiraStatus] = sel.value; }
+        });
+
+        // Save export mapping
+        vscode.postMessage({
+          type: 'setJiraStatusMapping',
+          payload: { jiraProjectKey: selectedProjectKey, direction: 'export', mapping: exportMapping },
+        });
+
+        // Save import mapping
+        vscode.postMessage({
+          type: 'setJiraStatusMapping',
+          payload: { jiraProjectKey: selectedProjectKey, direction: 'import', mapping: importMapping },
+        });
+
+        // Update local cache so re-opening the dialog shows saved values
+        if (!statusMappingData[selectedProjectKey]) {
+          statusMappingData[selectedProjectKey] = { export: {}, import: {} };
+        }
+        statusMappingData[selectedProjectKey].export = exportMapping;
+        statusMappingData[selectedProjectKey].import = importMapping;
+      }
+    }
+
+    // 3. Also persist number inputs (in case user didn't blur)
+    overlay.querySelectorAll<HTMLInputElement>('.setting-number').forEach((input) => {
+      const key = input.dataset.setting;
+      if (!key) { return; }
+      const val = Math.max(Number(input.min) || 1, Math.min(Number(input.max) || 100, parseInt(input.value, 10) || 10));
+      input.value = String(val);
+      vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
+      (extensionSettings as Record<string, unknown>)[key] = val;
+    });
+
+    // Show saved confirmation
+    const status = overlay.querySelector('#settings-save-status') as HTMLElement | null;
+    if (status) {
+      status.textContent = '\u2713 Saved';
+      setTimeout(() => { if (status) { status.textContent = ''; } }, 2500);
+    }
+  };
+
+  // Bind both Save buttons to the unified save function
+  overlay.querySelectorAll<HTMLButtonElement>('.settings-save-all-btn').forEach((btn) => {
+    btn.addEventListener('click', saveAllSettings);
   });
 
   // Clear placeholder dots when user focuses the token field
@@ -2518,10 +2582,6 @@ function showSettingsDialog(): void {
           <div style="margin-top:10px;">
             <h5 style="margin:0 0 4px;font-size:11px;opacity:0.8;">Import: Jira &#8594; Vibe Board</h5>
             <div class="jira-mapping-grid">${importRows}</div>
-          </div>
-          <div class="jira-save-row" style="margin-top:8px;">
-            <button class="secondary" id="jira-mapping-save-btn">Save Mapping</button>
-            <span class="jira-save-status" id="jira-mapping-save-status"></span>
           </div>`;
 
         // Set saved export mapping values
@@ -2539,49 +2599,6 @@ function showSettingsDialog(): void {
             sel.value = savedImportMapping[jiraStatus];
           }
         }
-
-        // Save button — persist both export and import mappings
-        mappingContent.querySelector('#jira-mapping-save-btn')?.addEventListener('click', () => {
-          // Collect export mapping
-          const exportMapping: Record<string, string> = {};
-          mappingContent.querySelectorAll<HTMLSelectElement>('select.settings-export-mapping').forEach((sel) => {
-            const vbStatus = sel.getAttribute('data-vb-status')!;
-            if (sel.value) { exportMapping[vbStatus] = sel.value; }
-          });
-
-          // Collect import mapping
-          const importMapping: Record<string, string> = {};
-          mappingContent.querySelectorAll<HTMLSelectElement>('select.settings-import-mapping').forEach((sel) => {
-            const jiraStatus = sel.getAttribute('data-jira-status')!;
-            if (sel.value) { importMapping[jiraStatus] = sel.value; }
-          });
-
-          // Save export mapping
-          vscode.postMessage({
-            type: 'setJiraStatusMapping',
-            payload: { jiraProjectKey: projectKey, direction: 'export', mapping: exportMapping },
-          });
-
-          // Save import mapping
-          vscode.postMessage({
-            type: 'setJiraStatusMapping',
-            payload: { jiraProjectKey: projectKey, direction: 'import', mapping: importMapping },
-          });
-
-          // Update local cache so re-opening shows the new values
-          if (!statusMappingData[projectKey]) {
-            statusMappingData[projectKey] = { export: {}, import: {} };
-          }
-          statusMappingData[projectKey].export = exportMapping;
-          statusMappingData[projectKey].import = importMapping;
-
-          // Show saved confirmation
-          const status = mappingContent.querySelector('#jira-mapping-save-status') as HTMLElement | null;
-          if (status) {
-            status.textContent = '\u2713 Saved';
-            setTimeout(() => { if (status) { status.textContent = ''; } }, 2500);
-          }
-        });
       };
 
       vscode.postMessage({ type: 'getJiraStatuses', payload: { projectKey } });

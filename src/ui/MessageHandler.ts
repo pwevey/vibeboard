@@ -1447,6 +1447,7 @@ export class MessageHandler {
         projects: exportProjects,
         activeProjectId: data.activeProjectId || null,
         jiraProjectMapping: data.jiraProjectMapping || {},
+        jiraEpicMapping: data.jiraEpicMapping || {},
         jiraStatusMapping: data.jiraStatusMapping || {},
         boards: data.boards || [],
         activeBoardId: data.activeBoardId || null,
@@ -1542,6 +1543,7 @@ export class MessageHandler {
       let boards: any[] | undefined;
       let projects: any[] | undefined;
       let jiraProjectMapping: Record<string, string> | undefined;
+      let jiraEpicMapping: Record<string, string> | undefined;
       let jiraStatusMapping: Record<string, { export: Record<string, string>; import: Record<string, string> }> | undefined;
 
       if (imported.version === 1 && Array.isArray(imported.sessions) && Array.isArray(imported.tasks)) {
@@ -1551,6 +1553,7 @@ export class MessageHandler {
         boards = imported.boards;
         projects = imported.projects;
         jiraProjectMapping = imported.jiraProjectMapping;
+        jiraEpicMapping = imported.jiraEpicMapping;
         jiraStatusMapping = imported.jiraStatusMapping;
       } else if (Array.isArray(imported.sessions) && Array.isArray(imported.tasks)) {
         // Export format — sessions may have .summary attached
@@ -1565,6 +1568,9 @@ export class MessageHandler {
         }
         if (imported.jiraProjectMapping && typeof imported.jiraProjectMapping === 'object') {
           jiraProjectMapping = imported.jiraProjectMapping;
+        }
+        if (imported.jiraEpicMapping && typeof imported.jiraEpicMapping === 'object') {
+          jiraEpicMapping = imported.jiraEpicMapping;
         }
         if (imported.jiraStatusMapping && typeof imported.jiraStatusMapping === 'object') {
           jiraStatusMapping = imported.jiraStatusMapping;
@@ -1632,6 +1638,11 @@ export class MessageHandler {
         } else {
           data.jiraProjectMapping = {};
         }
+        if (jiraEpicMapping) {
+          data.jiraEpicMapping = jiraEpicMapping;
+        } else {
+          data.jiraEpicMapping = {};
+        }
         if (jiraStatusMapping) {
           data.jiraStatusMapping = jiraStatusMapping;
         } else {
@@ -1684,6 +1695,16 @@ export class MessageHandler {
           for (const [vbId, jiraKey] of Object.entries(jiraProjectMapping)) {
             if (!data.jiraProjectMapping[vbId]) {
               data.jiraProjectMapping[vbId] = jiraKey;
+            }
+          }
+        }
+
+        // Merge Jira epic mappings (imported values fill gaps)
+        if (jiraEpicMapping) {
+          data.jiraEpicMapping = data.jiraEpicMapping || {};
+          for (const [vbId, epicKey] of Object.entries(jiraEpicMapping)) {
+            if (!data.jiraEpicMapping[vbId]) {
+              data.jiraEpicMapping[vbId] = epicKey;
             }
           }
         }
