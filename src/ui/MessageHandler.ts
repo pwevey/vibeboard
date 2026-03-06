@@ -815,6 +815,20 @@ export class MessageHandler {
         break;
       }
 
+      case 'exportHelpDocs': {
+        const { content } = message.payload as { content: string };
+        const uri = await vscode.window.showSaveDialog({
+          defaultUri: vscode.Uri.file('vibe-board-help.md'),
+          filters: { 'Markdown': ['md'], 'Text': ['txt'] },
+          title: 'Export Help Documentation'
+        });
+        if (uri) {
+          await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
+          vscode.window.showInformationMessage('Help documentation exported successfully.');
+        }
+        break;
+      }
+
       case 'clearJiraCredentials': {
         await this.secretStorage.clearJiraCredentials();
         this.invalidateSettingsCache();

@@ -5063,11 +5063,91 @@ const helpTabLabels: Record<string, string> = {
   'timers': 'Timers',
   'templates': 'Templates',
   'ai': 'AI Features',
+  'automation': 'Automation',
   'voice': 'Voice Input',
   'attachments': 'Attachments',
   'export': 'Export / Import',
   'shortcuts': 'Shortcuts'
 };
+
+/**
+ * Convert help section HTML to readable Markdown.
+ * Handles headings, lists, paragraphs, bold, italic, code, and keyboard shortcuts.
+ */
+function helpHtmlToMarkdown(html: string, sectionTitle: string): string {
+  let md = `## ${sectionTitle}\n\n`;
+  // Replace HTML entities first
+  let text = html
+    .replace(/&mdash;/g, '—')
+    .replace(/&hellip;/g, '…')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#\d+;/g, '') // strip numeric entities (emoji codes)
+    .replace(/\uFF0B/g, '+');
+
+  // Headings — convert <h3>/<h4> to ### / ####
+  text = text.replace(/<h3[^>]*>(.*?)<\/h3>/gi, (_, content) => `### ${stripTags(content)}\n\n`);
+  text = text.replace(/<h4[^>]*>(.*?)<\/h4>/gi, (_, content) => `#### ${stripTags(content)}\n\n`);
+
+  // Table rows
+  text = text.replace(/<table[^>]*>(.*?)<\/table>/gis, (_, tableContent) => {
+    const rows: string[] = [];
+    const rowPattern = /<tr[^>]*>(.*?)<\/tr>/gis;
+    let rowMatch;
+    while ((rowMatch = rowPattern.exec(tableContent)) !== null) {
+      const cells: string[] = [];
+      const cellPattern = /<(?:td|th)[^>]*>(.*?)<\/(?:td|th)>/gis;
+      let cellMatch;
+      while ((cellMatch = cellPattern.exec(rowMatch[1])) !== null) {
+        cells.push(stripTags(cellMatch[1]).trim());
+      }
+      rows.push('| ' + cells.join(' | ') + ' |');
+      if (rows.length === 1) {
+        rows.push('|' + cells.map(() => '---').join('|') + '|');
+      }
+    }
+    return rows.join('\n') + '\n\n';
+  });
+
+  // Lists: <ol> and <ul> with <li>
+  text = text.replace(/<ol[^>]*>(.*?)<\/ol>/gis, (_, listContent) => {
+    let idx = 0;
+    return listContent.replace(/<li[^>]*>(.*?)<\/li>/gis, (_: string, item: string) => {
+      idx++;
+      return `${idx}. ${stripTags(item).trim()}\n`;
+    }) + '\n';
+  });
+  text = text.replace(/<ul[^>]*>(.*?)<\/ul>/gis, (_, listContent) => {
+    return listContent.replace(/<li[^>]*>(.*?)<\/li>/gis, (_: string, item: string) => {
+      return `- ${stripTags(item).trim()}\n`;
+    }) + '\n';
+  });
+
+  // Paragraphs
+  text = text.replace(/<p[^>]*>(.*?)<\/p>/gis, (_, content) => `${stripTags(content).trim()}\n\n`);
+
+  // Bold, italic, code, kbd
+  text = text.replace(/<strong>(.*?)<\/strong>/gi, '**$1**');
+  text = text.replace(/<em>(.*?)<\/em>/gi, '*$1*');
+  text = text.replace(/<code>(.*?)<\/code>/gi, '`$1`');
+  text = text.replace(/<kbd>(.*?)<\/kbd>/gi, '`$1`');
+
+  // Strip any remaining tags
+  text = stripTags(text);
+
+  // Clean up excessive whitespace
+  text = text.replace(/\n{3,}/g, '\n\n').trim();
+
+  return md + text + '\n\n';
+}
+
+/** Strip all HTML tags from a string. */
+function stripTags(html: string): string {
+  return html.replace(/<[^>]+>/g, '');
+}
 
 function searchHelpSections(query: string): HelpSearchResult[] {
   const sections = Object.keys(helpTabLabels);
@@ -5203,7 +5283,10 @@ function showHelp(): void {
   overlay.innerHTML = `<div class="help-panel">
     <div class="help-header">
       <h2>&#10067; Vibe Board Help</h2>
-      <button class="icon-btn help-close-btn" id="btn-help-close" aria-label="Close help">&times;</button>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="secondary" id="btn-help-export" title="Export help docs as Markdown" style="font-size:11px;padding:3px 10px;">&#128196; Export</button>
+        <button class="icon-btn help-close-btn" id="btn-help-close" aria-label="Close help">&times;</button>
+      </div>
     </div>
     <div class="help-search-bar">
       <input type="text" id="help-search-input" placeholder="Search help docs..." aria-label="Search help documentation" autocomplete="off" />
@@ -5319,6 +5402,26 @@ function showHelp(): void {
   // Close handlers
   document.getElementById('btn-help-close')?.addEventListener('click', () => overlay.remove());
   overlay.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Escape') { overlay.remove(); } });
+
+  // Export help docs as Markdown
+  document.getElementById('btn-help-export')?.addEventListener('click', () => {
+    const allSections = Object.keys(helpTabLabels);
+    let markdown = '# Vibe Board — Help Documentation\n\n';
+    markdown += `*Exported: ${new Date().toLocaleString()}*\n\n---\n\n`;
+    markdown += '## Table of Contents\n\n';
+    for (const section of allSections) {
+      const label = helpTabLabels[section];
+      const anchor = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
+      markdown += `- [${label}](#${anchor})\n`;
+    }
+    markdown += '\n---\n\n';
+    for (const section of allSections) {
+      const label = helpTabLabels[section];
+      const html = renderHelpContent(section);
+      markdown += helpHtmlToMarkdown(html, label) + '\n---\n\n';
+    }
+    vscode.postMessage({ type: 'exportHelpDocs', payload: { content: markdown } });
+  });
 
   // Focus management — focus search input for immediate typing
   searchInput.focus();
