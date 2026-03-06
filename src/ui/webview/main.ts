@@ -3283,15 +3283,36 @@ function showExportProjectPicker(format: 'json' | 'csv' | 'markdown'): void {
   const activeProjectId = state?.activeProjectId || null;
   const isAllSelected = !activeProjectId;
 
-  const projectRows = projects.map((p) => {
-    const dotColor = p.color || '#888';
-    const isChecked = isAllSelected || p.id === activeProjectId;
-    return `<label class="export-project-option">
-      <input type="checkbox" name="export-project" value="${p.id}"${isChecked ? ' checked' : ''} />
-      <span class="project-dot" style="background:${dotColor}"></span>
-      <span>${escapeHtml(p.name)}</span>
-    </label>`;
-  }).join('');
+  // Group projects by workspace label (same logic as sidebar)
+  const exportGroups = new Map<string, typeof projects>();
+  for (const p of projects) {
+    const ws = p.workspace || 'Unassigned';
+    if (!exportGroups.has(ws)) { exportGroups.set(ws, []); }
+    exportGroups.get(ws)!.push(p);
+  }
+  const sortedExportKeys = [...exportGroups.keys()].sort((a, b) => {
+    if (a === 'Unassigned') { return 1; }
+    if (b === 'Unassigned') { return -1; }
+    return a.localeCompare(b);
+  });
+  const showExportGroups = exportGroups.size > 1 || (exportGroups.size === 1 && !exportGroups.has('Unassigned'));
+
+  let projectRows = '';
+  for (const wsName of sortedExportKeys) {
+    const wsProjects = exportGroups.get(wsName)!;
+    if (showExportGroups) {
+      projectRows += `<div class="export-project-group-label">&#128193; ${escapeHtml(wsName)}</div>`;
+    }
+    for (const p of wsProjects) {
+      const dotColor = p.color || '#888';
+      const isChecked = isAllSelected || p.id === activeProjectId;
+      projectRows += `<label class="export-project-option${showExportGroups ? ' export-project-indented' : ''}">
+        <input type="checkbox" name="export-project" value="${p.id}"${isChecked ? ' checked' : ''} />
+        <span class="project-dot" style="background:${dotColor}"></span>
+        <span>${escapeHtml(p.name)}</span>
+      </label>`;
+    }
+  }
 
   overlay.innerHTML = `<div class="modal-card export-project-picker">
     <h3>Export ${formatLabel} — Projects</h3>
