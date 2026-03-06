@@ -425,6 +425,9 @@ function renderSessionBar(session: VBSession | null): string {
   const helpBtn = `<button class="icon-btn help-btn" id="btn-help" title="Help (F1)" aria-label="Open help">&#63;</button>`;
   const aiBtn = session ? `<button class="icon-btn ai-btn" id="btn-ai-summarize" title="AI Summarize Session" aria-label="AI summarize session">&#10024;</button>` : '';
   const autoBtn = session ? `<button class="auto-btn" id="btn-start-automation" title="Run Automation (process tasks via Copilot)" aria-label="Start automation">&#9654; Automate</button>` : '';
+  const jiraImportBtn = session && extensionSettings.jiraConfigured
+    ? `<button class="icon-btn" id="btn-session-import-jira" title="Import from Jira" aria-label="Import issues from Jira">&#127919;</button>`
+    : '';
 
   const boardSwitcher = session ? renderBoardSwitcher() : '';
 
@@ -457,7 +460,7 @@ function renderSessionBar(session: VBSession | null): string {
       <span class="${timerClass}" id="session-timer" aria-live="polite">00:00:00</span>
       ${pausePlayBtn}
     </div>
-    <div class="session-actions">${aiBtn}${autoBtn}${undoBtn}${redoBtn}<button class="secondary" id="btn-end-session">End Session</button>${settingsBtn}${helpBtn}</div>
+    <div class="session-actions">${aiBtn}${autoBtn}${jiraImportBtn}${undoBtn}${redoBtn}<button class="secondary" id="btn-end-session">End Session</button>${settingsBtn}${helpBtn}</div>
   </div>
   ${boardSwitcher}`;
 }
@@ -1220,6 +1223,9 @@ function bindEvents(): void {
   document.getElementById('btn-end-session')?.addEventListener('click', () => {
     showEndSessionPicker();
   });
+
+  // Import from Jira (in-session)
+  document.getElementById('btn-session-import-jira')?.addEventListener('click', () => showJiraImportDialog());
 
   // Pause session
   document.getElementById('btn-pause-session')?.addEventListener('click', () => {
