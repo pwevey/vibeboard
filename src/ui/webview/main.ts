@@ -5914,6 +5914,7 @@ function renderHelpContent(section: string): string {
         <ul>
           <li><strong>Start page</strong> &mdash; When no session is active, export and import buttons appear at the top of the start page.</li>
           <li><strong>Command Palette</strong> &mdash; Run <em>Vibe Board: Export Session as Markdown</em> from the command palette at any time.</li>
+          <li><strong>Help docs</strong> &mdash; Click the <strong>Export</strong> button in the Help dialog header to save all help documentation as a Markdown file.</li>
         </ul>
         <h4>Data Storage</h4>
         <ul>
