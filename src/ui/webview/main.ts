@@ -2758,13 +2758,24 @@ function showCreateProjectDialog(): void {
     `<button class="project-color-btn${i === 0 ? ' selected' : ''}" data-color="${c}" style="background:${c};" title="${c}"></button>`
   ).join('');
 
+  // Auto-fill project name from current workspace folder, with duplicate detection
+  let defaultName = extensionSettings.workspaceName || '';
+  if (defaultName && state?.projects?.length) {
+    const existingNames = new Set(state.projects.map((p) => p.name.toLowerCase()));
+    if (existingNames.has(defaultName.toLowerCase())) {
+      let suffix = 2;
+      while (existingNames.has(`${defaultName} ${suffix}`.toLowerCase())) { suffix++; }
+      defaultName = `${defaultName} ${suffix}`;
+    }
+  }
+
   overlay.innerHTML = `<div class="modal-card" style="max-width:380px;">
     <h3>New Project</h3>
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Name</label>
-    <input type="text" id="project-name-input" placeholder="Project name..." style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
-    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Workspace Group</label>
-    <input type="text" id="project-workspace-input" placeholder="e.g. my-backend-repo" value="${escapeAttr(extensionSettings.workspaceName)}" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
-    <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:-6px 0 8px;">Auto-filled from the current folder. Used to group projects on the start page.</p>
+    <input type="text" id="project-name-input" placeholder="Project name..." value="${escapeAttr(defaultName)}" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Group <span style="opacity:0.6;">(optional)</span></label>
+    <input type="text" id="project-workspace-input" placeholder="e.g. backend, frontend, shared" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+    <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:-6px 0 8px;">Organize projects into groups on the start page.</p>
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:4px;">Color</label>
     <div class="project-color-picker">${colorBtns}</div>
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;margin-top:8px;">Copilot Context <span style="opacity:0.6;">(optional)</span></label>
@@ -2788,6 +2799,7 @@ function showCreateProjectDialog(): void {
 
   const input = document.getElementById('project-name-input') as HTMLInputElement;
   input?.focus();
+  if (defaultName) { input?.select(); }
 
   const doCreate = () => {
     const name = input?.value.trim();
@@ -2825,8 +2837,8 @@ function showRenameProjectDialog(projectId: string, currentName: string): void {
     <h3>Edit Project</h3>
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Name</label>
     <input type="text" id="project-rename-input" value="${escapeAttr(currentName)}" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
-    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Workspace Group</label>
-    <input type="text" id="project-workspace-input" value="${escapeAttr(currentWorkspace)}" placeholder="e.g. my-backend-repo" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+    <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Group <span style="opacity:0.6;">(optional)</span></label>
+    <input type="text" id="project-workspace-input" value="${escapeAttr(currentWorkspace)}" placeholder="e.g. backend, frontend, shared" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:4px;">Color</label>
     <div class="project-color-picker">${colorBtns}</div>
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:flex;align-items:center;gap:6px;margin-top:8px;margin-bottom:4px;cursor:pointer;">
@@ -5444,18 +5456,19 @@ function renderHelpContent(section: string): string {
         <h4>What Is a Project?</h4>
         <p>Projects let you group related sessions together. The typical use case is <strong>one project per workspace or codebase</strong> &mdash; for example, a &ldquo;Backend API&rdquo; project for your server repo and a &ldquo;Frontend App&rdquo; project for your client repo. But you can also create <strong>multiple projects within the same workspace</strong> to separate different initiatives, epics, or feature tracks.</p>
         <p>Because Vibe Board uses <strong>global storage</strong> by default, your projects and sessions are available no matter which folder you have open. Projects give you the organizational layer to keep things tidy across workspaces.</p>
-        <h4>Workspace Groups</h4>
-        <p>Each project has an optional <strong>Workspace Group</strong> that identifies which codebase or folder it belongs to. On the start page, projects are grouped under workspace group headers so you can quickly find the right project when you have many across different repos.</p>
+        <h4>Groups</h4>
+        <p>Each project has an optional <strong>Group</strong> that lets you organize projects into sections on the start page. For example, you might group projects by codebase (&ldquo;backend&rdquo;, &ldquo;frontend&rdquo;) or by team.</p>
         <ul>
-          <li>The workspace group is <strong>auto-filled</strong> from the current folder name when you create a project.</li>
-          <li>You can edit it to any label you like &mdash; it&rsquo;s just a text field for grouping.</li>
-          <li>Projects without a workspace group are grouped under <strong>Unassigned</strong>.</li>
+          <li>Set a group when creating or editing a project &mdash; it&rsquo;s just a text label.</li>
+          <li>Projects with the same group appear together under a shared header on the start page.</li>
+          <li>Projects without a group are grouped under <strong>Unassigned</strong>.</li>
           <li>If all projects share the same group (or have none), no group headers are shown &mdash; the view looks the same as before.</li>
         </ul>
         <h4>Creating a Project</h4>
         <ul>
           <li>On the start page, click <strong>+ New Project</strong> in the project bar.</li>
-          <li>Give the project a name and pick a color to distinguish it visually.</li>
+          <li>The project name is <strong>auto-filled</strong> from the current workspace folder name. If a project with that name already exists, a number is appended (e.g. &ldquo;vibeboard 2&rdquo;).</li>
+          <li>Pick a color to distinguish it visually and optionally assign a group.</li>
           <li>Projects appear as colored chips on the start page.</li>
         </ul>
         <h4>Assigning Sessions</h4>
