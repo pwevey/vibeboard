@@ -709,7 +709,6 @@ function showAutomationTaskPicker(): void {
 
   // Cancel
   document.getElementById('auto-pick-cancel')?.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 
   // Start — collect selected task IDs in display order
   document.getElementById('auto-pick-start')?.addEventListener('click', () => {
@@ -2281,11 +2280,6 @@ function showSettingsDialog(): void {
   // Close button
   document.getElementById('settings-close-btn')?.addEventListener('click', () => overlay.remove());
 
-  // Click outside to close
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) { overlay.remove(); }
-  });
-
   // Escape to close
   const escHandler = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -2708,7 +2702,6 @@ function showStartSessionDialog(): void {
   document.getElementById('modal-confirm')!.addEventListener('click', doStart);
   input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { doStart(); } });
   document.getElementById('modal-cancel')!.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 }
 
 // ============================================================
@@ -2768,7 +2761,6 @@ function showCreateProjectDialog(): void {
   document.getElementById('modal-confirm')!.addEventListener('click', doCreate);
   input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { doCreate(); } });
   document.getElementById('modal-cancel')!.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 }
 
 function showRenameProjectDialog(projectId: string, currentName: string): void {
@@ -2845,7 +2837,6 @@ function showRenameProjectDialog(projectId: string, currentName: string): void {
   document.getElementById('modal-confirm')!.addEventListener('click', doSave);
   input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { doSave(); } });
   document.getElementById('modal-cancel')!.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 }
 
 // ============================================================
@@ -3005,7 +2996,6 @@ function showEndSessionPicker(): void {
     document.getElementById('end-session-cancel')!.addEventListener('click', () => overlay.remove());
   }
 
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
   overlay.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Escape') { overlay.remove(); } });
 }
 
@@ -3106,12 +3096,6 @@ function showEndSessionJiraPrompt(boardIds: string[]): void {
     });
   }
 
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      overlay.remove();
-      flushPendingBoardClose();
-    }
-  });
   overlay.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
       overlay.remove();
@@ -3159,7 +3143,6 @@ function showConfirmDialog(title: string, message: string, onConfirm: () => void
   document.body.appendChild(overlay);
   document.getElementById('modal-confirm')!.addEventListener('click', () => { onConfirm(); overlay.remove(); });
   document.getElementById('modal-cancel')!.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
   // Focus the confirm button for keyboard users
   (document.getElementById('modal-cancel') as HTMLElement)?.focus();
 }
@@ -3183,7 +3166,6 @@ function showImagePreview(src: string, alt: string): void {
   </div>`;
   document.body.appendChild(overlay);
   document.getElementById('preview-close')!.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 }
 
 // ============================================================
@@ -3286,7 +3268,6 @@ function showExportProjectPicker(format: 'json' | 'csv' | 'markdown'): void {
   });
 
   document.getElementById('export-project-cancel')!.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 }
 
 // ============================================================
@@ -3374,7 +3355,6 @@ function showExportTimePicker(format: 'csv' | 'markdown', projectIds?: string[])
   });
 
   document.getElementById('export-time-cancel')!.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
   (document.getElementById('export-time-cancel') as HTMLElement)?.focus();
 }
 
@@ -3424,13 +3404,6 @@ function showJiraExportDialog(): void {
     <p class="jira-loading">Fetching Jira projects&hellip;</p>
   </div>`;
   document.body.appendChild(overlay);
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      overlay.remove();
-      flushPendingBoardClose();
-    }
-  });
-
   jiraProjectsCallback = (payload) => {
     jiraProjectsCallback = null;
     if (payload.error) {
@@ -3524,7 +3497,6 @@ function showJiraCredentialsPrompt(): void {
   </div>`;
   document.body.appendChild(overlay);
   overlay.querySelector('#jira-setup-close')!.addEventListener('click', () => { overlay.remove(); flushPendingBoardClose(); });
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); flushPendingBoardClose(); } });
 }
 
 /**
@@ -4246,10 +4218,6 @@ function showJiraImportDialog(): void {
     <p class="jira-loading">Fetching Jira projects&hellip;</p>
   </div>`;
   document.body.appendChild(overlay);
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) { overlay.remove(); flushPendingBoardClose(); }
-  });
-
   jiraProjectsCallback = (payload) => {
     jiraProjectsCallback = null;
     if (payload.error) {
@@ -4785,7 +4753,6 @@ function showSummary(summary: VBSessionSummary): void {
   </div>`;
   document.body.appendChild(overlay);
   document.getElementById('btn-dismiss-summary')!.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 }
 
 // ============================================================
@@ -5264,7 +5231,6 @@ function showHelp(): void {
 
   // Close handlers
   document.getElementById('btn-help-close')?.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
   overlay.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Escape') { overlay.remove(); } });
 
   // Focus management — focus search input for immediate typing
@@ -5984,7 +5950,6 @@ function showNewBoardDialog(): void {
   document.getElementById('modal-confirm')!.addEventListener('click', doCreate);
   input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { doCreate(); } });
   document.getElementById('modal-cancel')!.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 }
 
 function showBoardManager(): void {
@@ -6047,7 +6012,6 @@ function showBoardManager(): void {
   });
 
   document.getElementById('modal-cancel')!.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
 }
 
 // ============================================================
@@ -6276,7 +6240,6 @@ function showAIResultModal(title: string, content: string): void {
   </div>`;
   document.body.appendChild(overlay);
   document.getElementById('modal-cancel')!.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); } });
   overlay.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Escape') { overlay.remove(); } });
 }
 
