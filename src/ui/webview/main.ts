@@ -2202,7 +2202,7 @@ function showSettingsDialog(): void {
       <label class="start-setting-row">
         <input type="checkbox" class="setting-checkbox" data-setting="autoBackup" ${extensionSettings.autoBackup ? 'checked' : ''} />
         <span class="start-setting-label">Auto-Backup</span>
-        <span class="start-setting-desc">Automatically back up data to .vibeboard/backups/</span>
+        <span class="start-setting-desc">Automatically back up data to <code>.vibeboard/backups/</code> in the workspace root</span>
       </label>
       <label class="start-setting-row" id="setting-row-backup-count" style="${extensionSettings.autoBackup ? '' : 'opacity:0.5;pointer-events:none;'}">
         <span class="start-setting-label">Max Backup Files</span>
