@@ -26,17 +26,36 @@ export class StorageProvider {
   /**
    * Initialize storage — resolve file path and load data.
    * Reads `vibeboard.storageScope` to decide between global and workspace storage.
+   * Auto-detects workspace scope if `.vibeboard/data.json` exists in the workspace
+   * and the user hasn't explicitly set a scope.
    * On first run with global scope, migrates any existing workspace-scoped data.
    */
   async initialize(globalStorageUri: vscode.Uri): Promise<void> {
     const config = vscode.workspace.getConfiguration('vibeboard');
-    const scope = config.get<string>('storageScope', 'global');
+    const explicitScope = config.inspect<string>('storageScope');
+    const hasExplicitSetting = !!(
+      explicitScope?.globalValue || explicitScope?.workspaceValue || explicitScope?.workspaceFolderValue
+    );
+    let scope = config.get<string>('storageScope', 'global');
+
+    // Auto-detect: if no explicit setting and workspace has .vibeboard/data.json, use workspace scope
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!hasExplicitSetting && workspaceFolder) {
+      const oldDataUri = vscode.Uri.joinPath(workspaceFolder.uri, '.vibeboard', STORAGE_FILE);
+      try {
+        await vscode.workspace.fs.stat(oldDataUri);
+        // File exists — auto-select workspace scope
+        scope = 'workspace';
+      } catch {
+        // No .vibeboard/data.json — keep default (global)
+      }
+    }
+
     this.storageScope = scope === 'workspace' ? 'workspace' : 'global';
 
     let dirUri: vscode.Uri;
 
     if (this.storageScope === 'workspace') {
-      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
       if (!workspaceFolder) {
         // Fall back to global when no workspace folder is open
         this.storageScope = 'global';
