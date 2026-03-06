@@ -2194,6 +2194,7 @@ function showSettingsDialog(): void {
     <div class="settings-dialog-header">
       <h3>&#9881; Settings</h3>
       <div style="display:flex;align-items:center;gap:8px;">
+        <span class="jira-save-status" id="settings-save-status-top"></span>
         <button class="secondary settings-save-all-btn" id="settings-save-top">Save</button>
         <button class="icon-btn" id="settings-close-btn" aria-label="Close settings">&times;</button>
       </div>
@@ -2288,13 +2289,12 @@ function showSettingsDialog(): void {
   };
   document.addEventListener('keydown', escHandler);
 
-  // Settings toggles
+  // Settings toggles — UI-only updates (persisted on Save)
   overlay.querySelectorAll<HTMLInputElement>('.setting-checkbox').forEach((cb) => {
     cb.addEventListener('change', () => {
       const key = cb.dataset.setting;
       if (!key) { return; }
-      vscode.postMessage({ type: 'updateSetting', payload: { key, value: cb.checked } });
-      (extensionSettings as Record<string, unknown>)[key] = cb.checked;
+      // Only update UI; actual save happens when Save button is clicked
       if (key === 'autoBackup') {
         for (const rowId of ['#setting-row-backup-count', '#setting-row-backup-interval']) {
           const row = overlay.querySelector(rowId) as HTMLElement;
@@ -2306,28 +2306,25 @@ function showSettingsDialog(): void {
       }
     });
   });
-  overlay.querySelectorAll<HTMLInputElement>('.setting-number').forEach((input) => {
-    input.addEventListener('change', () => {
-      const key = input.dataset.setting;
-      if (!key) { return; }
-      const val = Math.max(Number(input.min) || 1, Math.min(Number(input.max) || 100, parseInt(input.value, 10) || 10));
-      input.value = String(val);
-      vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
-      (extensionSettings as Record<string, unknown>)[key] = val;
-    });
-  });
 
-  // Jira end-session prompt toggle
-  document.getElementById('jira-prompt-toggle')?.addEventListener('change', (e) => {
-    const checked = (e.target as HTMLInputElement).checked;
-    vscode.postMessage({ type: 'setJiraPromptDismissed', payload: { dismissed: !checked } });
-  });
-
-  // Unified Save — saves Jira credentials + status mappings in one click
+  // Unified Save — persists all settings when Save button is clicked
   let jiraTokenMask = '\u2022'.repeat(extensionSettings.jiraApiTokenLength || 8); // match real token length
 
-  /** Save all settings: general (auto-saved on change), Jira credentials, and status mappings. */
-  const saveAllSettings = () => {
+  /** Save all settings: checkboxes, number inputs, Jira credentials, prompt toggle, and status mappings. */
+  const saveAllSettings = (clickedBtn?: HTMLElement) => {
+    // 0. Persist checkbox settings
+    overlay.querySelectorAll<HTMLInputElement>('.setting-checkbox').forEach((cb) => {
+      const key = cb.dataset.setting;
+      if (!key) { return; }
+      vscode.postMessage({ type: 'updateSetting', payload: { key, value: cb.checked } });
+      (extensionSettings as Record<string, unknown>)[key] = cb.checked;
+    });
+
+    // Persist Jira end-session prompt toggle
+    const promptToggle = overlay.querySelector('#jira-prompt-toggle') as HTMLInputElement | null;
+    if (promptToggle) {
+      vscode.postMessage({ type: 'setJiraPromptDismissed', payload: { dismissed: !promptToggle.checked } });
+    }
     // 1. Save Jira credentials
     const baseUrlInput = overlay.querySelector('[data-setting="jiraBaseUrl"]') as HTMLInputElement;
     const emailInput = overlay.querySelector('[data-setting="jiraEmail"]') as HTMLInputElement;
@@ -2414,7 +2411,7 @@ function showSettingsDialog(): void {
       }
     }
 
-    // 3. Also persist number inputs (in case user didn't blur)
+    // 3. Persist number inputs
     overlay.querySelectorAll<HTMLInputElement>('.setting-number').forEach((input) => {
       const key = input.dataset.setting;
       if (!key) { return; }
@@ -2424,8 +2421,9 @@ function showSettingsDialog(): void {
       (extensionSettings as Record<string, unknown>)[key] = val;
     });
 
-    // Show saved confirmation
-    const status = overlay.querySelector('#settings-save-status') as HTMLElement | null;
+    // Show saved confirmation near the clicked button
+    const statusId = clickedBtn?.id === 'settings-save-top' ? '#settings-save-status-top' : '#settings-save-status';
+    const status = overlay.querySelector(statusId) as HTMLElement | null;
     if (status) {
       status.textContent = '\u2713 Saved';
       setTimeout(() => { if (status) { status.textContent = ''; } }, 2500);
@@ -2434,7 +2432,7 @@ function showSettingsDialog(): void {
 
   // Bind both Save buttons to the unified save function
   overlay.querySelectorAll<HTMLButtonElement>('.settings-save-all-btn').forEach((btn) => {
-    btn.addEventListener('click', saveAllSettings);
+    btn.addEventListener('click', () => saveAllSettings(btn));
   });
 
   // Clear placeholder dots when user focuses the token field
