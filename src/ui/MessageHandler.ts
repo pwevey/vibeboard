@@ -779,10 +779,21 @@ export class MessageHandler {
 
       case 'updateSetting': {
         const { key, value } = message.payload as { key: string; value: unknown };
-        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl'];
+        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl', 'storageScope'];
         if (allowedKeys.includes(key)) {
           await vscode.workspace.getConfiguration('vibeboard').update(key, value, vscode.ConfigurationTarget.Global);
           this.invalidateSettingsCache();
+
+          // Storage scope change requires a reload to take effect
+          if (key === 'storageScope') {
+            const action = await vscode.window.showInformationMessage(
+              `Vibe Board: Storage scope changed to "${value}". Reload window to apply.`,
+              'Reload Now'
+            );
+            if (action === 'Reload Now') {
+              vscode.commands.executeCommand('workbench.action.reloadWindow');
+            }
+          }
         }
         break;
       }
@@ -1199,6 +1210,7 @@ export class MessageHandler {
       autoBackupIntervalMin: config.get<number>('autoBackupIntervalMin', 5),
       autoPromptSession: config.get<boolean>('autoPromptSession', true),
       carryOverTasks: config.get<boolean>('carryOverTasks', true),
+      storageScope: this.storage.getStorageScope(),
       jiraBaseUrl: config.get<string>('jiraBaseUrl', ''),
       jiraEmail: jiraSummary.email,
       jiraConfigured: jiraSummary.configured,

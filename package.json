@@ -92,7 +92,7 @@
         "vibeboard.autoBackup": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically back up data to .vibeboard/backups/ in the background"
+          "description": "Automatically back up data in the background"
         },
         "vibeboard.autoBackupMaxCount": {
           "type": "number",
@@ -112,6 +112,12 @@
           "type": "string",
           "default": "",
           "description": "Jira instance base URL (e.g. https://your-domain.atlassian.net)"
+        },
+        "vibeboard.storageScope": {
+          "type": "string",
+          "enum": ["global", "workspace"],
+          "default": "global",
+          "description": "Where to store Vibe Board data. 'global' shares data across all workspaces. 'workspace' stores data in .vibeboard/ inside the current workspace folder."
         }
       }
     }

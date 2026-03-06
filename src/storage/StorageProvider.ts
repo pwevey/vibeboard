@@ -3,10 +3,12 @@ import { VBWorkspaceData, createDefaultWorkspaceData } from './models';
 import { STORAGE_FILE, STORAGE_WRITE_DEBOUNCE_MS, BACKUP_DIR } from '../utils/constants';
 
 /**
- * StorageProvider handles reading/writing the global JSON data file.
+ * StorageProvider handles reading/writing the JSON data file.
  * Uses vscode.workspace.fs for remote workspace compatibility.
- * Data is stored in VS Code's global storage directory (per-user, cross-workspace).
- * Includes automatic background backups to globalStorage/backups/.
+ * Supports two storage scopes:
+ *   - "global" (default): VS Code's global storage directory — shared across all workspaces.
+ *   - "workspace": `.vibeboard/` inside the workspace folder — project-specific data.
+ * Includes automatic background backups.
  */
 export class StorageProvider {
   private data: VBWorkspaceData;
@@ -14,6 +16,8 @@ export class StorageProvider {
   private storageUri: vscode.Uri | null = null;
   private backupDirUri: vscode.Uri | null = null;
   private lastBackupTime: number = 0;
+  /** The resolved storage scope for this session (read-only after initialize). */
+  private storageScope: 'global' | 'workspace' = 'global';
 
   constructor() {
     this.data = createDefaultWorkspaceData();
@@ -21,21 +25,46 @@ export class StorageProvider {
 
   /**
    * Initialize storage — resolve file path and load data.
-   * Uses VS Code's globalStorageUri so data is shared across all workspaces.
-   * On first run, migrates any existing workspace-scoped .vibeboard/data.json.
+   * Reads `vibeboard.storageScope` to decide between global and workspace storage.
+   * On first run with global scope, migrates any existing workspace-scoped data.
    */
   async initialize(globalStorageUri: vscode.Uri): Promise<void> {
-    const dirUri = globalStorageUri;
+    const config = vscode.workspace.getConfiguration('vibeboard');
+    const scope = config.get<string>('storageScope', 'global');
+    this.storageScope = scope === 'workspace' ? 'workspace' : 'global';
+
+    let dirUri: vscode.Uri;
+
+    if (this.storageScope === 'workspace') {
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) {
+        // Fall back to global when no workspace folder is open
+        this.storageScope = 'global';
+        dirUri = globalStorageUri;
+      } else {
+        dirUri = vscode.Uri.joinPath(workspaceFolder.uri, '.vibeboard');
+      }
+    } else {
+      dirUri = globalStorageUri;
+    }
+
     this.storageUri = vscode.Uri.joinPath(dirUri, STORAGE_FILE);
     this.backupDirUri = vscode.Uri.joinPath(dirUri, BACKUP_DIR);
 
-    // Ensure the global storage directory exists
+    // Ensure the storage directory exists
     try { await vscode.workspace.fs.createDirectory(dirUri); } catch { /* already exists */ }
 
     await this.load(dirUri);
 
-    // Migrate workspace-scoped data if present and global data is empty/default
-    await this.migrateFromWorkspace();
+    // Migrate workspace-scoped data into global store (only when using global scope)
+    if (this.storageScope === 'global') {
+      await this.migrateFromWorkspace();
+    }
+  }
+
+  /** Returns the active storage scope ("global" or "workspace"). */
+  getStorageScope(): 'global' | 'workspace' {
+    return this.storageScope;
   }
 
   /**

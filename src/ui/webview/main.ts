@@ -170,6 +170,7 @@ interface VBSettings {
   autoBackupIntervalMin: number;
   autoPromptSession: boolean;
   carryOverTasks: boolean;
+  storageScope: string;
   jiraConfigured: boolean;
   jiraBaseUrl: string;
   jiraEmail: string;
@@ -181,6 +182,7 @@ let extensionSettings: VBSettings = {
   autoBackupIntervalMin: 5,
   autoPromptSession: true,
   carryOverTasks: true,
+  storageScope: 'global',
   jiraConfigured: false,
   jiraBaseUrl: '',
   jiraEmail: '',
@@ -2206,6 +2208,13 @@ function showSettingsDialog(): void {
     </div>
     <div class="start-settings">
       <label class="start-setting-row">
+        <span class="start-setting-label">Storage Scope</span>
+        <select id="storage-scope-select" class="setting-select" style="flex:1;padding:4px 6px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;">
+          <option value="global"${extensionSettings.storageScope !== 'workspace' ? ' selected' : ''}>Global (shared across workspaces)</option>
+          <option value="workspace"${extensionSettings.storageScope === 'workspace' ? ' selected' : ''}>Workspace (.vibeboard/ in project folder)</option>
+        </select>
+      </label>
+      <label class="start-setting-row">
         <input type="checkbox" class="setting-checkbox" data-setting="autoBackup" ${extensionSettings.autoBackup ? 'checked' : ''} />
         <span class="start-setting-label">Auto-Backup</span>
         <span class="start-setting-desc">Automatically back up data to the extension's global storage folder</span>
@@ -2310,7 +2319,7 @@ function showSettingsDialog(): void {
   // Unified Save — persists all settings when Save button is clicked
   let jiraTokenMask = '\u2022'.repeat(extensionSettings.jiraApiTokenLength || 8); // match real token length
 
-  /** Save all settings: checkboxes, number inputs, Jira credentials, prompt toggle, and status mappings. */
+  /** Save all settings: checkboxes, number inputs, storage scope, Jira credentials, prompt toggle, and status mappings. */
   const saveAllSettings = (clickedBtn?: HTMLElement) => {
     // 0. Persist checkbox settings
     overlay.querySelectorAll<HTMLInputElement>('.setting-checkbox').forEach((cb) => {
@@ -2319,6 +2328,13 @@ function showSettingsDialog(): void {
       vscode.postMessage({ type: 'updateSetting', payload: { key, value: cb.checked } });
       (extensionSettings as Record<string, unknown>)[key] = cb.checked;
     });
+
+    // Persist storage scope
+    const scopeSelect = overlay.querySelector('#storage-scope-select') as HTMLSelectElement | null;
+    if (scopeSelect && scopeSelect.value !== extensionSettings.storageScope) {
+      vscode.postMessage({ type: 'updateSetting', payload: { key: 'storageScope', value: scopeSelect.value } });
+      (extensionSettings as Record<string, unknown>).storageScope = scopeSelect.value;
+    }
 
     // Persist Jira end-session prompt toggle
     const promptToggle = overlay.querySelector('#jira-prompt-toggle') as HTMLInputElement | null;
@@ -5717,10 +5733,11 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Data Storage</h4>
         <ul>
-          <li>All Vibe Board data is stored locally in VS Code's global storage directory, shared across all workspaces.</li>
+          <li>By default, all Vibe Board data is stored locally in VS Code's global storage directory, shared across all workspaces.</li>
+          <li>You can switch to <strong>workspace</strong> storage in <strong>Settings &rarr; Storage Scope</strong> to store data in <code>.vibeboard/</code> inside the current workspace folder instead.</li>
           <li>Data is auto-saved with a 300ms debounce after each change.</li>
           <li>No data is sent to external servers.</li>
-          <li>If you previously used Vibe Board with workspace-scoped storage (<code>.vibeboard/data.json</code>), your data is automatically migrated on first load.</li>
+          <li>If you previously used Vibe Board with workspace-scoped storage, your data is automatically migrated to global storage on first load.</li>
         </ul>
         <h4>Auto-Backup</h4>
         <p>Vibe Board automatically creates backup copies of your data in the background so you never lose work.</p>
