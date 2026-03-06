@@ -872,7 +872,7 @@ body.is-dragging .task-card:not(.dragging) {
    ============================================================ */
 
 .export-project-picker {
-  max-width: 320px;
+  max-width: 360px;
 }
 
 .export-project-options {
@@ -880,7 +880,7 @@ body.is-dragging .task-card:not(.dragging) {
   flex-direction: column;
   gap: 4px;
   margin-bottom: 12px;
-  max-height: 220px;
+  max-height: 400px;
   overflow-y: auto;
 }
 
