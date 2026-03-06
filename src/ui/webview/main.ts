@@ -1095,8 +1095,15 @@ function renderNoSessionState(): string {
     }
 
     // Render grouped projects — skip group headers when only one group exists
+    // Sort groups alphabetically, but always put "Unassigned" last
+    const sortedGroupKeys = [...workspaceGroups.keys()].sort((a, b) => {
+      if (a === 'Unassigned') { return 1; }
+      if (b === 'Unassigned') { return -1; }
+      return a.localeCompare(b);
+    });
     const showGroupHeaders = workspaceGroups.size > 1 || (workspaceGroups.size === 1 && !workspaceGroups.has('Unassigned'));
-    for (const [wsName, wsProjects] of workspaceGroups) {
+    for (const wsName of sortedGroupKeys) {
+      const wsProjects = workspaceGroups.get(wsName)!;
       if (showGroupHeaders) {
         html += `<div class="project-workspace-group">
           <span class="project-workspace-label">&#128193; ${escapeHtml(wsName)}</span>
