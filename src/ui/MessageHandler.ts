@@ -697,17 +697,17 @@ export class MessageHandler {
 
       case 'exportData': {
         const resolvedProjectIds = message.payload.projectIds ?? (message.payload.projectId ? [message.payload.projectId] : undefined);
-        this.exportData(message.payload.format, message.payload.timePeriod, message.payload.customStart, message.payload.customEnd, resolvedProjectIds);
+        await this.exportData(message.payload.format, message.payload.timePeriod, message.payload.customStart, message.payload.customEnd, resolvedProjectIds);
         break;
       }
 
       case 'importData': {
-        this.importData();
+        await this.importData();
         break;
       }
 
       case 'clearAllData': {
-        this.clearAllData();
+        await this.clearAllData();
         break;
       }
 
