@@ -5411,7 +5411,8 @@ function renderHelpContent(section: string): string {
       return `
         <h3>Projects</h3>
         <h4>What Is a Project?</h4>
-        <p>Projects are a way to group related sessions together. If you work on multiple codebases, features, or initiatives, create a project for each one and assign sessions to it. Projects provide an organizational layer above sessions.</p>
+        <p>Projects let you group related sessions together. The typical use case is <strong>one project per workspace or codebase</strong> &mdash; for example, a &ldquo;Backend API&rdquo; project for your server repo and a &ldquo;Frontend App&rdquo; project for your client repo. But you can also create <strong>multiple projects within the same workspace</strong> to separate different initiatives, epics, or feature tracks.</p>
+        <p>Because Vibe Board uses <strong>global storage</strong> by default, your projects and sessions are available no matter which folder you have open. Projects give you the organizational layer to keep things tidy across workspaces.</p>
         <h4>Creating a Project</h4>
         <ul>
           <li>On the start page, click <strong>+ New Project</strong> in the project bar.</li>
@@ -5898,6 +5899,7 @@ function renderHelpContent(section: string): string {
           <li><code>vibeboard.autoBackup</code> &mdash; Automatically back up data (default: true).</li>
           <li><code>vibeboard.autoBackupMaxCount</code> &mdash; Maximum backup files to keep (default: 10).</li>
           <li><code>vibeboard.autoBackupIntervalMin</code> &mdash; Minutes between backups (default: 5, range: 1&ndash;60).</li>
+          <li><code>vibeboard.storageScope</code> &mdash; Where Vibe Board stores data: <strong>Global</strong> (default, shared across all workspaces) or <strong>Workspace</strong> (stored in <code>.vibeboard/</code> inside the current folder). Changing this requires a reload. If you previously used workspace storage and switch to global, your data is automatically migrated. Switching back to workspace restores the original workspace data.</li>
           <li><code>vibeboard.jiraBaseUrl</code> &mdash; Your Jira Cloud base URL (e.g. <em>https://yourteam.atlassian.net</em>). Email and API token are stored in the OS keychain via the Settings dialog.</li>
         </ul>`;
 
