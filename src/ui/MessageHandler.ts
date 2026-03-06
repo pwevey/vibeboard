@@ -749,6 +749,7 @@ export class MessageHandler {
           const changes = message.payload.changes;
           if (changes.name !== undefined) { proj.name = changes.name; }
           if (changes.color !== undefined) { proj.color = changes.color; }
+          if (changes.workspace !== undefined) { proj.workspace = changes.workspace || undefined; }
           if (changes.copilotContext !== undefined) { proj.copilotContext = changes.copilotContext || undefined; }
           if (changes.copilotContextEnabled !== undefined) { proj.copilotContextEnabled = changes.copilotContextEnabled; }
           this.storage.setData(d);
