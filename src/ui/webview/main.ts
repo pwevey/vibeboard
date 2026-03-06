@@ -2276,11 +2276,11 @@ function showSettingsDialog(): void {
     <div class="start-settings">
       <label class="start-setting-row setting-text-row">
         <span class="start-setting-label">Base URL</span>
-        <input type="text" class="setting-text jira-setting" data-setting="jiraBaseUrl" value="${escapeHtml(extensionSettings.jiraBaseUrl)}" placeholder="https://your-domain.atlassian.net" />
+        <input type="text" class="setting-text jira-setting" data-setting="jiraBaseUrl" value="${escapeAttr(extensionSettings.jiraBaseUrl)}" placeholder="https://your-domain.atlassian.net" />
       </label>
       <label class="start-setting-row setting-text-row">
         <span class="start-setting-label">Email</span>
-        <input type="text" class="setting-text jira-setting" data-setting="jiraEmail" value="${escapeHtml(extensionSettings.jiraEmail)}" placeholder="you@example.com" />
+        <input type="text" class="setting-text jira-setting" data-setting="jiraEmail" value="${escapeAttr(extensionSettings.jiraEmail)}" placeholder="you@example.com" />
       </label>
       <label class="start-setting-row setting-text-row">
         <span class="start-setting-label">API Token</span>
@@ -3615,7 +3615,7 @@ function showJiraProjectAndTaskPicker(
     : null;
 
   const projectOptions = jiraProjects.map((p) =>
-    `<option value="${escapeHtml(p.key)}" ${p.key === mappedJiraKey ? 'selected' : ''}>${escapeHtml(p.name)} (${escapeHtml(p.key)})</option>`
+    `<option value="${escapeAttr(p.key)}" ${p.key === mappedJiraKey ? 'selected' : ''}>${escapeHtml(p.name)} (${escapeHtml(p.key)})</option>`
   ).join('');
 
   // Build a lookup of per-project exports for each task
@@ -3670,9 +3670,9 @@ function showJiraProjectAndTaskPicker(
         const exportedClass = isExported ? ' jira-task-exported' : '';
         const checkedAttr = isExported ? '' : 'checked';
         const badge = isExported
-          ? `<span class="jira-exported-badge" title="Exported as ${escapeHtml(exportInfo!.issueKey)}">${escapeHtml(exportInfo!.issueKey)}</span>`
+          ? `<span class="jira-exported-badge" title="Exported as ${escapeAttr(exportInfo!.issueKey)}">${escapeHtml(exportInfo!.issueKey)}</span>`
           : '';
-        return `<label class="jira-task-option${exportedClass}" data-exported="${isExported}" data-task-id="${t.id}" data-group="${escapeHtml(status)}">
+        return `<label class="jira-task-option${exportedClass}" data-exported="${isExported}" data-task-id="${t.id}" data-group="${escapeAttr(status)}">
           <input type="checkbox" name="jira-task" value="${t.id}" ${checkedAttr} />
           <span class="task-tag ${tagClass}">${t.tag}</span>
           <span class="jira-task-title">${escapeHtml(t.title)}</span>
@@ -3680,14 +3680,14 @@ function showJiraProjectAndTaskPicker(
         </label>`;
       }).join('');
 
-      html += `<div class="jira-group" data-group-key="${escapeHtml(status)}">
+      html += `<div class="jira-group" data-group-key="${escapeAttr(status)}">
         <div class="jira-group-header">
-          <input type="checkbox" class="jira-group-select-all" data-group="${escapeHtml(status)}" checked />
-          <button type="button" class="jira-group-toggle" data-group="${escapeHtml(status)}" aria-expanded="false">&#9654;</button>
+          <input type="checkbox" class="jira-group-select-all" data-group="${escapeAttr(status)}" checked />
+          <button type="button" class="jira-group-toggle" data-group="${escapeAttr(status)}" aria-expanded="false">&#9654;</button>
           <strong>${escapeHtml(label)}</strong>
           <span class="jira-group-count">(${group.length})</span>
         </div>
-        <div class="jira-group-body" data-group="${escapeHtml(status)}" style="display:none">
+        <div class="jira-group-body" data-group="${escapeAttr(status)}" style="display:none">
           ${rows}
         </div>
       </div>`;
@@ -3942,7 +3942,7 @@ function showJiraProjectAndTaskPicker(
       }
       let opts = '<option value="">&mdash; None &mdash;</option>';
       for (const ep of payload.epics) {
-        opts += `<option value="${escapeHtml(ep.key)}">${escapeHtml(ep.name)} (${escapeHtml(ep.key)})</option>`;
+        opts += `<option value="${escapeAttr(ep.key)}">${escapeHtml(ep.name)} (${escapeHtml(ep.key)})</option>`;
       }
       opts += '<option value="__create__">\uFF0B Create new epic\u2026</option>';
       epicSelect.innerHTML = opts;
@@ -3984,7 +3984,7 @@ function showJiraProjectAndTaskPicker(
           }
           let opts = '<option value="">&mdash; None &mdash;</option>';
           for (const ep of payload.epics) {
-            opts += `<option value="${escapeHtml(ep.key)}">${escapeHtml(ep.name)} (${escapeHtml(ep.key)})</option>`;
+            opts += `<option value="${escapeAttr(ep.key)}">${escapeHtml(ep.name)} (${escapeHtml(ep.key)})</option>`;
           }
           opts += '<option value="__create__">\uFF0B Create new epic\u2026</option>';
           epicSelect.innerHTML = opts;
@@ -4117,7 +4117,7 @@ function showJiraStatusMapping(
   }
 
   const statusOptions = jiraStatuses.map((s) =>
-    `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`
+    `<option value="${escapeAttr(s.name)}">${escapeHtml(s.name)}</option>`
   ).join('');
 
   const mappingRows = presentStatuses.map((vbStatus) => {
@@ -4126,7 +4126,7 @@ function showJiraStatusMapping(
     return `<div class="jira-mapping-row">
       <span class="jira-mapping-label">${escapeHtml(label)}</span>
       <span class="jira-mapping-arrow">&#8594;</span>
-      <select class="jira-select jira-status-select" data-vb-status="${escapeHtml(vbStatus)}">
+      <select class="jira-select jira-status-select" data-vb-status="${escapeAttr(vbStatus)}">
         <option value="">— Don't change —</option>
         ${statusOptions}
       </select>
@@ -4316,7 +4316,7 @@ function showJiraImportProjectPicker(
   const prevExclude = previousValues?.excludeCompleted ?? true;
 
   const projectOptions = jiraProjects.map((p) =>
-    `<option value="${escapeHtml(p.key)}" ${p.key === mappedJiraKey ? 'selected' : ''}>${escapeHtml(p.name)} (${escapeHtml(p.key)})</option>`
+    `<option value="${escapeAttr(p.key)}" ${p.key === mappedJiraKey ? 'selected' : ''}>${escapeHtml(p.name)} (${escapeHtml(p.key)})</option>`
   ).join('');
 
   overlay.querySelector('.jira-dialog')!.innerHTML = `
@@ -4474,9 +4474,9 @@ function showJiraImportIssuePicker(
       badges.push(`<span class="jira-badge" title="${issue.comments.length} comment(s)">&#128172; ${issue.comments.length}</span>`);
     }
     return `
-    <label class="jira-task-option" data-issue-key="${escapeHtml(issue.key)}" data-group="${escapeHtml(groupKey)}">
-      <input type="checkbox" name="jira-import-issue" value="${escapeHtml(issue.key)}" checked />
-      <span class="jira-import-type" title="${escapeHtml(issue.issueType)}">${issueTypeIcon(issue.issueType)}</span>
+    <label class="jira-task-option" data-issue-key="${escapeAttr(issue.key)}" data-group="${escapeAttr(groupKey)}">
+      <input type="checkbox" name="jira-import-issue" value="${escapeAttr(issue.key)}" checked />
+      <span class="jira-import-type" title="${escapeAttr(issue.issueType)}">${issueTypeIcon(issue.issueType)}</span>
       <span class="jira-issue-key">${escapeHtml(issue.key)}</span>
       <span class="jira-task-title">${escapeHtml(issue.summary)}</span>
       ${badges.length > 0 ? `<span class="jira-badges">${badges.join('')}</span>` : ''}
@@ -4488,14 +4488,14 @@ function showJiraImportIssuePicker(
     const groupKey = statusName;
     const issueRows = groupIssues.map((issue) => buildIssueRow(issue, groupKey)).join('');
     groupedHtml += `
-    <div class="jira-group" data-group-key="${escapeHtml(groupKey)}">
+    <div class="jira-group" data-group-key="${escapeAttr(groupKey)}">
       <div class="jira-group-header">
-        <input type="checkbox" class="jira-group-select-all" data-group="${escapeHtml(groupKey)}" checked />
-        <button class="jira-group-toggle" data-group="${escapeHtml(groupKey)}" aria-expanded="false">&#9654;</button>
+        <input type="checkbox" class="jira-group-select-all" data-group="${escapeAttr(groupKey)}" checked />
+        <button class="jira-group-toggle" data-group="${escapeAttr(groupKey)}" aria-expanded="false">&#9654;</button>
         <strong>${escapeHtml(statusName)}</strong>
         <span class="jira-group-count">(${groupIssues.length})</span>
       </div>
-      <div class="jira-group-body" data-group="${escapeHtml(groupKey)}" style="display:none">
+      <div class="jira-group-body" data-group="${escapeAttr(groupKey)}" style="display:none">
         ${issueRows}
       </div>
     </div>`;
@@ -4671,7 +4671,7 @@ function showJiraImportStatusMapping(
     <div class="jira-mapping-row">
       <span class="jira-mapping-label">${escapeHtml(jiraStatus)}</span>
       <span class="jira-mapping-arrow">&#8594;</span>
-      <select class="jira-select jira-import-status-select" data-jira-status="${escapeHtml(jiraStatus)}">
+      <select class="jira-select jira-import-status-select" data-jira-status="${escapeAttr(jiraStatus)}">
         ${vbOptions}
       </select>
     </div>`
@@ -5256,7 +5256,7 @@ function showHelp(): void {
         content.innerHTML = `<div class="help-search-empty"><p>No results found for "<strong>${escapeHtml(query)}</strong>"</p><p style="font-size:11px;color:var(--vscode-descriptionForeground);">Try different keywords or shorter search terms.</p></div>`;
       } else {
         content.innerHTML = results.map((r) => `<div class="help-search-result">
-          <div class="help-search-result-header" data-help-section="${r.section}" data-help-query="${escapeHtml(query)}">${r.tabLabel}</div>
+          <div class="help-search-result-header" data-help-section="${r.section}" data-help-query="${escapeAttr(query)}">${r.tabLabel}</div>
           <div class="help-search-result-snippet">${r.snippetHtml}</div>
         </div>`).join('');
 
