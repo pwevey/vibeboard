@@ -45,7 +45,7 @@ A lightweight Kanban-style sidebar for developers who work with AI assistants. C
 
 ## Data Storage
 
-All data is stored locally in your workspace at `.vibeboard/data.json`. No external services, no cloud sync, no telemetry. Add `.vibeboard/` to your `.gitignore` if you don't want to commit session data.
+All data is stored locally in VS Code's global storage directory, shared across all workspaces. No external services, no cloud sync, no telemetry. If you previously used workspace-scoped storage (`.vibeboard/data.json`), your data is automatically migrated on first load.
 
 ## Development
 

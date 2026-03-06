@@ -14,6 +14,7 @@ let messageHandler: MessageHandler | null = null;
 let webviewProvider: WebviewProvider | null = null;
 let secretStorageService: SecretStorageService | null = null;
 let globalState: vscode.Memento | null = null;
+let globalStorageUri: vscode.Uri | null = null;
 let initPromise: Promise<boolean> | null = null;
 
 /**
@@ -31,10 +32,10 @@ function ensureInitialized(): Promise<boolean> {
     const sp = new core.StorageProvider();
     storageProvider = sp;
     try {
-      await sp.initialize();
+      await sp.initialize(globalStorageUri!);
     } catch (err) {
       console.error('[VB] Failed to initialize storage:', err);
-      vscode.window.showErrorMessage('Vibe Board: Failed to initialize storage. Make sure a workspace folder is open.');
+      vscode.window.showErrorMessage('Vibe Board: Failed to initialize storage.');
       return false;
     }
 
@@ -59,6 +60,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // Create the secure storage service early so it's available for lazy init
   secretStorageService = new SecretStorageService(context.secrets);
   globalState = context.globalState;
+  globalStorageUri = context.globalStorageUri;
 
   // Register the sidebar webview provider immediately (lightweight — no I/O).
   // Actual storage init happens lazily when the webview resolves or a command runs.

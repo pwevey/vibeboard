@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
 import { VBWorkspaceData, createDefaultWorkspaceData } from './models';
-import { STORAGE_DIR, STORAGE_FILE, STORAGE_WRITE_DEBOUNCE_MS, BACKUP_DIR } from '../utils/constants';
+import { STORAGE_FILE, STORAGE_WRITE_DEBOUNCE_MS, BACKUP_DIR } from '../utils/constants';
 
 /**
- * StorageProvider handles reading/writing the workspace JSON data file.
+ * StorageProvider handles reading/writing the global JSON data file.
  * Uses vscode.workspace.fs for remote workspace compatibility.
- * Includes automatic background backups to .vibeboard/backups/.
+ * Data is stored in VS Code's global storage directory (per-user, cross-workspace).
+ * Includes automatic background backups to globalStorage/backups/.
  */
 export class StorageProvider {
   private data: VBWorkspaceData;
@@ -20,18 +21,21 @@ export class StorageProvider {
 
   /**
    * Initialize storage — resolve file path and load data.
+   * Uses VS Code's globalStorageUri so data is shared across all workspaces.
+   * On first run, migrates any existing workspace-scoped .vibeboard/data.json.
    */
-  async initialize(): Promise<void> {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (!workspaceFolder) {
-      throw new Error('No workspace folder open');
-    }
-
-    const dirUri = vscode.Uri.joinPath(workspaceFolder.uri, STORAGE_DIR);
+  async initialize(globalStorageUri: vscode.Uri): Promise<void> {
+    const dirUri = globalStorageUri;
     this.storageUri = vscode.Uri.joinPath(dirUri, STORAGE_FILE);
     this.backupDirUri = vscode.Uri.joinPath(dirUri, BACKUP_DIR);
 
+    // Ensure the global storage directory exists
+    try { await vscode.workspace.fs.createDirectory(dirUri); } catch { /* already exists */ }
+
     await this.load(dirUri);
+
+    // Migrate workspace-scoped data if present and global data is empty/default
+    await this.migrateFromWorkspace();
   }
 
   /**
@@ -111,6 +115,107 @@ export class StorageProvider {
 
     // Trigger auto-backup in background (non-blocking)
     this.maybeAutoBackup(content).catch(() => { /* silently ignore backup errors */ });
+  }
+
+  /**
+   * Migrate data from old workspace-scoped .vibeboard/data.json into global storage.
+   * Only runs once — if global data already has sessions/tasks it's a no-op.
+   * After a successful migration the old workspace file is renamed to data.json.migrated
+   * so it won't be imported again.
+   */
+  private async migrateFromWorkspace(): Promise<void> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) { return; }
+
+    const oldFileUri = vscode.Uri.joinPath(workspaceFolder.uri, '.vibeboard', 'data.json');
+
+    try {
+      const raw = await vscode.workspace.fs.readFile(oldFileUri);
+      const text = Buffer.from(raw).toString('utf-8');
+      const oldData = JSON.parse(text) as VBWorkspaceData;
+
+      if (!oldData || oldData.version !== 1) { return; }
+
+      // Only migrate if the old data has meaningful content
+      const hasContent = (oldData.sessions?.length > 0 || oldData.tasks?.length > 0);
+      if (!hasContent) { return; }
+
+      // Merge: append old sessions/tasks/projects that don't already exist in global data
+      const existingSessionIds = new Set(this.data.sessions.map((s) => s.id));
+      const existingTaskIds = new Set(this.data.tasks.map((t) => t.id));
+      const existingProjectIds = new Set((this.data.projects || []).map((p) => p.id));
+
+      let merged = false;
+
+      for (const session of oldData.sessions) {
+        if (!existingSessionIds.has(session.id)) {
+          this.data.sessions.push(session);
+          merged = true;
+        }
+      }
+
+      for (const task of oldData.tasks) {
+        if (!existingTaskIds.has(task.id)) {
+          this.data.tasks.push(task);
+          merged = true;
+        }
+      }
+
+      if (oldData.projects) {
+        if (!this.data.projects) { this.data.projects = []; }
+        for (const project of oldData.projects) {
+          if (!existingProjectIds.has(project.id)) {
+            this.data.projects.push(project);
+            merged = true;
+          }
+        }
+      }
+
+      // Carry over boards if global has none
+      if (oldData.boards?.length > 0 && (!this.data.boards || this.data.boards.length === 0)) {
+        this.data.boards = oldData.boards;
+        this.data.activeBoardId = oldData.activeBoardId;
+        merged = true;
+      }
+
+      // Carry over Jira mappings if not set globally
+      if (oldData.jiraProjectMapping && !this.data.jiraProjectMapping) {
+        this.data.jiraProjectMapping = oldData.jiraProjectMapping;
+        merged = true;
+      }
+      if (oldData.jiraEpicMapping && !this.data.jiraEpicMapping) {
+        this.data.jiraEpicMapping = oldData.jiraEpicMapping;
+        merged = true;
+      }
+      if (oldData.jiraStatusMapping && !this.data.jiraStatusMapping) {
+        this.data.jiraStatusMapping = oldData.jiraStatusMapping;
+        merged = true;
+      }
+
+      // Carry over active session/project if global has none
+      if (oldData.activeSessionId && !this.data.activeSessionId) {
+        this.data.activeSessionId = oldData.activeSessionId;
+        merged = true;
+      }
+      if (oldData.activeProjectId && !this.data.activeProjectId) {
+        this.data.activeProjectId = oldData.activeProjectId;
+        merged = true;
+      }
+
+      if (merged) {
+        await this.flush();
+
+        // Rename old file so it isn't migrated again
+        const migratedUri = vscode.Uri.joinPath(workspaceFolder.uri, '.vibeboard', 'data.json.migrated');
+        try { await vscode.workspace.fs.rename(oldFileUri, migratedUri, { overwrite: true }); } catch { /* best-effort */ }
+
+        vscode.window.showInformationMessage(
+          `Vibe Board: Migrated ${this.data.sessions.length} session(s) and ${this.data.tasks.length} task(s) from workspace storage to global storage.`
+        );
+      }
+    } catch {
+      // Old file doesn't exist or is corrupted — nothing to migrate
+    }
   }
 
   /**

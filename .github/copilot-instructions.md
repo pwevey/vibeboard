@@ -5,7 +5,7 @@ Vibe Board is a VS Code extension providing a Kanban-style sidebar for AI-assist
 - **Extension host**: TypeScript/CommonJS (`src/`) bundled to `dist/extension.js` and `dist/core.js`
 - **Webview UI**: Vanilla TypeScript IIFE (`src/ui/webview/main.ts`) bundled to `dist/webview/`
 - **Bundler**: esbuild (`esbuild.config.mjs`) — run `npm run build` or `npm run watch`
-- **Storage**: Workspace-scoped `.vibeboard/data.json`
+- **Storage**: Global storage (`context.globalStorageUri/data.json`), shared across all workspaces
 - **Tests**: `src/test/` — run with `npm test`
 
 ## Coding Standards

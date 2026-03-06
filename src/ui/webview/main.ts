@@ -2208,7 +2208,7 @@ function showSettingsDialog(): void {
       <label class="start-setting-row">
         <input type="checkbox" class="setting-checkbox" data-setting="autoBackup" ${extensionSettings.autoBackup ? 'checked' : ''} />
         <span class="start-setting-label">Auto-Backup</span>
-        <span class="start-setting-desc">Automatically back up data to <code>.vibeboard/backups/</code> in the workspace root</span>
+        <span class="start-setting-desc">Automatically back up data to the extension's global storage folder</span>
       </label>
       <label class="start-setting-row" id="setting-row-backup-count" style="${extensionSettings.autoBackup ? '' : 'opacity:0.5;pointer-events:none;'}">
         <span class="start-setting-label">Max Backup Files</span>
@@ -5663,7 +5663,7 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Attachments + Copilot</h4>
         <ul>
-          <li>When you <strong>Send to Copilot</strong> a task with image attachments, the images are saved to <code>.vibeboard/temp/</code> and attached directly to the Copilot Chat prompt.</li>
+          <li>When you <strong>Send to Copilot</strong> a task with image attachments, the images are saved to a temporary folder and attached directly to the Copilot Chat prompt.</li>
           <li>You can also attach images in the <strong>follow-up section</strong> &mdash; use the paperclip button or paste images (<kbd>Ctrl+V</kbd>) into the follow-up text area. These are sent along with your follow-up prompt.</li>
         </ul>`;
 
@@ -5717,17 +5717,18 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Data Storage</h4>
         <ul>
-          <li>All Vibe Board data is stored locally in your workspace at <code>.vibeboard/data.json</code>.</li>
+          <li>All Vibe Board data is stored locally in VS Code's global storage directory, shared across all workspaces.</li>
           <li>Data is auto-saved with a 300ms debounce after each change.</li>
           <li>No data is sent to external servers.</li>
+          <li>If you previously used Vibe Board with workspace-scoped storage (<code>.vibeboard/data.json</code>), your data is automatically migrated on first load.</li>
         </ul>
         <h4>Auto-Backup</h4>
         <p>Vibe Board automatically creates backup copies of your data in the background so you never lose work.</p>
         <ul>
-          <li>Backups are saved to <code>.vibeboard/backups/</code> as timestamped JSON files (e.g. <code>data-backup-2026-03-04T10-30-00.json</code>).</li>
+          <li>Backups are saved to the global storage directory as timestamped JSON files (e.g. <code>data-backup-2026-03-04T10-30-00.json</code>).</li>
           <li>A new backup is created at most every <strong>5 minutes</strong> (configurable) when data changes.</li>
           <li>Old backups are automatically rotated &mdash; only the most recent files are kept (default: 10).</li>
-          <li>To restore from a backup, use <strong>Import JSON</strong> on the start page and select a backup file, or copy it over <code>.vibeboard/data.json</code>.</li>
+          <li>To restore from a backup, use <strong>Import JSON</strong> on the start page and select a backup file.</li>
         </ul>
         <h4>Auto-Backup Settings</h4>
         <ul>
