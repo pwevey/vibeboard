@@ -73,6 +73,11 @@ export class StorageProvider {
     // Ensure the storage directory exists
     try { await vscode.workspace.fs.createDirectory(dirUri); } catch { /* already exists */ }
 
+    // If workspace scope: restore data.json from .migrated if it was previously migrated to global
+    if (this.storageScope === 'workspace' && workspaceFolder) {
+      await this.restoreFromMigrated(workspaceFolder.uri);
+    }
+
     await this.load(dirUri);
 
     // Migrate workspace-scoped data into global store (only when using global scope)
@@ -263,6 +268,35 @@ export class StorageProvider {
       }
     } catch {
       // Old file doesn't exist or is corrupted — nothing to migrate
+    }
+  }
+
+  /**
+   * Restore workspace data from a .migrated file when switching back to workspace scope.
+   * If .vibeboard/data.json doesn't exist but .vibeboard/data.json.migrated does,
+   * rename .migrated back to data.json so the user's data reappears.
+   */
+  private async restoreFromMigrated(workspaceFolderUri: vscode.Uri): Promise<void> {
+    const dataUri = vscode.Uri.joinPath(workspaceFolderUri, '.vibeboard', STORAGE_FILE);
+    const migratedUri = vscode.Uri.joinPath(workspaceFolderUri, '.vibeboard', 'data.json.migrated');
+
+    try {
+      // Check if data.json already exists — if so, nothing to restore
+      await vscode.workspace.fs.stat(dataUri);
+      return; // data.json exists, use it as-is
+    } catch {
+      // data.json doesn't exist — check for .migrated
+    }
+
+    try {
+      await vscode.workspace.fs.stat(migratedUri);
+      // .migrated exists — rename it back to data.json
+      await vscode.workspace.fs.rename(migratedUri, dataUri, { overwrite: false });
+      vscode.window.showInformationMessage(
+        'Vibe Board: Restored workspace data from previous migration.'
+      );
+    } catch {
+      // No .migrated file either — fresh workspace start
     }
   }
 
