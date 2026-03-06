@@ -1188,6 +1188,25 @@ body.is-dragging .task-card:not(.dragging) {
   opacity: 0.7;
 }
 
+.project-workspace-group {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.project-workspace-group:first-of-type {
+  margin-top: 2px;
+}
+
+.project-workspace-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--vscode-descriptionForeground);
+  padding: 2px 4px 3px;
+}
+
 .project-actions {
   display: none;
   gap: 2px;

@@ -30,6 +30,7 @@ export interface VBProject {
   name: string;
   createdAt: string;       // ISO 8601
   color?: string;          // optional hex color for visual distinction
+  workspace?: string;      // workspace/folder label for grouping on the start page
   copilotContext?: string; // project-level instructions passed to Copilot with every prompt
   copilotContextEnabled?: boolean; // whether project context is active (default true)
 }
@@ -203,9 +204,9 @@ export type WebviewToExtensionMessage =
   | { type: 'approveAutomationTask'; payload: Record<string, never> }
   | { type: 'rejectAutomationTask'; payload: Record<string, never> }
   | { type: 'retryAutomationTask'; payload: { queueIndex: number } }
-  | { type: 'createProject'; payload: { id?: string; name: string; color?: string; copilotContext?: string } }
+  | { type: 'createProject'; payload: { id?: string; name: string; color?: string; workspace?: string; copilotContext?: string } }
   | { type: 'renameProject'; payload: { projectId: string; name: string } }
-  | { type: 'updateProject'; payload: { projectId: string; changes: Partial<Pick<VBProject, 'name' | 'color' | 'copilotContext' | 'copilotContextEnabled'>> } }
+  | { type: 'updateProject'; payload: { projectId: string; changes: Partial<Pick<VBProject, 'name' | 'color' | 'workspace' | 'copilotContext' | 'copilotContextEnabled'>> } }
   | { type: 'deleteProject'; payload: { projectId: string } }
   | { type: 'setActiveProject'; payload: { projectId: string | null } }
   | { type: 'updateSetting'; payload: { key: string; value: unknown } }

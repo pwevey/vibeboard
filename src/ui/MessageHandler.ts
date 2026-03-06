@@ -714,11 +714,14 @@ export class MessageHandler {
       case 'createProject': {
         const d = this.storage.getData();
         if (!d.projects) { d.projects = []; }
+        // Auto-fill workspace from payload or current workspace folder name
+        const workspace = message.payload.workspace || vscode.workspace.workspaceFolders?.[0]?.name || '';
         const project = {
           id: message.payload.id || generateId(),
           name: message.payload.name,
           createdAt: new Date().toISOString(),
           color: message.payload.color,
+          workspace: workspace || undefined,
           copilotContext: message.payload.copilotContext || undefined,
         };
         d.projects.push(project);
@@ -1211,6 +1214,7 @@ export class MessageHandler {
       autoPromptSession: config.get<boolean>('autoPromptSession', true),
       carryOverTasks: config.get<boolean>('carryOverTasks', true),
       storageScope: this.storage.getStorageScope(),
+      workspaceName: vscode.workspace.workspaceFolders?.[0]?.name || '',
       jiraBaseUrl: config.get<string>('jiraBaseUrl', ''),
       jiraEmail: jiraSummary.email,
       jiraConfigured: jiraSummary.configured,
