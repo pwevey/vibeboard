@@ -787,17 +787,6 @@ export class MessageHandler {
         if (allowedKeys.includes(key)) {
           await vscode.workspace.getConfiguration('vibeboard').update(key, value, vscode.ConfigurationTarget.Global);
           this.invalidateSettingsCache();
-
-          // Storage scope change requires a reload to take effect
-          if (key === 'storageScope') {
-            const action = await vscode.window.showInformationMessage(
-              `Vibe Board: Storage scope changed to "${value}". Reload window to apply.`,
-              'Reload Now'
-            );
-            if (action === 'Reload Now') {
-              vscode.commands.executeCommand('workbench.action.reloadWindow');
-            }
-          }
         }
         break;
       }
@@ -807,6 +796,11 @@ export class MessageHandler {
         await this.secretStorage.saveJiraCredentials(baseUrl, email, token);
         // Invalidate cache and send updated settings so webview reflects the new state
         this.invalidateSettingsCache();
+        break;
+      }
+
+      case 'reloadWindow': {
+        vscode.commands.executeCommand('workbench.action.reloadWindow');
         break;
       }
 

@@ -2346,6 +2346,7 @@ function showSettingsDialog(): void {
 
   // Unified Save — persists all settings when Save button is clicked
   let jiraTokenMask = '\u2022'.repeat(extensionSettings.jiraApiTokenLength || 8); // match real token length
+  const originalStorageScope = extensionSettings.storageScope; // track initial scope to detect changes
 
   /** Save all settings: checkboxes, number inputs, storage scope, Jira credentials, prompt toggle, and status mappings. */
   const saveAllSettings = (clickedBtn?: HTMLElement) => {
@@ -2362,6 +2363,26 @@ function showSettingsDialog(): void {
     if (scopeSelect && scopeSelect.value !== extensionSettings.storageScope) {
       vscode.postMessage({ type: 'updateSetting', payload: { key: 'storageScope', value: scopeSelect.value } });
       (extensionSettings as Record<string, unknown>).storageScope = scopeSelect.value;
+    }
+
+    // Show persistent reload banner if storage scope changed from original
+    if (scopeSelect && scopeSelect.value !== originalStorageScope) {
+      let banner = overlay.querySelector('#scope-reload-banner') as HTMLElement | null;
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'scope-reload-banner';
+        banner.style.cssText = 'background:var(--vscode-inputValidation-warningBackground, #6c5517);border:1px solid var(--vscode-inputValidation-warningBorder, #9e7e16);color:var(--vscode-inputValidation-warningForeground, #ccc);padding:8px 12px;border-radius:4px;margin:8px 0 0;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;';
+        banner.innerHTML = `<span>&#9888; Storage scope changed. Reload the window to apply.</span><button class="secondary" id="scope-reload-btn" style="white-space:nowrap;padding:3px 10px;font-size:11px;">Reload Now</button>`;
+        // Insert after the storage scope row
+        const scopeRow = scopeSelect.closest('.start-setting-row');
+        if (scopeRow) { scopeRow.after(banner); }
+        banner.querySelector('#scope-reload-btn')?.addEventListener('click', () => {
+          vscode.postMessage({ type: 'reloadWindow', payload: {} });
+        });
+      }
+    } else {
+      // Remove banner if scope reverted back to original
+      overlay.querySelector('#scope-reload-banner')?.remove();
     }
 
     // Persist Jira end-session prompt toggle

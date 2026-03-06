@@ -224,6 +224,7 @@ export type WebviewToExtensionMessage =
   | { type: 'exportToJira'; payload: { projectKey: string; taskIds?: string[]; issueType?: string; statusMapping?: Record<string, string>; epicKey?: string } }
   | { type: 'searchJiraIssues'; payload: { projectKey: string; jql?: string; maxResults?: number } }
   | { type: 'importFromJira'; payload: { issues: JiraImportIssue[]; targetStatus?: TaskStatus; statusMapping?: Record<string, string> } }
+  | { type: 'reloadWindow'; payload: Record<string, never> }
   | { type: 'ready'; payload: Record<string, never> };
 
 export type ExtensionToWebviewMessage =
