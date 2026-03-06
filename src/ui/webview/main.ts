@@ -2802,7 +2802,7 @@ function showCreateProjectDialog(): void {
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Name</label>
     <input type="text" id="project-name-input" placeholder="Project name..." value="${escapeAttr(defaultName)}" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Group <span style="opacity:0.6;">(optional)</span></label>
-    <input type="text" id="project-workspace-input" placeholder="e.g. backend, frontend, shared" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+    <input type="text" id="project-workspace-input" placeholder="e.g. Work, Personal, Client Name" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
     <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:-6px 0 8px;">Organize projects into groups on the start page.</p>
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:4px;">Color</label>
     <div class="project-color-picker">${colorBtns}</div>
@@ -2866,7 +2866,7 @@ function showRenameProjectDialog(projectId: string, currentName: string): void {
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Name</label>
     <input type="text" id="project-rename-input" value="${escapeAttr(currentName)}" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Group <span style="opacity:0.6;">(optional)</span></label>
-    <input type="text" id="project-workspace-input" value="${escapeAttr(currentWorkspace)}" placeholder="e.g. backend, frontend, shared" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+    <input type="text" id="project-workspace-input" value="${escapeAttr(currentWorkspace)}" placeholder="e.g. Work, Personal, Client Name" style="width:100%;padding:6px;margin:0 0 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:4px;">Color</label>
     <div class="project-color-picker">${colorBtns}</div>
     <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:flex;align-items:center;gap:6px;margin-top:8px;margin-bottom:4px;cursor:pointer;">
