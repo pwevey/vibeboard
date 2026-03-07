@@ -176,6 +176,8 @@ interface VBSettings {
   jiraBaseUrl: string;
   jiraEmail: string;
   jiraApiTokenLength: number;
+  automationAutoApproveThreshold: number;
+  automationNoActivityTimeout: number;
 }
 let extensionSettings: VBSettings = {
   autoBackup: true,
@@ -189,6 +191,8 @@ let extensionSettings: VBSettings = {
   jiraBaseUrl: '',
   jiraEmail: '',
   jiraApiTokenLength: 0,
+  automationAutoApproveThreshold: 100,
+  automationNoActivityTimeout: 30,
 };
 
 // Automation state
@@ -653,10 +657,16 @@ function showAutomationTaskPicker(): void {
     <div class="auto-threshold" style="margin-bottom:12px;padding:8px;background:var(--vscode-editor-background);border-radius:4px;">
       <label style="font-size:12px;display:flex;align-items:center;gap:8px;">
         <span>Auto-approve threshold:</span>
-        <input type="range" id="auto-threshold-slider" min="0" max="100" value="100" step="5" style="flex:1;" />
-        <span id="auto-threshold-value" style="font-weight:600;min-width:36px;text-align:right;">100%</span>
+        <input type="range" id="auto-threshold-slider" min="0" max="100" value="${extensionSettings.automationAutoApproveThreshold}" step="5" style="flex:1;" />
+        <span id="auto-threshold-value" style="font-weight:600;min-width:36px;text-align:right;">${extensionSettings.automationAutoApproveThreshold}%</span>
       </label>
       <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:4px 0 0;">Tasks verified with confidence &ge; this value are auto-completed. Set to 100% to always review manually.</p>
+      <label style="font-size:12px;display:flex;align-items:center;gap:8px;margin-top:8px;">
+        <span>No-activity timeout:</span>
+        <input type="range" id="auto-timeout-slider" min="5" max="300" value="${extensionSettings.automationNoActivityTimeout}" step="5" style="flex:1;" />
+        <span id="auto-timeout-value" style="font-weight:600;min-width:36px;text-align:right;">${extensionSettings.automationNoActivityTimeout}s</span>
+      </label>
+      <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:4px 0 0;">Seconds to wait for file changes after sending a task to Copilot. Increase for complex tasks that need more Copilot thinking time.</p>
     </div>
     <div class="modal-actions">
       <button class="secondary" id="auto-pick-cancel">Cancel</button>
@@ -741,6 +751,13 @@ function showAutomationTaskPicker(): void {
     if (valueLabel) { valueLabel.textContent = slider.value + '%'; }
   });
 
+  // Timeout slider
+  const timeoutSlider = document.getElementById('auto-timeout-slider') as HTMLInputElement;
+  const timeoutLabel = document.getElementById('auto-timeout-value');
+  timeoutSlider?.addEventListener('input', () => {
+    if (timeoutLabel) { timeoutLabel.textContent = timeoutSlider.value + 's'; }
+  });
+
   // Select all / none
   document.getElementById('auto-pick-all')?.addEventListener('click', () => {
     overlay.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((cb) => { cb.checked = true; });
@@ -761,9 +778,11 @@ function showAutomationTaskPicker(): void {
     });
     const thresholdSlider = document.getElementById('auto-threshold-slider') as HTMLInputElement;
     const threshold = thresholdSlider ? parseInt(thresholdSlider.value, 10) : 100;
+    const timeoutEl = document.getElementById('auto-timeout-slider') as HTMLInputElement;
+    const timeout = timeoutEl ? parseInt(timeoutEl.value, 10) : 30;
     overlay.remove();
     if (selected.length === 0) { return; }
-    vscode.postMessage({ type: 'startAutomation', payload: { taskIds: selected, threshold } });
+    vscode.postMessage({ type: 'startAutomation', payload: { taskIds: selected, threshold, timeout } });
   });
 
   // Focus start button
@@ -2308,6 +2327,21 @@ function showSettingsDialog(): void {
         <input type="checkbox" class="setting-checkbox" data-setting="carryOverTasks" ${extensionSettings.carryOverTasks ? 'checked' : ''} />
         <span class="start-setting-label">Carry-Over Tasks</span>
         <span class="start-setting-desc">Carry over unfinished tasks to the next session</span>
+      </label>
+    </div>
+    <div class="settings-section-divider"></div>
+    <h4 class="settings-section-title">&#9881; Automation</h4>
+    <p class="settings-section-desc">Default settings for the automation task picker. These values are pre-filled when you open the Run Automation dialog.</p>
+    <div class="start-settings">
+      <label class="start-setting-row">
+        <span class="start-setting-label">Auto-Approve Threshold</span>
+        <input type="number" class="setting-number" data-setting="automationAutoApproveThreshold" value="${extensionSettings.automationAutoApproveThreshold}" min="0" max="100" />
+        <span class="start-setting-desc">% &mdash; Minimum AI confidence to auto-approve (0 = always auto-approve, 100 = always review)</span>
+      </label>
+      <label class="start-setting-row">
+        <span class="start-setting-label">No-Activity Timeout</span>
+        <input type="number" class="setting-number" data-setting="automationNoActivityTimeout" value="${extensionSettings.automationNoActivityTimeout}" min="5" max="300" />
+        <span class="start-setting-desc">seconds &mdash; Wait time for file changes before auto-approving or checkpointing</span>
       </label>
     </div>
     <div class="settings-section-divider"></div>
@@ -5838,18 +5872,24 @@ function renderHelpContent(section: string): string {
         <h4>How It Works</h4>
         <ol>
           <li>Click <strong>&#9654; Automate</strong> in the session bar to open the automation task picker.</li>
-          <li>Select which incomplete tasks you want to automate, then click <strong>Start Automation</strong>.</li>
+          <li>Select which incomplete tasks you want to automate, adjust the <strong>auto-approve threshold</strong> and <strong>no-activity timeout</strong>, then click <strong>Start Automation</strong>.</li>
           <li>For each task, the automation engine will:
             <ol>
-              <li><strong>Send the task to Copilot Chat</strong> &mdash; The task title and description are sent as a prompt.</li>
+              <li><strong>Send the task to Copilot Chat</strong> &mdash; The task title and description are sent as a prompt in Agent mode.</li>
               <li><strong>Watch for file changes</strong> &mdash; A file system watcher monitors your workspace for modifications.</li>
-              <li><strong>Capture git changes</strong> &mdash; When changes settle (8 seconds after last change), the git diff is captured.</li>
+              <li><strong>Capture git changes</strong> &mdash; When changes settle (8 seconds after the last change), the git diff is captured.</li>
               <li><strong>Verify with AI</strong> &mdash; The Language Model API analyzes the diff against the task to determine if it was completed.</li>
-              <li><strong>Checkpoint</strong> &mdash; If confidence is high (&ge;85%), the task is auto-completed. Otherwise, you're asked to approve or reject.</li>
+              <li><strong>Auto-approve or checkpoint</strong> &mdash; If confidence meets the threshold, the task is auto-completed. Otherwise, you're asked to approve or reject.</li>
             </ol>
           </li>
           <li>The process repeats for each selected task until all are processed.</li>
         </ol>
+        <h4>No File Changes Detected</h4>
+        <p>If Copilot responds without making any file edits (e.g., it answers a question or provides a plan), the automation handles it based on your settings:</p>
+        <ul>
+          <li><strong>Threshold at 0%</strong> &mdash; The task is auto-completed with 0% confidence, and automation moves to the next task. This enables fully hands-free operation.</li>
+          <li><strong>Threshold &gt; 0%</strong> &mdash; The task is checkpointed for manual review so you can verify Copilot's response.</li>
+        </ul>
         <h4>Automation Bar</h4>
         <p>When automation is running, a progress bar appears below the board tabs showing:</p>
         <ul>
@@ -5860,31 +5900,25 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Controls</h4>
         <ul>
-          <li><strong>Pause</strong> &mdash; Pause after the current task finishes. Resume whenever you're ready.</li>
-          <li><strong>Skip</strong> &mdash; Skip the current task and move to the next one.</li>
-          <li><strong>Cancel</strong> &mdash; Stop automation entirely. Remaining tasks are marked as skipped.</li>
-        </ul>
-        <h4>Checkpoints</h4>
-        <p>When the AI verification has low confidence or cannot determine completion, you'll see a checkpoint with:</p>
-        <ul>
-          <li>The AI's assessment and confidence percentage</li>
-          <li>List of changed files</li>
-          <li><strong>Approve</strong> &mdash; Accept the changes, mark the task complete, and continue to the next task.</li>
-          <li><strong>Reject</strong> &mdash; Mark the task as failed and pause automation.</li>
-          <li><strong>Skip</strong> &mdash; Skip without marking as failed and continue.</li>
+          <li><strong>Pause</strong> &mdash; Pause after the current task finishes.</li>
+          <li><strong>Next</strong> &mdash; Continue to the next task when paused.</li>
+          <li><strong>Retry</strong> &mdash; Re-send a failed/rejected task to Copilot (appears when paused with a failed task).</li>
+          <li><strong>Skip</strong> &mdash; Skip individual pending tasks in the queue list.</li>
+          <li><strong>Approve / Reject</strong> &mdash; Accept or reject the current task at a checkpoint.</li>
+          <li><strong>Cancel</strong> &mdash; Stop automation entirely.</li>
         </ul>
         <h4>Retrying Failed Tasks</h4>
-        <p>If a task fails or is rejected, a <strong>&#8635; Retry</strong> button appears next to it in the queue list. Clicking it:</p>
+        <p>If a task fails or is rejected, the <strong>&#9654;</strong> play arrow stays on it and a <strong>&#8635; Retry</strong> button appears in the top bar. Clicking it:</p>
         <ul>
           <li>Resets the task to pending and re-sends it to Copilot with added context: <em>"The previous attempt was rejected. Please try a different approach."</em></li>
           <li>Automatically resumes automation if it was paused.</li>
-          <li>Each task can be retried up to <strong>3 times</strong>. After that, the retry button is replaced with <em>(max retries)</em>.</li>
+          <li>Each task can be retried up to <strong>3 times</strong>. After that, <em>(max retries)</em> is shown.</li>
         </ul>
-        <h4>Auto-Approve Threshold</h4>
-        <p>By default, all tasks require manual approval (threshold is 100%). You can lower this in VS Code settings to auto-approve high-confidence results:</p>
+        <h4>Automation Settings</h4>
+        <p>Both settings can be configured in the <strong>Run Automation</strong> dialog (per-run) or set as defaults in the <strong>&#9881; Settings</strong> dialog (gear icon):</p>
         <ul>
-          <li>Open <strong>Settings</strong> (<kbd>Ctrl+,</kbd>) and search for <em>buildboard.automationAutoApproveThreshold</em>.</li>
-          <li>Set a value between 0 and 100. Higher = more manual checkpoints. Set to <strong>100</strong> to always require manual approval.</li>
+          <li><strong>Auto-Approve Threshold</strong> (0&ndash;100%) &mdash; Minimum AI confidence to auto-complete a task. Set to <strong>0%</strong> for fully hands-free automation. Set to <strong>100%</strong> to always require manual approval. Default: 100%.</li>
+          <li><strong>No-Activity Timeout</strong> (5&ndash;300 seconds) &mdash; How long to wait for file changes after sending a task to Copilot. If no workspace edits are detected within this period, the task is auto-approved (at 0% threshold) or checkpointed for review. Increase for complex tasks that need more Copilot thinking time. Default: 30 seconds.</li>
         </ul>
         <h4>Requirements</h4>
         <ul>
@@ -6171,6 +6205,8 @@ function renderHelpContent(section: string): string {
           <li><code>buildboard.autoBackupMaxCount</code> &mdash; Maximum backup files to keep (default: 10).</li>
           <li><code>buildboard.autoBackupIntervalMin</code> &mdash; Minutes between backups (default: 5, range: 1&ndash;60).</li>
           <li><code>buildboard.storageScope</code> &mdash; Where Build Board stores data: <strong>Global</strong> (default, shared across all workspaces) or <strong>Workspace</strong> (stored in <code>.buildboard/</code> inside the current folder). Changing this requires a reload. If you previously used workspace storage and switch to global, your data is automatically migrated. Switching back to workspace restores the original workspace data.</li>
+          <li><code>buildboard.automationAutoApproveThreshold</code> &mdash; Minimum AI confidence (0&ndash;100%) to auto-approve a task during automation. Set to 0 for fully hands-free. Default: 100.</li>
+          <li><code>buildboard.automationNoActivityTimeout</code> &mdash; Seconds to wait for file changes after sending a task to Copilot (5&ndash;300). Default: 30.</li>
           <li><code>buildboard.jiraBaseUrl</code> &mdash; Your Jira Cloud base URL (e.g. <em>https://yourteam.atlassian.net</em>). Email and API token are stored in the OS keychain via the Settings dialog.</li>
         </ul>`;
 

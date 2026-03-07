@@ -412,9 +412,12 @@ export class MessageHandler {
       }
 
       case 'startAutomation': {
-        const { taskIds, threshold } = message.payload as { taskIds: string[]; threshold?: number };
+        const { taskIds, threshold, timeout } = message.payload as { taskIds: string[]; threshold?: number; timeout?: number };
         if (threshold !== undefined) {
           await vscode.workspace.getConfiguration('buildboard').update('automationAutoApproveThreshold', threshold, vscode.ConfigurationTarget.Global);
+        }
+        if (timeout !== undefined) {
+          await vscode.workspace.getConfiguration('buildboard').update('automationNoActivityTimeout', timeout, vscode.ConfigurationTarget.Global);
         }
         await this.automationService.start(taskIds);
         break;
@@ -1253,6 +1256,8 @@ export class MessageHandler {
       jiraEmail: jiraSummary.email,
       jiraConfigured: jiraSummary.configured,
       jiraApiTokenLength: jiraSummary.tokenLength,
+      automationAutoApproveThreshold: config.get<number>('automationAutoApproveThreshold', 100),
+      automationNoActivityTimeout: config.get<number>('automationNoActivityTimeout', 30),
     };
     this.webview.postMessage({ type: 'settingsUpdate', payload: this.settingsCache });
   }
