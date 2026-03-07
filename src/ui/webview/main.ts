@@ -1277,11 +1277,8 @@ function renderAnalytics(activeProjectId: string | null): string {
   // Average tasks per session
   const tasksPerSession = sessions.length > 0 ? (tasks.length / sessions.length).toFixed(1) : '—';
 
-  // Total time tracked across all tasks
-  const totalTimeMs = tasks.reduce((sum, t) => sum + (t.timeSpentMs || 0), 0);
-  const totalTimeStr = totalTimeMs > 0 ? formatDurationCompact(totalTimeMs) : '—';
-
-  // Average session duration
+  // Total time tracked across all sessions (sum of session durations minus paused time)
+  let totalTimeStr = '—';
   let avgDurStr = '—';
   if (sessions.length > 0) {
     const totalDurMs = sessions.reduce((sum, s) => {
@@ -1289,6 +1286,7 @@ function renderAnalytics(activeProjectId: string | null): string {
       const paused = s.totalPausedMs || 0;
       return sum + Math.max(0, endMs - new Date(s.startedAt).getTime() - paused);
     }, 0);
+    totalTimeStr = totalDurMs > 0 ? formatDurationCompact(totalDurMs) : '—';
     avgDurStr = formatDurationCompact(Math.round(totalDurMs / sessions.length));
   }
 
