@@ -3903,6 +3903,7 @@ textarea:focus-visible {
 }
 .analytics-bar-chart {
   margin-top: 8px;
+  padding: 0 8px;
 }
 .analytics-bar-row {
   display: flex;
