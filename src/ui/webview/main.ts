@@ -105,6 +105,21 @@ const vscode = acquireVsCodeApi();
 // Track dismissed carried-over banners per session so they stay hidden across re-renders
 const carriedOverDismissed = new Set<string>();
 
+/** Maps common MIME types to file extensions for pasted content. */
+const MIME_TO_EXT: Record<string, string> = {
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif',
+  'image/webp': 'webp', 'image/bmp': 'bmp', 'image/svg+xml': 'svg',
+  'application/pdf': 'pdf', 'text/plain': 'txt', 'text/html': 'html',
+  'text/csv': 'csv', 'text/css': 'css', 'text/markdown': 'md',
+  'application/json': 'json', 'application/xml': 'xml',
+  'text/xml': 'xml', 'application/zip': 'zip',
+};
+
+/** Derive a file extension from a MIME type, falling back to 'bin'. */
+function extFromMime(mime: string): string {
+  return MIME_TO_EXT[mime] || mime.split('/').pop()?.replace(/[^a-z0-9]/gi, '') || 'bin';
+}
+
 // ============================================================
 // Constants
 // ============================================================
@@ -2098,13 +2113,13 @@ function bindQuickAdd(): void {
   addPriority?.addEventListener('change', () => { quickAddPriority = addPriority.value; pendingAIClassification = null; });
   addCol?.addEventListener('change', () => { quickAddCol = addCol.value; pendingAIClassification = null; });
 
-  // Paste image into quick-add textarea → pending attachment
+  // Paste file (image or any supported type) into quick-add textarea → pending attachment
   addInput?.addEventListener('paste', (e: ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) { return; }
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      if (item.type.startsWith('image/')) {
+      if (item.kind === 'file') {
         e.preventDefault();
         const blob = item.getAsFile();
         if (!blob) { continue; }
@@ -2113,10 +2128,11 @@ function bindQuickAdd(): void {
           const dataUri = reader.result as string;
           if (dataUri) {
             const mimeMatch = dataUri.match(/^data:([^;]+);/);
-            const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+            const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+            const ext = extFromMime(mimeType);
             pendingQuickAddAttachments.push({
               id: 'qa-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-              filename: `paste-${Date.now()}.png`,
+              filename: `paste-${Date.now()}.${ext}`,
               mimeType,
               dataUri,
               addedAt: new Date().toISOString(),
@@ -2349,13 +2365,13 @@ function bindEditEvents(): void {
     ta.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === 'Escape') { editingTaskId = null; render(); }
     });
-    // Paste image support — paste an image from clipboard into the edit form
+    // Paste file support — paste any file from clipboard into the edit form
     ta.addEventListener('paste', (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items) { return; }
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        if (item.type.startsWith('image/')) {
+        if (item.kind === 'file') {
           e.preventDefault();
           const blob = item.getAsFile();
           if (!blob) { continue; }
@@ -2364,9 +2380,12 @@ function bindEditEvents(): void {
             const dataUri = reader.result as string;
             const taskId = editingTaskId;
             if (taskId && dataUri) {
+              const mimeMatch = dataUri.match(/^data:([^;]+);/);
+              const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+              const ext = extFromMime(mime);
               vscode.postMessage({
                 type: 'pasteAttachment',
-                payload: { taskId, dataUri, filename: `paste-${Date.now()}.png` },
+                payload: { taskId, dataUri, filename: `paste-${Date.now()}.${ext}` },
               });
             }
           };
@@ -2530,13 +2549,13 @@ function bindFollowUpEvents(): void {
     }
   });
 
-  // Paste image into follow-up textarea
+  // Paste file into follow-up textarea
   followUpInput?.addEventListener('paste', (e: ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) { return; }
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      if (item.type.startsWith('image/')) {
+      if (item.kind === 'file') {
         e.preventDefault();
         const blob = item.getAsFile();
         if (!blob) { continue; }
@@ -2545,10 +2564,11 @@ function bindFollowUpEvents(): void {
           const dataUri = reader.result as string;
           if (dataUri) {
             const mimeMatch = dataUri.match(/^data:([^;]+);/);
-            const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+            const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+            const ext = extFromMime(mimeType);
             pendingFollowUpAttachments.push({
               id: 'fu-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-              filename: `paste-${Date.now()}.png`,
+              filename: `paste-${Date.now()}.${ext}`,
               mimeType,
               dataUri,
               addedAt: new Date().toISOString(),

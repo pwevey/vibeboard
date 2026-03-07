@@ -36,6 +36,7 @@ const ATTACHMENT_MIME_MAP: Record<string, string> = {
 
 /** File picker filter groups (only supported extensions appear in the dialog). */
 const ATTACHMENT_FILTERS: Record<string, string[]> = {
+  'All Supported Files': Object.keys(ATTACHMENT_MIME_MAP),
   'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'],
   'Documents': ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'pptx', 'txt', 'md', 'csv'],
   'Code': ['js', 'ts', 'py', 'rb', 'go', 'java', 'c', 'cpp', 'cs', 'rs', 'sh', 'sql', 'r'],
