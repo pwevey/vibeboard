@@ -1120,7 +1120,6 @@ function renderTaskCard(task: VBTask): string {
         </div>`).join('')}
         ${subtasks.length > 5 ? `<div class="subtask-more" data-toggle-subtasks="${task.id}" title="Click to ${expandedSubtaskCards.has(task.id) ? 'collapse' : 'expand'}">${expandedSubtaskCards.has(task.id) ? '▲ Show less' : `+${subtasks.length - 5} more`}</div>` : ''}
         ${subtaskInputHtml}
-        ${subtasks.length > 0 ? `<div class="subtask-progress-bar"><div class="subtask-progress-fill" style="width:${Math.round((subtasks.filter(s => s.status === 'completed').length / subtasks.length) * 100)}%"></div></div>` : ''}
       </div>`
     : '';
 
