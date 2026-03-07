@@ -11,10 +11,11 @@ let resolvedGitPath: string | undefined;
 
 /**
  * Resolve the path to the git executable.
- * Tries VS Code's `git.path` setting first, then the built-in git extension,
- * and falls back to plain 'git' (system PATH).
+ * Tries VS Code's `git.path` setting first, then activates the built-in git
+ * extension to read its resolved path, and falls back to plain 'git' (system PATH).
+ * The fallback is NOT cached so we retry extension resolution on every call.
  */
-function getGitPath(): string {
+async function getGitPath(): Promise<string> {
   if (resolvedGitPath) { return resolvedGitPath; }
 
   // 1. Check VS Code's git.path setting
@@ -24,30 +25,31 @@ function getGitPath(): string {
     return resolvedGitPath;
   }
 
-  // 2. Try the built-in git extension's API
+  // 2. Activate & query the built-in git extension's API
   try {
     const gitExt = vscode.extensions.getExtension('vscode.git');
-    if (gitExt?.isActive) {
+    if (gitExt) {
+      // Ensure the extension is activated before reading its exports
+      if (!gitExt.isActive) { await gitExt.activate(); }
       const api = gitExt.exports?.getAPI(1);
-      const gitPath = api?.git?.path;
+      const gitPath: string | undefined = api?.git?.path;
       if (gitPath) {
         resolvedGitPath = gitPath;
         return resolvedGitPath;
       }
     }
-  } catch { /* ignore */ }
+  } catch { /* ignore — fall through to plain 'git' */ }
 
-  // 3. Fall back to system PATH
-  resolvedGitPath = 'git';
-  return resolvedGitPath;
+  // 3. Fall back to system PATH (do NOT cache so we can retry extension resolution)
+  return 'git';
 }
 
 /**
  * Run a git command in the given working directory and return stdout.
  */
-function runGit(args: string[], cwd: string): Promise<string> {
+async function runGit(args: string[], cwd: string): Promise<string> {
+  const gitPath = await getGitPath();
   return new Promise((resolve, reject) => {
-    const gitPath = getGitPath();
     const proc = spawn(gitPath, args, { cwd, shell: true });
     let stdout = '';
     let stderr = '';
