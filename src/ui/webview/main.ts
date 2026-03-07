@@ -522,7 +522,14 @@ function renderAutomationBar(): string {
         <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
     }
   } else if (autoState === 'paused') {
+    // Find the most recent failed task that can be retried
+    const failedItem = queue.find((q) => q.status === 'failed' && ((q as any).retryCount || 0) < 3);
+    const failedIdx = failedItem ? queue.indexOf(failedItem) : -1;
+    const retryBtn = failedIdx >= 0
+      ? `<button class="auto-bar-btn" id="btn-auto-retry-last" data-retry-index="${failedIdx}" title="Retry failed task">&circlearrowright; Retry</button>`
+      : '';
     actions = `<button class="auto-bar-btn primary" id="btn-auto-resume" title="Resume">&#9654; Resume</button>
+      ${retryBtn}
       <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
   } else if (autoState === 'reviewing') {
     actions = `<button class="auto-bar-btn success" id="btn-auto-approve" title="Approve and complete task">&#10003; Approve</button>
@@ -1385,6 +1392,14 @@ function bindEvents(): void {
   });
   document.getElementById('btn-auto-reject')?.addEventListener('click', () => {
     vscode.postMessage({ type: 'rejectAutomationTask', payload: {} });
+  });
+
+  // Retry button in top automation bar (paused state)
+  document.getElementById('btn-auto-retry-last')?.addEventListener('click', (e) => {
+    const idx = parseInt((e.currentTarget as HTMLElement).dataset.retryIndex || '-1', 10);
+    if (idx >= 0) {
+      vscode.postMessage({ type: 'retryAutomationTask', payload: { queueIndex: idx } });
+    }
   });
 
   // Skip buttons for queued (future) tasks
