@@ -792,6 +792,35 @@ body.is-dragging .task-card:not(.dragging) {
   gap: 8px;
   justify-content: flex-end;
 }
+.modal-btn-primary {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+}
+.modal-btn-primary:hover {
+  background: var(--vscode-button-hoverBackground, #1177bb);
+}
+.modal-btn-secondary {
+  padding: 6px 16px;
+  border: 1px solid var(--vscode-button-border, rgba(255,255,255,0.15));
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--vscode-foreground, #ccc);
+}
+.modal-btn-secondary:hover {
+  background: rgba(255,255,255,0.06);
+}
+.ai-breakdown-item {
+  padding: 3px 0;
+  font-size: 12px;
+  color: var(--vscode-foreground);
+}
 
 /* ============================================================
    Export Time Period Picker
@@ -3715,8 +3744,14 @@ textarea:focus-visible {
 }
 .subtask-more {
   font-size: 11px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--vscode-textLink-foreground, #6cb6ff);
   padding: 2px 0;
+  cursor: pointer;
+  user-select: none;
+}
+.subtask-more:hover {
+  text-decoration: underline;
+  opacity: 0.9;
 }
 
 /* Inline subtask add input */

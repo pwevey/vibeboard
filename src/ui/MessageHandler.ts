@@ -346,7 +346,12 @@ export class MessageHandler {
             }
             this.sendStateUpdate();
           }
-          this.webview?.postMessage({ type: 'aiResult', payload: { action: 'breakdown', result: subtasks, taskId: task.id } });
+          // Collect created subtask IDs so the webview can undo them if the user cancels
+          const createdData = this.storage.getData();
+          const createdIds = createdData.tasks
+            .filter((t) => t.parentTaskId === task.id)
+            .map((t) => t.id);
+          this.webview?.postMessage({ type: 'aiResult', payload: { action: 'breakdown', result: subtasks, taskId: task.id, subtaskIds: createdIds } });
         });
         break;
       }

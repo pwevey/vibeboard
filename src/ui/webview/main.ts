@@ -158,6 +158,8 @@ let pendingQuickAddAttachments: { id: string; filename: string; mimeType: string
 let pendingQuickAddSubtasks: string[] = [];
 let followUpTaskId: string | null = null;
 let inlineSubtaskParentId: string | null = null; // When set, shows inline subtask add input on this parent card
+/** Track which parent task cards have their subtask list fully expanded */
+let expandedSubtaskCards: Set<string> = new Set();
 let pendingFollowUpAttachments: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[] = [];
 let voiceTargetId: string = 'quick-add-input'; // which textarea voice recording targets
 let pendingAIClassification: { tag: string; priority: string; status: string } | null = null;
@@ -1066,11 +1068,11 @@ function renderTaskCard(task: VBTask): string {
   const subtaskHtml = subtasks.length > 0 || showSubtaskInput
     ? `<div class="subtask-checklist">
         ${subtasks.length > 0 ? `<div class="subtask-header">${subtasks.filter(s => s.status === 'completed').length}/${subtasks.length} subtasks</div>` : ''}
-        ${subtasks.slice(0, 5).map(s => `<div class="subtask-item ${s.status === 'completed' ? 'done' : ''}">
+        ${(expandedSubtaskCards.has(task.id) ? subtasks : subtasks.slice(0, 5)).map(s => `<div class="subtask-item ${s.status === 'completed' ? 'done' : ''}">
           <input type="checkbox" class="subtask-check" data-subtask-complete="${s.id}" ${s.status === 'completed' ? 'checked' : ''} />
           <span class="subtask-title" data-subtask-rename="${s.id}" title="Click to rename">${escapeHtml(s.title.length > 40 ? s.title.slice(0, 37) + '…' : s.title)}</span>
         </div>`).join('')}
-        ${subtasks.length > 5 ? `<div class="subtask-more">+${subtasks.length - 5} more</div>` : ''}
+        ${subtasks.length > 5 ? `<div class="subtask-more" data-toggle-subtasks="${task.id}" title="Click to ${expandedSubtaskCards.has(task.id) ? 'collapse' : 'expand'}">${expandedSubtaskCards.has(task.id) ? '▲ Show less' : `+${subtasks.length - 5} more`}</div>` : ''}
         ${subtaskInputHtml}
         ${subtasks.length > 0 ? `<div class="subtask-progress-bar"><div class="subtask-progress-fill" style="width:${Math.round((subtasks.filter(s => s.status === 'completed').length / subtasks.length) * 100)}%"></div></div>` : ''}
       </div>`
@@ -1855,6 +1857,20 @@ function bindEvents(): void {
       } else {
         vscode.postMessage({ type: 'moveTask', payload: { id: el.dataset.subtaskComplete!, newStatus: 'up-next', newOrder: 0 } });
       }
+    });
+  });
+
+  // Subtask expand/collapse toggle — click "+N more" / "▲ Show less"
+  document.querySelectorAll<HTMLElement>('[data-toggle-subtasks]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const parentId = el.dataset.toggleSubtasks!;
+      if (expandedSubtaskCards.has(parentId)) {
+        expandedSubtaskCards.delete(parentId);
+      } else {
+        expandedSubtaskCards.add(parentId);
+      }
+      render();
     });
   });
 
@@ -6982,7 +6998,8 @@ function handleAIResult(payload: { action: string; result: string | string[]; ta
     }
     case 'breakdown': {
       const subtasks = Array.isArray(result) ? result : [result];
-      showAIResultModal('AI Task Breakdown', `Created ${subtasks.length} subtask${subtasks.length !== 1 ? 's' : ''}:\n\n${subtasks.map((s, i) => `${i + 1}. ${s}`).join('\n')}`);
+      const subtaskIds: string[] = (payload as { subtaskIds?: string[] }).subtaskIds || [];
+      showAIBreakdownModal(subtasks, subtaskIds);
       break;
     }
     case 'rewriteTitle': {
@@ -7067,6 +7084,49 @@ function showAIToast(message: string, loading: boolean): void {
   if (!loading) {
     setTimeout(() => toast.remove(), 4000);
   }
+}
+
+/**
+ * Show AI breakdown modal with OK (keep subtasks) and Cancel (delete them) buttons.
+ */
+function showAIBreakdownModal(subtaskTitles: string[], subtaskIds: string[]): void {
+  // Remove loading toast
+  document.getElementById('ai-toast')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'AI Task Breakdown');
+  const listHtml = subtaskTitles.map((s, i) => `<div class="ai-breakdown-item">${i + 1}. ${escapeHtml(s)}</div>`).join('');
+  overlay.innerHTML = `<div class="modal-card ai-result-card">
+    <div class="ai-result-header">
+      <span class="ai-result-icon">&#10024;</span>
+      <h3>AI Task Breakdown</h3>
+    </div>
+    <div class="ai-result-content">
+      <p>Created ${subtaskTitles.length} subtask${subtaskTitles.length !== 1 ? 's' : ''}:</p>
+      ${listHtml}
+    </div>
+    <div class="modal-actions">
+      <button id="modal-breakdown-cancel" class="modal-btn-secondary">Cancel</button>
+      <button id="modal-breakdown-ok" class="modal-btn-primary">OK</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+
+  // OK — keep the subtasks, just close the modal
+  document.getElementById('modal-breakdown-ok')!.addEventListener('click', () => overlay.remove());
+
+  // Cancel — delete all created subtasks and close
+  document.getElementById('modal-breakdown-cancel')!.addEventListener('click', () => {
+    for (const id of subtaskIds) {
+      vscode.postMessage({ type: 'deleteTask', payload: { id } });
+    }
+    overlay.remove();
+  });
+
+  overlay.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Escape') { overlay.remove(); } });
 }
 
 function showAIResultModal(title: string, content: string): void {
