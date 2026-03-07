@@ -722,8 +722,8 @@ export class MessageHandler {
       case 'createProject': {
         const d = this.storage.getData();
         if (!d.projects) { d.projects = []; }
-        // Auto-fill workspace from payload or current workspace folder name
-        const workspace = message.payload.workspace || vscode.workspace.workspaceFolders?.[0]?.name || '';
+        // Use the workspace/group value the user explicitly provided (if any)
+        const workspace = message.payload.workspace || '';
         const project = {
           id: message.payload.id || generateId(),
           name: message.payload.name,
