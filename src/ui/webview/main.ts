@@ -956,7 +956,6 @@ function renderStatsBar(): string {
   const inProgress = tasks.filter((t) => t.status === 'in-progress').length;
   const upNext = tasks.filter((t) => t.status === 'up-next').length;
   const highPrio = tasks.filter((t) => t.priority === 'high' && t.status !== 'completed').length;
-  const carriedOver = tasks.filter((t) => t.carriedFromSessionId).length;
 
   return `<div class="stats-bar" role="status" aria-label="Task statistics">
     <span class="stat-pill" title="Total tasks">&#128203; ${total}</span>
@@ -964,7 +963,6 @@ function renderStatsBar(): string {
     ${inProgress > 0 ? `<span class="stat-pill in-progress" title="In Progress">&#9881; ${inProgress}</span>` : ''}
     <span class="stat-pill" title="Up Next">&#9654; ${upNext}</span>
     ${highPrio > 0 ? `<span class="stat-pill high-prio" title="High priority">&#9888; ${highPrio}</span>` : ''}
-    ${carriedOver > 0 ? `<span class="stat-pill carried-over" title="Carried over from previous session">&#8634; ${carriedOver}</span>` : ''}
   </div>`;
 }
 
@@ -1076,7 +1074,7 @@ function renderTaskCard(task: VBTask): string {
   const totalMs = getTaskTotalMs(task);
   const timeStr = totalMs > 0 ? formatDurationCompact(totalMs) : '';
   const timerIcon = timerActive ? '&#9209;' : '&#9654;';
-  const carriedBadge = task.carriedFromSessionId ? `<span class="carried-badge" title="Carried over from previous session">&#8634;</span>` : '';
+  const carriedBadge = '';
   const attachmentCount = (task.attachments || []).length;
   const attachBadge = attachmentCount > 0 ? `<span class="attach-count" title="${attachmentCount} attachment${attachmentCount > 1 ? 's' : ''}">&#128206;${attachmentCount}</span>` : '';
   const attachmentThumbs = (task.attachments || []).filter(a => a.mimeType.startsWith('image/')).slice(0, 3)
@@ -1134,7 +1132,7 @@ function renderTaskCard(task: VBTask): string {
       })()
     : '';
 
-  return `<div class="task-card ${prioClass}" draggable="true" data-task-id="${task.id}" role="listitem" tabindex="0" aria-label="${escapeAttr(task.title)}${task.priority === 'high' ? ' - High Priority' : ''}${task.carriedFromSessionId ? ' - Carried over' : ''}" oncontextmenu="return false;">
+  return `<div class="task-card ${prioClass}" draggable="true" data-task-id="${task.id}" role="listitem" tabindex="0" aria-label="${escapeAttr(task.title)}${task.priority === 'high' ? ' - High Priority' : ''}" oncontextmenu="return false;">
     <div class="task-header">
       <input type="checkbox" class="task-checkbox" data-complete="${task.id}" ${isCompleted ? 'checked' : ''} title="Mark complete" aria-label="Mark ${escapeAttr(task.title)} complete" />
       ${carriedBadge}<span class="${titleClass}" data-edit-title="${task.id}" title="Double-click to edit">${escapeHtml(task.title)}</span>
