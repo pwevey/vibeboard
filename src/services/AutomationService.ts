@@ -153,20 +153,11 @@ export class AutomationService {
       return;
     }
 
-    const wasWaitingOrSending = current.status === 'waiting' || current.status === 'sending';
     current.status = 'skipped';
     this.cleanup();
     this.currentIndex++;
     this.broadcastProgress();
-
-    // If skipping during waiting/sending, pause so the user can review
-    // before the next task is sent to Copilot
-    if (wasWaitingOrSending && this.currentIndex < this.queue.length) {
-      this.state = 'paused';
-      this.broadcastProgress();
-    } else {
-      await this.processNext();
-    }
+    await this.processNext();
   }
 
   /** User approves the current checkpoint — mark done and advance. */
