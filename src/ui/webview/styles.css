@@ -3863,7 +3863,7 @@ textarea:focus-visible {
 /* ── Analytics Dashboard ───────────────────────── */
 .analytics-section {
   margin-top: 16px;
-  padding: 12px;
+  padding: 12px 16px;
   background: var(--vscode-editor-background);
   border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.08));
   border-radius: 8px;
