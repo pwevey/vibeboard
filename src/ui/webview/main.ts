@@ -518,6 +518,7 @@ function renderAutomationBar(): string {
         <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
     } else {
       actions = `<button class="auto-bar-btn" id="btn-auto-pause" title="Pause">&#9208;</button>
+        <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject changes">&#10007; Reject</button>
         <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
     }
   } else if (autoState === 'paused') {
@@ -525,8 +526,7 @@ function renderAutomationBar(): string {
       <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
   } else if (autoState === 'reviewing') {
     actions = `<button class="auto-bar-btn success" id="btn-auto-approve" title="Approve and complete task">&#10003; Approve</button>
-      <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject and skip">&#10007; Reject</button>
-      <button class="auto-bar-btn" id="btn-auto-skip" title="Skip without approving or rejecting">Skip</button>`;
+      <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject and skip">&#10007; Reject</button>`;
   }
 
   // Checkpoint detail (verification result) or waiting message
@@ -572,8 +572,12 @@ function renderAutomationBar(): string {
       : item.status === 'failed' && retryCount >= maxRetries
       ? ' <span class="auto-retry-exhausted" title="Max retries reached">(max retries)</span>'
       : '';
-    // Show a Skip button for pending future tasks (after current index)
-    const skipBtn = item.status === 'pending' && i > currentIndex
+    // Show a Skip button for pending tasks that haven't started yet.
+    // During paused state, the task at currentIndex is also skippable since it hasn't started.
+    const canSkip = item.status === 'pending' && (
+      i > currentIndex || (i === currentIndex && autoState === 'paused')
+    );
+    const skipBtn = canSkip
       ? ` <button class="auto-skip-queued-btn" data-skip-index="${i}" title="Skip this task">Skip</button>`
       : '';
     return `<div class="auto-queue-item ${cls}"><span class="auto-queue-dot">${statusDot}</span> <span class="auto-queue-name">${name}</span>${skipBtn}${retryBtn}</div>`;
@@ -1375,9 +1379,6 @@ function bindEvents(): void {
   });
   document.getElementById('btn-auto-cancel')?.addEventListener('click', () => {
     vscode.postMessage({ type: 'cancelAutomation', payload: {} });
-  });
-  document.getElementById('btn-auto-skip')?.addEventListener('click', () => {
-    vscode.postMessage({ type: 'skipAutomationTask', payload: {} });
   });
   document.getElementById('btn-auto-approve')?.addEventListener('click', () => {
     vscode.postMessage({ type: 'approveAutomationTask', payload: {} });

@@ -164,12 +164,20 @@ export class AutomationService {
     await this.processNext();
   }
 
-  /** Skip a specific queued (future) task by index without affecting the current task. */
+  /** Skip a specific queued (future) task by index without affecting the current task.
+   *  Also allows skipping the task at currentIndex if automation is paused (hasn't started yet). */
   skipQueued(index: number): void {
     const item = this.queue[index];
-    if (!item || index <= this.currentIndex) { return; }
+    if (!item) { return; }
+    // Allow skipping current-index item only when paused (it hasn't started processing)
+    if (index < this.currentIndex) { return; }
+    if (index === this.currentIndex && this.state !== 'paused') { return; }
     if (item.status !== 'pending') { return; }
     item.status = 'skipped';
+    // If we skipped the current item while paused, advance the pointer
+    if (index === this.currentIndex) {
+      this.currentIndex++;
+    }
     this.broadcastProgress();
   }
 
