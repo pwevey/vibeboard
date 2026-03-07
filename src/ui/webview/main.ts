@@ -2409,6 +2409,12 @@ function bindEditEvents(): void {
     });
     ta.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === 'Escape') { editingTaskId = null; render(); }
+      // Enter saves (like quick-add), Shift+Enter inserts a newline
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const taskId = ta.dataset.saveUnified!;
+        saveEdit(taskId);
+      }
     });
     // Paste file support — paste any file from clipboard into the edit form
     ta.addEventListener('paste', (e: ClipboardEvent) => {
