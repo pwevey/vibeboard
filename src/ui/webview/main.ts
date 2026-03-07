@@ -958,6 +958,17 @@ function renderQuickAdd(): string {
   return `<div class="quick-add">
     <textarea id="quick-add-input" placeholder="Add a task... (Enter to submit, Shift+Enter for new line)" rows="2" aria-label="New task title"></textarea>
     ${pendingThumbs}
+    <div class="quick-add-subtasks">
+      ${pendingQuickAddSubtasks.map((s, i) => `<div class="quick-add-subtask-item">
+        <span class="quick-add-subtask-text">${escapeHtml(s)}</span>
+        <button class="quick-add-subtask-remove" data-remove-subtask="${i}" title="Remove subtask">&#10005;</button>
+      </div>`).join('')}
+      <div class="quick-add-subtask-add-row">
+        <input type="text" class="quick-add-subtask-input" id="quick-add-subtask-input" placeholder="+ Add subtask…" />
+        <button class="quick-add-subtask-confirm" id="btn-subtask-confirm" title="Add subtask">&#10003;</button>
+        <button class="quick-add-subtask-clear" id="btn-subtask-clear" title="Clear">&#10005;</button>
+      </div>
+    </div>
     <div class="quick-add-controls">
       <select id="quick-add-tag" aria-label="Task tag">
         <option value="feature" ${quickAddTag === 'feature' ? 'selected' : ''}>Feature</option><option value="bug" ${quickAddTag === 'bug' ? 'selected' : ''}>Bug</option>
@@ -975,15 +986,6 @@ function renderQuickAdd(): string {
       <button class="icon-btn voice-btn ${isVoiceRecording ? 'recording' : ''}" id="btn-voice" title="${isVoiceRecording ? 'Stop recording' : 'Voice input'}" aria-label="${isVoiceRecording ? 'Stop voice recording' : 'Start voice recording'}">${micSvg}</button>
       <button class="icon-btn attach-qa-btn" id="btn-quick-attach" title="Attach file" aria-label="Attach file to new task">&#128206;</button>
       <button id="btn-quick-add">Add</button>
-    </div>
-    <div class="quick-add-subtasks">
-      ${pendingQuickAddSubtasks.map((s, i) => `<div class="quick-add-subtask-item">
-        <span class="quick-add-subtask-text">${escapeHtml(s)}</span>
-        <button class="quick-add-subtask-remove" data-remove-subtask="${i}" title="Remove subtask">&#10005;</button>
-      </div>`).join('')}
-      <div class="quick-add-subtask-add-row">
-        <input type="text" class="quick-add-subtask-input" id="quick-add-subtask-input" placeholder="+ Add subtask…" />
-      </div>
     </div>
     <div class="template-bar">${templateBtns}</div>
   </div>`;
@@ -2135,19 +2137,38 @@ function bindQuickAdd(): void {
 
   // Quick-add subtask input — Enter to add subtask to pending list
   const subtaskInput = document.getElementById('quick-add-subtask-input') as HTMLInputElement | null;
+
+  /** Helper: commit the current subtask input value to the pending list */
+  const commitSubtask = () => {
+    if (!subtaskInput) { return; }
+    const val = subtaskInput.value.trim();
+    if (val) {
+      pendingQuickAddSubtasks.push(val);
+      subtaskInput.value = '';
+      render();
+      // Re-focus the subtask input after re-render
+      setTimeout(() => {
+        (document.getElementById('quick-add-subtask-input') as HTMLInputElement)?.focus();
+      }, 0);
+    }
+  };
+
   subtaskInput?.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const val = subtaskInput.value.trim();
-      if (val) {
-        pendingQuickAddSubtasks.push(val);
-        subtaskInput.value = '';
-        render();
-        // Re-focus the subtask input after re-render
-        setTimeout(() => {
-          (document.getElementById('quick-add-subtask-input') as HTMLInputElement)?.focus();
-        }, 0);
-      }
+    if (e.key === 'Enter') { e.preventDefault(); commitSubtask(); }
+    if (e.key === 'Escape') { subtaskInput.value = ''; subtaskInput.blur(); }
+  });
+
+  // Confirm button (✓) next to subtask input
+  document.getElementById('btn-subtask-confirm')?.addEventListener('click', () => { commitSubtask(); });
+
+  // Clear button (✕) next to subtask input — clears typed text, or removes all pending subtasks
+  document.getElementById('btn-subtask-clear')?.addEventListener('click', () => {
+    if (subtaskInput && subtaskInput.value.trim()) {
+      subtaskInput.value = '';
+      subtaskInput.focus();
+    } else if (pendingQuickAddSubtasks.length > 0) {
+      pendingQuickAddSubtasks.length = 0;
+      render();
     }
   });
 
