@@ -385,6 +385,9 @@ export class AutomationService {
       await this.sendToCopilot(prompt, [], task.tag);
     }
 
+    // Guard: if automation was cancelled/reset while awaiting sendToCopilot, bail out
+    if (this.state === 'idle') { return; }
+
     // Step 2: Watch for file changes
     item.status = 'waiting';
     this.broadcastProgress();
@@ -433,6 +436,7 @@ export class AutomationService {
           this.timeoutTimer = setTimeout(async () => {
             if (resolved) { return; }
             done();
+            if (this.state === 'idle') { return; }
             item.status = 'checkpoint';
             item.result = 'No file changes detected within timeout. Please verify manually.';
             this.state = 'reviewing';
@@ -443,6 +447,7 @@ export class AutomationService {
         this.changeTimer = setTimeout(async () => {
           // Changes settled — capture and verify
           done();
+          if (this.state === 'idle') { return; }
           await this.captureAndVerify(cwd, item, task);
         }, CHANGE_DEBOUNCE_MS);
       };
@@ -469,6 +474,8 @@ export class AutomationService {
       this.timeoutTimer = setTimeout(async () => {
         if (resolved) { return; }
         done();
+        // Guard: don't modify state if automation was cancelled
+        if (this.state === 'idle') { return; }
         item.status = 'checkpoint';
         item.result = 'No file changes detected — Copilot may have responded without edits. Please verify manually.';
         this.state = 'reviewing';
