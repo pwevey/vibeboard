@@ -569,12 +569,16 @@ function renderAutomationBar(): string {
   const queueItems = queue.map((item, i) => {
     const task = findTask(item.taskId);
     const name = task ? escapeHtml(task.title.length > 40 ? task.title.slice(0, 40) + '…' : task.title) : '?';
-    const statusDot = item.status === 'done' ? '&#10003;'
+    // Show play arrow on the failed task at currentIndex during paused state
+    // so the user knows they can retry it.
+    const isFailedCurrent = item.status === 'failed' && i === currentIndex && autoState === 'paused';
+    const statusDot = isFailedCurrent ? '&#9654;'
+      : item.status === 'done' ? '&#10003;'
       : item.status === 'failed' ? '&#10007;'
       : item.status === 'skipped' ? '&#8211;'
       : i === currentIndex ? '&#9654;'
       : '&#9675;';
-    const cls = item.status === 'done' ? 'done' : item.status === 'failed' ? 'failed' : item.status === 'skipped' ? 'skipped' : i === currentIndex ? 'current' : '';
+    const cls = isFailedCurrent ? 'current' : item.status === 'done' ? 'done' : item.status === 'failed' ? 'failed' : item.status === 'skipped' ? 'skipped' : i === currentIndex ? 'current' : '';
     const retryCount = (item as any).retryCount || 0;
     const maxRetries = 3;
     const retryLabel = item.status === 'failed' && retryCount >= maxRetries

@@ -218,7 +218,8 @@ export class AutomationService {
     current.completedAt = new Date().toISOString();
     current.result = 'Rejected by user';
 
-    this.currentIndex++;
+    // Don't advance currentIndex — keep the play arrow on the rejected task
+    // so the user can see they can retry it. processNext() will skip over it.
 
     // If all remaining tasks are resolved, finish instead of pausing
     const allResolved = this.queue.every((q) =>
@@ -355,8 +356,8 @@ export class AutomationService {
 
     const item = this.queue[this.currentIndex];
 
-    // Skip items that were pre-skipped from the queue
-    if (item.status === 'skipped') {
+    // Skip items that were pre-skipped or previously failed/rejected
+    if (item.status === 'skipped' || item.status === 'failed') {
       this.currentIndex++;
       this.broadcastProgress();
       await this.processNext();
