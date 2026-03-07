@@ -50,6 +50,8 @@ export class AutomationService {
   private docChangeListener: vscode.Disposable | undefined;
   private changeTimer: ReturnType<typeof setTimeout> | undefined;
   private timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Resolver to cancel waitForChanges from outside (e.g. skip/cancel). */
+  private cancelWait: (() => void) | undefined;
 
   /** Callback to broadcast progress to the webview. */
   private onProgress: ((progress: AutomationProgress) => void) | undefined;
@@ -400,11 +402,15 @@ export class AutomationService {
       const done = () => {
         if (resolved) { return; }
         resolved = true;
+        this.cancelWait = undefined;
         this.disposeWatcher();
         if (this.changeTimer) { clearTimeout(this.changeTimer); this.changeTimer = undefined; }
         if (this.timeoutTimer) { clearTimeout(this.timeoutTimer); this.timeoutTimer = undefined; }
         resolve();
       };
+
+      // Allow external cancellation (skip/cancel) to resolve immediately
+      this.cancelWait = done;
 
       // Set up file watcher
       const pattern = new vscode.RelativePattern(
@@ -576,11 +582,12 @@ export class AutomationService {
     );
   }
 
-  /** Clean up watchers and timers. */
+  /** Clean up watchers, timers, and cancel any pending waitForChanges. */
   private cleanup(): void {
     this.disposeWatcher();
     if (this.changeTimer) { clearTimeout(this.changeTimer); this.changeTimer = undefined; }
     if (this.timeoutTimer) { clearTimeout(this.timeoutTimer); this.timeoutTimer = undefined; }
+    if (this.cancelWait) { this.cancelWait(); this.cancelWait = undefined; }
   }
 
   private disposeWatcher(): void {
