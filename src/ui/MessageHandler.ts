@@ -657,7 +657,7 @@ export class MessageHandler {
       }
 
       case 'pasteAttachment': {
-        // Handle pasted image data from the webview (base64 data URI)
+        // Handle pasted file data from the webview (base64 data URI)
         const data = this.storage.getData();
         const task = data.tasks.find((t) => t.id === message.payload.taskId);
         if (!task) { break; }
@@ -665,11 +665,17 @@ export class MessageHandler {
 
         const { dataUri, filename } = message.payload as { taskId: string; dataUri: string; filename: string };
         const mimeMatch = dataUri.match(/^data:([^;]+);/);
-        const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+        let mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+
+        // If the MIME is generic but the filename has a known extension, resolve it
+        if (mimeType === 'application/octet-stream' && filename && filename.includes('.')) {
+          const ext = filename.split('.').pop()!.toLowerCase();
+          if (ATTACHMENT_MIME_MAP[ext]) { mimeType = ATTACHMENT_MIME_MAP[ext]; }
+        }
 
         const attachment: VBAttachment = {
           id: generateId(),
-          filename: filename || `paste-${Date.now()}.png`,
+          filename: filename || `paste-${Date.now()}.bin`,
           mimeType,
           dataUri,
           addedAt: new Date().toISOString(),

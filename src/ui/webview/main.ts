@@ -115,6 +115,23 @@ const MIME_TO_EXT: Record<string, string> = {
   'text/xml': 'xml', 'application/zip': 'zip',
 };
 
+/** Maps file extensions to MIME types (reverse of MIME_TO_EXT, plus extras). */
+const EXT_TO_MIME: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml',
+  pdf: 'application/pdf', txt: 'text/plain', html: 'text/html',
+  csv: 'text/csv', css: 'text/css', md: 'text/markdown',
+  json: 'application/json', xml: 'application/xml', zip: 'application/zip',
+  js: 'text/javascript', ts: 'text/typescript', py: 'text/x-python',
+  rb: 'text/x-ruby', go: 'text/x-go', java: 'text/x-java',
+  c: 'text/x-c', cpp: 'text/x-c++', cs: 'text/x-csharp',
+  rs: 'text/x-rust', sh: 'text/x-shellscript', sql: 'text/x-sql',
+  r: 'text/x-r', yaml: 'text/yaml', yml: 'text/yaml', log: 'text/plain',
+  doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+
 /** Derive a file extension from a MIME type, falling back to 'bin'. */
 function extFromMime(mime: string): string {
   if (mime === 'application/octet-stream') { return 'bin'; }
@@ -122,16 +139,22 @@ function extFromMime(mime: string): string {
 }
 
 /**
- * Build a filename for a pasted clipboard blob.
+ * Build a filename and resolved MIME type for a pasted clipboard blob.
  * Prefers the original blob.name (if it has a real extension), otherwise
  * falls back to a timestamp-based name derived from the MIME type.
+ * Also corrects the MIME type when the extension is known but MIME is generic.
  */
-function pasteFilename(blob: File, mime: string): string {
+function pasteFileInfo(blob: File, dataMime: string): { filename: string; mimeType: string } {
+  // Prefer the original filename from the clipboard File object
   if (blob.name && blob.name !== '' && blob.name.includes('.')) {
-    // Clipboard provided an original filename with extension — use it
-    return blob.name;
+    const ext = blob.name.split('.').pop()!.toLowerCase();
+    // Resolve a better MIME type from the extension if the data MIME is generic
+    const resolvedMime = (dataMime === 'application/octet-stream' || dataMime === '')
+      ? (EXT_TO_MIME[ext] || dataMime || 'application/octet-stream')
+      : dataMime;
+    return { filename: blob.name, mimeType: resolvedMime };
   }
-  return `paste-${Date.now()}.${extFromMime(mime)}`;
+  return { filename: `paste-${Date.now()}.${extFromMime(dataMime)}`, mimeType: dataMime };
 }
 
 // ============================================================
@@ -2140,11 +2163,12 @@ function bindQuickAdd(): void {
           const dataUri = reader.result as string;
           if (dataUri) {
             const mimeMatch = dataUri.match(/^data:([^;]+);/);
-            const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+            const rawMime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+            const info = pasteFileInfo(blob, rawMime);
             pendingQuickAddAttachments.push({
               id: 'qa-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-              filename: pasteFilename(blob, mimeType),
-              mimeType,
+              filename: info.filename,
+              mimeType: info.mimeType,
               dataUri,
               addedAt: new Date().toISOString(),
             });
@@ -2402,10 +2426,11 @@ function bindEditEvents(): void {
             const taskId = editingTaskId;
             if (taskId && dataUri) {
               const mimeMatch = dataUri.match(/^data:([^;]+);/);
-              const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+              const rawMime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+              const info = pasteFileInfo(blob, rawMime);
               vscode.postMessage({
                 type: 'pasteAttachment',
-                payload: { taskId, dataUri, filename: pasteFilename(blob, mime) },
+                payload: { taskId, dataUri, filename: info.filename },
               });
             }
           };
@@ -2584,11 +2609,12 @@ function bindFollowUpEvents(): void {
           const dataUri = reader.result as string;
           if (dataUri) {
             const mimeMatch = dataUri.match(/^data:([^;]+);/);
-            const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+            const rawMime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+            const info = pasteFileInfo(blob, rawMime);
             pendingFollowUpAttachments.push({
               id: 'fu-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-              filename: pasteFilename(blob, mimeType),
-              mimeType,
+              filename: info.filename,
+              mimeType: info.mimeType,
               dataUri,
               addedAt: new Date().toISOString(),
             });
