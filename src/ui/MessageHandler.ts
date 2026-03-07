@@ -1216,25 +1216,37 @@ export class MessageHandler {
       return;
     }
     const data = this.storage.getData();
-    // Build a lightweight payload — replace heavy stacks with counts
-    const { undoStack, redoStack, ...rest } = data;
 
     // If the active session belongs to a different workspace folder,
-    // hide it from the webview so the user sees the start page instead
-    // of a stale session from another project.
-    let effectiveActiveSessionId = rest.activeSessionId;
-    if (effectiveActiveSessionId) {
+    // end it automatically and notify the user.
+    if (data.activeSessionId) {
       const currentWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-      const activeSession = data.sessions.find(s => s.id === effectiveActiveSessionId);
+      const activeSession = data.sessions.find(s => s.id === data.activeSessionId);
       if (activeSession && activeSession.projectPath && currentWorkspace &&
           activeSession.projectPath.toLowerCase() !== currentWorkspace.toLowerCase()) {
-        effectiveActiveSessionId = null;
+        const oldName = activeSession.name || 'previous session';
+        const oldFolder = activeSession.projectPath.split(/[\\/]/).pop() || activeSession.projectPath;
+        this.sessionManager.endSession();
+        vscode.window.showInformationMessage(
+          `Build Board: "${oldName}" from ${oldFolder} was ended because you switched folders.`
+        );
+        // Re-read data after ending the session
+        const freshData = this.storage.getData();
+        const { undoStack, redoStack, ...rest } = freshData;
+        const payload = {
+          ...rest,
+          undoCount: undoStack?.length ?? 0,
+          redoCount: redoStack?.length ?? 0,
+        };
+        this.webview.postMessage({ type: 'stateUpdate', payload });
+        return;
       }
     }
 
+    // Build a lightweight payload — replace heavy stacks with counts
+    const { undoStack, redoStack, ...rest } = data;
     const payload = {
       ...rest,
-      activeSessionId: effectiveActiveSessionId,
       undoCount: undoStack?.length ?? 0,
       redoCount: redoStack?.length ?? 0,
     };
