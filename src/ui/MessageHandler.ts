@@ -1218,8 +1218,23 @@ export class MessageHandler {
     const data = this.storage.getData();
     // Build a lightweight payload — replace heavy stacks with counts
     const { undoStack, redoStack, ...rest } = data;
+
+    // If the active session belongs to a different workspace folder,
+    // hide it from the webview so the user sees the start page instead
+    // of a stale session from another project.
+    let effectiveActiveSessionId = rest.activeSessionId;
+    if (effectiveActiveSessionId) {
+      const currentWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+      const activeSession = data.sessions.find(s => s.id === effectiveActiveSessionId);
+      if (activeSession && activeSession.projectPath && currentWorkspace &&
+          activeSession.projectPath.toLowerCase() !== currentWorkspace.toLowerCase()) {
+        effectiveActiveSessionId = null;
+      }
+    }
+
     const payload = {
       ...rest,
+      activeSessionId: effectiveActiveSessionId,
       undoCount: undoStack?.length ?? 0,
       redoCount: redoStack?.length ?? 0,
     };
