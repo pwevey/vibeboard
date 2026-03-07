@@ -800,7 +800,7 @@ export class MessageHandler {
 
       case 'updateSetting': {
         const { key, value } = message.payload as { key: string; value: unknown };
-        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl', 'storageScope'];
+        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl', 'storageScope', 'automationAutoApproveThreshold', 'automationNoActivityTimeout'];
         if (allowedKeys.includes(key)) {
           await vscode.workspace.getConfiguration('buildboard').update(key, value, vscode.ConfigurationTarget.Global);
           this.invalidateSettingsCache();
