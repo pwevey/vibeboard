@@ -852,10 +852,6 @@ function showAutomationTaskPicker(): void {
     // Persist branching setting before starting
     vscode.postMessage({ type: 'updateSetting', payload: { key: 'automationBranching', value: branching } });
     extensionSettings.automationBranching = branching;
-    // Warn if branching is enabled — git must be available
-    if (branching) {
-      showAIToast('Git branch isolation is enabled — make sure this folder is a git repository.', false);
-    }
     vscode.postMessage({ type: 'startAutomation', payload: { taskIds: selected, threshold, timeout } });
   });
 
