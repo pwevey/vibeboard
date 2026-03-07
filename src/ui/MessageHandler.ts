@@ -315,24 +315,42 @@ export class MessageHandler {
           if (session && subtasks.length > 0) {
             for (const title of subtasks) {
               if (title) {
-                const newTask = this.taskManager.addTask({
+                this.taskManager.addTask({
                   title,
                   tag: task.tag,
                   priority: task.priority,
                   status: 'up-next',
                   sessionId: session.id,
+                  parentTaskId: task.id,
                 });
-                // Link subtask to parent
-                const d = this.storage.getData();
-                const created = d.tasks.find(t => t.id === newTask.id);
-                if (created) { created.parentTaskId = task.id; }
-                this.storage.setData(d);
               }
             }
             this.sendStateUpdate();
           }
           this.webview?.postMessage({ type: 'aiResult', payload: { action: 'breakdown', result: subtasks, taskId: task.id } });
         });
+        break;
+      }
+
+      case 'addSubtask': {
+        // Manually add a subtask linked to the parent task
+        const session = this.sessionManager.getActiveSession();
+        if (!session) {
+          vscode.window.showWarningMessage('Start a session before adding tasks.');
+          break;
+        }
+        const parentData = this.storage.getData();
+        const parentTask = parentData.tasks.find((t) => t.id === message.payload.parentTaskId);
+        if (!parentTask) { break; }
+        this.taskManager.addTask({
+          title: message.payload.title,
+          tag: parentTask.tag,
+          priority: parentTask.priority,
+          status: 'up-next',
+          sessionId: session.id,
+          parentTaskId: parentTask.id,
+        });
+        this.sendStateUpdate();
         break;
       }
 

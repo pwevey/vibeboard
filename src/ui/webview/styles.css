@@ -3719,6 +3719,42 @@ textarea:focus-visible {
   padding: 2px 0;
 }
 
+/* Inline subtask add input */
+.subtask-add-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0 2px;
+}
+.subtask-add-input {
+  flex: 1;
+  padding: 3px 6px;
+  font-size: 12px;
+  border: 1px solid var(--vscode-input-border, rgba(255,255,255,0.15));
+  background: var(--vscode-input-background, #1e1e1e);
+  color: var(--vscode-input-foreground, #ccc);
+  border-radius: 3px;
+  outline: none;
+  min-width: 0;
+}
+.subtask-add-input:focus {
+  border-color: var(--vscode-focusBorder, #007acc);
+}
+.subtask-add-btn,
+.subtask-add-cancel {
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0.7;
+  line-height: 1;
+}
+.subtask-add-btn:hover { opacity: 1; color: var(--vscode-testing-iconPassed, #73c991); }
+.subtask-add-cancel:hover { opacity: 1; color: var(--vscode-errorForeground, #f14c4c); }
+
 /* ── Due Date Badge ────────────────────────────── */
 .due-badge {
   display: inline-flex;

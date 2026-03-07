@@ -20,7 +20,8 @@ A full-featured Kanban sidebar for developers who work with AI assistants. Plan 
 - **Undo / redo** — Revert accidental edits, moves, or deletions.
 
 ### Subtasks
-- **AI-generated subtasks** — Use the AI breakdown feature to split a task into subtasks linked to the parent.
+- **AI-generated subtasks** — Use AI Break to Subtasks to split a task into subtasks linked to the parent.
+- **Manual subtasks** — Add subtasks manually via the context menu or inline input on parent cards.
 - **Nested checklists** — Parent task cards show a checklist of child tasks with completion checkboxes.
 - **Progress bar** — Visual progress indicator on parent cards showing subtask completion.
 - **Auto-complete parent** — When all subtasks are done, the parent task is automatically marked complete.
@@ -92,7 +93,7 @@ A full-featured Kanban sidebar for developers who work with AI assistants. Plan 
 1. Click the **Build Board** icon in the Activity Bar (left sidebar).
 2. Press **Start Session** to begin.
 3. Add tasks, drag them between columns, check off completed work.
-4. Right-click tasks for AI breakdown, branch creation, and more.
+4. Right-click tasks for AI subtask breakdown, manual subtasks, branch creation, and more.
 5. Press **End Session** to see your summary and analytics.
 
 ## Commands

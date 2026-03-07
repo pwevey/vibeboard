@@ -155,6 +155,7 @@ let voiceRecognition: unknown = null;
 let isVoiceRecording = false;
 let pendingQuickAddAttachments: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[] = [];
 let followUpTaskId: string | null = null;
+let inlineSubtaskParentId: string | null = null; // When set, shows inline subtask add input on this parent card
 let pendingFollowUpAttachments: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[] = [];
 let voiceTargetId: string = 'quick-add-input'; // which textarea voice recording targets
 let pendingAIClassification: { tag: string; priority: string; status: string } | null = null;
@@ -1040,15 +1041,25 @@ function renderTaskCard(task: VBTask): string {
 
   // Subtask checklist — find children of this task
   const subtasks = (state?.tasks || []).filter(t => t.parentTaskId === task.id);
-  const subtaskHtml = subtasks.length > 0
+  // Inline subtask add input — shown when user clicks "Add Subtask" in context menu
+  const showSubtaskInput = inlineSubtaskParentId === task.id;
+  const subtaskInputHtml = showSubtaskInput
+    ? `<div class="subtask-add-row">
+        <input type="text" class="subtask-add-input" data-subtask-add-for="${task.id}" placeholder="Subtask title…" />
+        <button class="subtask-add-btn" data-subtask-add-confirm="${task.id}" title="Add">&#10003;</button>
+        <button class="subtask-add-cancel" data-subtask-add-cancel="${task.id}" title="Cancel">&#10005;</button>
+      </div>`
+    : '';
+  const subtaskHtml = subtasks.length > 0 || showSubtaskInput
     ? `<div class="subtask-checklist">
-        <div class="subtask-header">${subtasks.filter(s => s.status === 'completed').length}/${subtasks.length} subtasks</div>
+        ${subtasks.length > 0 ? `<div class="subtask-header">${subtasks.filter(s => s.status === 'completed').length}/${subtasks.length} subtasks</div>` : ''}
         ${subtasks.slice(0, 5).map(s => `<div class="subtask-item ${s.status === 'completed' ? 'done' : ''}">
           <input type="checkbox" class="subtask-check" data-subtask-complete="${s.id}" ${s.status === 'completed' ? 'checked' : ''} />
           <span class="subtask-title">${escapeHtml(s.title.length > 40 ? s.title.slice(0, 37) + '…' : s.title)}</span>
         </div>`).join('')}
         ${subtasks.length > 5 ? `<div class="subtask-more">+${subtasks.length - 5} more</div>` : ''}
-        <div class="subtask-progress-bar"><div class="subtask-progress-fill" style="width:${subtasks.length > 0 ? Math.round((subtasks.filter(s => s.status === 'completed').length / subtasks.length) * 100) : 0}%"></div></div>
+        ${subtaskInputHtml}
+        ${subtasks.length > 0 ? `<div class="subtask-progress-bar"><div class="subtask-progress-fill" style="width:${Math.round((subtasks.filter(s => s.status === 'completed').length / subtasks.length) * 100)}%"></div></div>` : ''}
       </div>`
     : '';
 
@@ -1819,6 +1830,48 @@ function bindEvents(): void {
     });
   });
 
+  // Inline subtask add — auto-focus the input when shown
+  document.querySelectorAll<HTMLInputElement>('[data-subtask-add-for]').forEach((input) => {
+    input.focus();
+    const parentId = input.dataset.subtaskAddFor!;
+    /** Submit the inline subtask and keep the input open for another */
+    const submit = () => {
+      const title = input.value.trim();
+      if (title) {
+        vscode.postMessage({ type: 'addSubtask', payload: { parentTaskId: parentId, title } });
+        // Keep inline open for adding more subtasks
+      } else {
+        inlineSubtaskParentId = null;
+        render();
+      }
+    };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      if (e.key === 'Escape') { e.preventDefault(); inlineSubtaskParentId = null; render(); }
+    });
+  });
+  // Confirm button for inline subtask
+  document.querySelectorAll<HTMLElement>('[data-subtask-add-confirm]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const parentId = btn.dataset.subtaskAddConfirm!;
+      const input = document.querySelector(`[data-subtask-add-for="${parentId}"]`) as HTMLInputElement;
+      const title = input?.value.trim();
+      if (title) {
+        vscode.postMessage({ type: 'addSubtask', payload: { parentTaskId: parentId, title } });
+      } else {
+        inlineSubtaskParentId = null;
+        render();
+      }
+    });
+  });
+  // Cancel button for inline subtask
+  document.querySelectorAll<HTMLElement>('[data-subtask-add-cancel]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      inlineSubtaskParentId = null;
+      render();
+    });
+  });
+
   // Double-click to edit (on card or title)
   document.querySelectorAll<HTMLElement>('.task-card:not(.editing)').forEach((card) => {
     card.addEventListener('dblclick', (e) => {
@@ -2470,7 +2523,8 @@ function showContextMenu(taskId: string, event: Event): void {
     <div class="ctx-item" data-ctx-timer role="menuitem">${task.timerStartedAt ? '&#9209; Stop Timer' : '&#9654; Start Timer'}</div>
     <div class="ctx-separator" role="separator"></div>
     <div class="ctx-item" data-ctx-create-branch role="menuitem">&#127796; ${task.branchName ? 'Branch: ' + escapeHtml(task.branchName) : 'Create Branch'}</div>
-    <div class="ctx-item" data-ctx-ai-breakdown role="menuitem">&#10024; AI Breakdown</div>
+    <div class="ctx-item" data-ctx-add-subtask role="menuitem">&#10133; Add Subtask</div>
+    <div class="ctx-item" data-ctx-ai-breakdown role="menuitem">&#10024; AI Break to Subtasks</div>
     <div class="ctx-item" data-ctx-send-copilot role="menuitem">&#128640; Send to Copilot</div>
     <div class="ctx-separator" role="separator"></div>
     <div class="ctx-item danger" data-ctx-delete role="menuitem">&#128465; Delete</div>`;
@@ -2501,6 +2555,7 @@ function showContextMenu(taskId: string, event: Event): void {
     }
     else if (target.hasAttribute('data-ctx-timer')) { vscode.postMessage({ type: 'toggleTimer', payload: { id: taskId } }); }
     else if (target.hasAttribute('data-ctx-create-branch')) { vscode.postMessage({ type: 'createBranchFromTask', payload: { taskId } }); }
+    else if (target.hasAttribute('data-ctx-add-subtask')) { inlineSubtaskParentId = taskId; render(); }
     else if (target.hasAttribute('data-ctx-ai-breakdown')) { vscode.postMessage({ type: 'aiBreakdown', payload: { taskId } }); }
     else if (target.hasAttribute('data-ctx-send-copilot')) { vscode.postMessage({ type: 'sendToCopilot', payload: { taskId } }); }
     else if (target.hasAttribute('data-ctx-delete')) { showDeleteConfirm(taskId, task.title); }
@@ -5871,7 +5926,8 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Subtasks</h4>
         <ul>
-          <li>Use <strong>AI Breakdown</strong> (right-click &rarr; AI Breakdown) to split a task into subtasks automatically.</li>
+          <li><strong>Manual subtasks</strong> &mdash; Right-click a task &rarr; <em>Add Subtask</em> to type a subtask title inline on the card. Press <kbd>Enter</kbd> to add, <kbd>Escape</kbd> to cancel.</li>
+          <li><strong>AI Break to Subtasks</strong> &mdash; Right-click a task &rarr; <em>AI Break to Subtasks</em> to have AI split it into actionable subtasks automatically.</li>
           <li>Subtasks are linked to their parent and appear as a <strong>nested checklist</strong> on the parent card.</li>
           <li>A <strong>progress bar</strong> below the subtask header shows completion progress.</li>
           <li>Check off subtasks directly from the parent card via their checkboxes.</li>
@@ -6102,8 +6158,8 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>AI Task Breakdown</h4>
         <ul>
-          <li>Right-click a task and choose <strong>AI Breakdown</strong> from the context menu.</li>
-          <li>The AI splits the task into 3&ndash;5 actionable subtasks, which are added as new tasks in <em>Up Next</em>.</li>
+          <li>Right-click a task and choose <strong>AI Break to Subtasks</strong> from the context menu.</li>
+          <li>The AI splits the task into 3&ndash;5 actionable subtasks, which are linked to the parent task.</li>
         </ul>
         <h4>Send to Copilot</h4>
         <ul>
@@ -6476,7 +6532,8 @@ function renderHelpContent(section: string): string {
           <li><strong>Move to...</strong> &mdash; Move task to another column.</li>
           <li><strong>Complete / Reopen</strong> &mdash; Toggle completion status.</li>
           <li><strong>Start / Stop Timer</strong> &mdash; Toggle per-task time tracking.</li>
-          <li><strong>AI Breakdown</strong> &mdash; Use AI to split a task into subtasks (requires Copilot Chat).</li>
+          <li><strong>Add Subtask</strong> &mdash; Add a subtask manually via inline input on the card.</li>
+          <li><strong>AI Break to Subtasks</strong> &mdash; Use AI to split a task into subtasks (requires Copilot Chat).</li>
           <li><strong>Send to Copilot</strong> &mdash; Send task content to Copilot Chat as a prompt.</li>
           <li><strong>&#127796; Create Branch</strong> &mdash; Create and checkout a git branch from the task title.</li>
           <li><strong>Delete</strong> &mdash; Remove task (with confirmation).</li>

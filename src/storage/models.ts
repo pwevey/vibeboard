@@ -192,6 +192,7 @@ export type WebviewToExtensionMessage =
   | { type: 'renameBoard'; payload: { boardId: string; name: string } }
   | { type: 'aiSummarize'; payload: Record<string, never> }
   | { type: 'aiBreakdown'; payload: { taskId: string } }
+  | { type: 'addSubtask'; payload: { parentTaskId: string; title: string } }
   | { type: 'aiRewriteTitle'; payload: { title: string } }
   | { type: 'sendToCopilot'; payload: { taskId: string } }
   | { type: 'addAttachment'; payload: { taskId: string } }

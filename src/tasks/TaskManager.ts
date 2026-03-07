@@ -168,6 +168,7 @@ export class TaskManager {
     description?: string;
     priority?: TaskPriority;
     boardId?: string;
+    parentTaskId?: string;
   }): VBTask {
     const data = this.storage.getData();
     const boardId = params.boardId ?? data.activeBoardId ?? 'default';
@@ -191,6 +192,11 @@ export class TaskManager {
       timeSpentMs: 0,
       timerStartedAt: null,
     };
+
+    // Link to parent if this is a subtask
+    if (params.parentTaskId) {
+      task.parentTaskId = params.parentTaskId;
+    }
 
     data.tasks.push(task);
 
