@@ -2728,11 +2728,24 @@ function showStartSessionDialog(): void {
   const newProjectNameInput = document.getElementById('new-project-name') as HTMLInputElement;
   let selectedNewColor = PROJECT_COLORS[0];
 
+  // Auto-fill inline project name from workspace folder, with duplicate detection
+  let inlineDefaultName = extensionSettings.workspaceName || '';
+  if (inlineDefaultName && projects.length) {
+    const existingNames = new Set(projects.map((p) => p.name.toLowerCase()));
+    if (existingNames.has(inlineDefaultName.toLowerCase())) {
+      let suffix = 2;
+      while (existingNames.has(`${inlineDefaultName} ${suffix}`.toLowerCase())) { suffix++; }
+      inlineDefaultName = `${inlineDefaultName} ${suffix}`;
+    }
+  }
+  if (inlineDefaultName) { newProjectNameInput.value = inlineDefaultName; }
+
   // Toggle inline new-project form when "+ New Project" is selected
   projectSelect.addEventListener('change', () => {
     if (projectSelect.value === '__new__') {
       newProjectSection.style.display = 'block';
       newProjectNameInput.focus();
+      if (inlineDefaultName) { newProjectNameInput.select(); }
     } else {
       newProjectSection.style.display = 'none';
     }
