@@ -4,13 +4,51 @@
  */
 
 import { spawn } from 'child_process';
+import * as vscode from 'vscode';
+
+/** Cached path to the git executable, resolved from VS Code or system PATH. */
+let resolvedGitPath: string | undefined;
+
+/**
+ * Resolve the path to the git executable.
+ * Tries VS Code's `git.path` setting first, then the built-in git extension,
+ * and falls back to plain 'git' (system PATH).
+ */
+function getGitPath(): string {
+  if (resolvedGitPath) { return resolvedGitPath; }
+
+  // 1. Check VS Code's git.path setting
+  const configPath = vscode.workspace.getConfiguration('git').get<string>('path');
+  if (configPath) {
+    resolvedGitPath = configPath;
+    return resolvedGitPath;
+  }
+
+  // 2. Try the built-in git extension's API
+  try {
+    const gitExt = vscode.extensions.getExtension('vscode.git');
+    if (gitExt?.isActive) {
+      const api = gitExt.exports?.getAPI(1);
+      const gitPath = api?.git?.path;
+      if (gitPath) {
+        resolvedGitPath = gitPath;
+        return resolvedGitPath;
+      }
+    }
+  } catch { /* ignore */ }
+
+  // 3. Fall back to system PATH
+  resolvedGitPath = 'git';
+  return resolvedGitPath;
+}
 
 /**
  * Run a git command in the given working directory and return stdout.
  */
 function runGit(args: string[], cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn('git', args, { cwd, shell: true });
+    const gitPath = getGitPath();
+    const proc = spawn(gitPath, args, { cwd, shell: true });
     let stdout = '';
     let stderr = '';
     proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
@@ -19,7 +57,11 @@ function runGit(args: string[], cwd: string): Promise<string> {
       if (code === 0) { resolve(stdout.trim()); }
       else { reject(new Error(`git ${args.join(' ')} failed (code ${code}): ${stderr}`)); }
     });
-    proc.on('error', (err) => { reject(err); });
+    proc.on('error', (err) => {
+      // If the git binary couldn't be found, clear the cache so we retry next time
+      resolvedGitPath = undefined;
+      reject(err);
+    });
   });
 }
 
