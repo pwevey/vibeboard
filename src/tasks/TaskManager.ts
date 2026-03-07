@@ -385,6 +385,13 @@ export class TaskManager {
         .map((s) => s.id)
     );
 
+    // Build a set of completed parent task IDs so we can skip their subtasks
+    const completedTaskIds = new Set(
+      data.tasks
+        .filter((t) => endedSessionIds.has(t.sessionId) && t.status === 'completed')
+        .map((t) => t.id)
+    );
+
     let carried = 0;
 
     for (const task of data.tasks) {
@@ -392,6 +399,10 @@ export class TaskManager {
         endedSessionIds.has(task.sessionId) &&
         task.status !== 'completed'
       ) {
+        // Skip subtasks whose parent is completed — they stay with the parent
+        if (task.parentTaskId && completedTaskIds.has(task.parentTaskId)) {
+          continue;
+        }
         task.carriedFromSessionId = task.sessionId;
         task.sessionId = newSessionId;
         task.boardId = newBoardId;
@@ -413,6 +424,14 @@ export class TaskManager {
   carryOverTasks(oldSessionId: string, newSessionId: string): number {
     const data = this.storage.getData();
     const newBoardId = data.activeBoardId || 'default';
+
+    // Build a set of completed parent task IDs so we can skip their subtasks
+    const completedTaskIds = new Set(
+      data.tasks
+        .filter((t) => t.sessionId === oldSessionId && t.status === 'completed')
+        .map((t) => t.id)
+    );
+
     let carried = 0;
 
     for (const task of data.tasks) {
@@ -420,6 +439,10 @@ export class TaskManager {
         task.sessionId === oldSessionId &&
         task.status !== 'completed'
       ) {
+        // Skip subtasks whose parent is completed — they stay with the parent
+        if (task.parentTaskId && completedTaskIds.has(task.parentTaskId)) {
+          continue;
+        }
         task.carriedFromSessionId = task.sessionId;
         task.sessionId = newSessionId;
         task.boardId = newBoardId;

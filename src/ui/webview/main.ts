@@ -3545,8 +3545,17 @@ function showEndSessionPicker(): void {
   const activeBoardId = state.activeBoardId || 'default';
 
   // Determine which tasks will be carried over
+  // Exclude subtasks (they follow their parent) and subtasks of completed parents
+  const completedParentIds = new Set(
+    state.tasks
+      .filter((t) => t.sessionId === state!.activeSessionId && t.status === 'completed')
+      .map((t) => t.id)
+  );
   const incompleteTasks = state.tasks.filter(
-    (t) => t.sessionId === state!.activeSessionId && t.status !== 'completed'
+    (t) => t.sessionId === state!.activeSessionId &&
+           t.status !== 'completed' &&
+           !t.parentTaskId && // exclude subtasks from the display — they follow their parent
+           !(t.parentTaskId && completedParentIds.has(t.parentTaskId))
   );
 
   const TAG_COLORS: Record<string, string> = {
