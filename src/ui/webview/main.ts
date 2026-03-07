@@ -522,7 +522,7 @@ function renderAutomationBar(): string {
       <button class="auto-bar-btn" id="btn-auto-skip" title="Skip without rejecting">Skip</button>`;
   }
 
-  // Checkpoint detail (verification result)
+  // Checkpoint detail (verification result) or waiting message
   let checkpointDetail = '';
   if (autoState === 'reviewing' && currentItem) {
     const result = currentItem.result || '';
@@ -533,6 +533,18 @@ function renderAutomationBar(): string {
     checkpointDetail = `<div class="auto-checkpoint-detail">
       ${result ? `<div class="auto-verdict">${escapeHtml(result)}</div>` : ''}
       ${fileList}
+    </div>`;
+  } else if (currentItem?.status === 'waiting') {
+    checkpointDetail = `<div class="auto-checkpoint-detail">
+      <div class="auto-verdict" style="opacity:0.7;">Watching for file changes from Copilot… Use <strong>Skip</strong> to move to the next task.</div>
+    </div>`;
+  } else if (currentItem?.status === 'sending') {
+    checkpointDetail = `<div class="auto-checkpoint-detail">
+      <div class="auto-verdict" style="opacity:0.7;">Sending task to Copilot Chat…</div>
+    </div>`;
+  } else if (currentItem?.status === 'verifying') {
+    checkpointDetail = `<div class="auto-checkpoint-detail">
+      <div class="auto-verdict" style="opacity:0.7;">Verifying changes…</div>
     </div>`;
   }
 
