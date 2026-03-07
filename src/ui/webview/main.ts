@@ -574,9 +574,7 @@ function renderAutomationBar(): string {
     const cls = item.status === 'done' ? 'done' : item.status === 'failed' ? 'failed' : item.status === 'skipped' ? 'skipped' : i === currentIndex ? 'current' : '';
     const retryCount = (item as any).retryCount || 0;
     const maxRetries = 3;
-    const retryBtn = item.status === 'failed' && retryCount < maxRetries
-      ? ` <button class="auto-retry-btn" data-retry-index="${i}" title="Retry (${retryCount}/${maxRetries})">&circlearrowright; Retry</button>`
-      : item.status === 'failed' && retryCount >= maxRetries
+    const retryLabel = item.status === 'failed' && retryCount >= maxRetries
       ? ' <span class="auto-retry-exhausted" title="Max retries reached">(max retries)</span>'
       : '';
     // Show a Skip button for pending tasks that haven't started yet.
@@ -587,7 +585,7 @@ function renderAutomationBar(): string {
     const skipBtn = canSkip
       ? ` <button class="auto-skip-queued-btn" data-skip-index="${i}" title="Skip this task">Skip</button>`
       : '';
-    return `<div class="auto-queue-item ${cls}"><span class="auto-queue-dot">${statusDot}</span> <span class="auto-queue-name">${name}</span>${skipBtn}${retryBtn}</div>`;
+    return `<div class="auto-queue-item ${cls}"><span class="auto-queue-dot">${statusDot}</span> <span class="auto-queue-name">${name}</span>${skipBtn}${retryLabel}</div>`;
   }).join('');
 
   return `<div class="automation-bar" role="region" aria-label="Automation progress">
@@ -1409,17 +1407,6 @@ function bindEvents(): void {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         vscode.postMessage({ type: 'skipQueuedTask', payload: { queueIndex: idx } });
-      });
-    }
-  });
-
-  // Retry buttons in automation queue
-  document.querySelectorAll<HTMLElement>('.auto-retry-btn').forEach((btn) => {
-    const idx = parseInt(btn.dataset.retryIndex || '-1', 10);
-    if (idx >= 0) {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        vscode.postMessage({ type: 'retryAutomationTask', payload: { queueIndex: idx } });
       });
     }
   });
