@@ -3301,6 +3301,7 @@ function showStartSessionDialog(): void {
       <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Copilot Context <span style="opacity:0.6;">(optional)</span></label>
       <textarea id="new-project-context" placeholder="e.g. Always add comments, run tests, update help docs..." rows="2" style="width:100%;padding:6px;margin:0;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;resize:vertical;font-family:inherit;font-size:12px;"></textarea>
     </div>
+    <p style="font-size:11px;color:var(--vscode-descriptionForeground);margin:10px 0 0;line-height:1.4;">&#128712; Incomplete tasks will be carried over when you end a session.</p>
     <div class="modal-actions" style="margin-top:8px;">
       <button class="secondary" id="modal-cancel">Cancel</button>
       <button id="modal-confirm">Start</button>
