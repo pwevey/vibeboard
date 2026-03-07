@@ -2469,7 +2469,10 @@ function showSettingsDialog(): void {
     // Persist Jira end-session prompt toggle
     const promptToggle = overlay.querySelector('#jira-prompt-toggle') as HTMLInputElement | null;
     if (promptToggle) {
-      vscode.postMessage({ type: 'setJiraPromptDismissed', payload: { dismissed: !promptToggle.checked } });
+      const dismissed = !promptToggle.checked;
+      vscode.postMessage({ type: 'setJiraPromptDismissed', payload: { dismissed } });
+      // Update local state so re-opening the dialog shows the correct value
+      if (state) { (state as Record<string, unknown>).jiraPromptDismissed = dismissed; }
     }
     // 1. Save Jira credentials
     const baseUrlInput = overlay.querySelector('[data-setting="jiraBaseUrl"]') as HTMLInputElement;
