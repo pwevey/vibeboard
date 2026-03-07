@@ -3654,3 +3654,216 @@ textarea:focus-visible {
   flex: 1;
   min-width: 0;
 }
+
+/* ── Subtask Checklist ─────────────────────────── */
+.subtask-checklist {
+  margin-top: 6px;
+  padding: 6px 0 2px;
+  border-top: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.08));
+}
+.subtask-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.subtask-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--vscode-progressBar-background, rgba(255,255,255,0.1));
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 40px;
+}
+.subtask-progress-fill {
+  height: 100%;
+  background: var(--vscode-testing-iconPassed, #73c991);
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 12px;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+}
+.subtask-item:hover {
+  opacity: 0.85;
+}
+.subtask-check {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--vscode-testing-iconPassed, #73c991);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.subtask-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.subtask-title.completed {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+.subtask-more {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  padding: 2px 0;
+}
+
+/* ── Due Date Badge ────────────────────────────── */
+.due-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--vscode-badge-background, rgba(255,255,255,0.1));
+  color: var(--vscode-badge-foreground, #ccc);
+  white-space: nowrap;
+}
+.due-badge.overdue {
+  background: rgba(255, 80, 80, 0.2);
+  color: #ff5050;
+  font-weight: 600;
+}
+.due-badge.due-soon {
+  background: rgba(255, 200, 50, 0.2);
+  color: #ffc832;
+  font-weight: 600;
+}
+
+/* ── Branch Badge ──────────────────────────────── */
+.branch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(100, 160, 255, 0.12);
+  color: var(--vscode-textLink-foreground, #6cb6ff);
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Parent Link ───────────────────────────────── */
+.task-parent-row {
+  margin-bottom: 4px;
+}
+.parent-link {
+  font-size: 11px;
+  color: var(--vscode-textLink-foreground, #6cb6ff);
+  cursor: pointer;
+  opacity: 0.8;
+  text-decoration: none;
+}
+.parent-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* ── Edit Due Date ─────────────────────────────── */
+.edit-due-date {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--vscode-input-border, rgba(255,255,255,0.15));
+  background: var(--vscode-input-background, #1e1e1e);
+  color: var(--vscode-input-foreground, #ccc);
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+}
+.edit-due-date:focus {
+  border-color: var(--vscode-focusBorder, #007acc);
+}
+
+/* ── Analytics Dashboard ───────────────────────── */
+.analytics-section {
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.08));
+  border-radius: 8px;
+}
+.analytics-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.analytics-stat {
+  padding: 10px 12px;
+  background: var(--vscode-sideBar-background, #252526);
+  border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.08));
+  border-radius: 6px;
+  text-align: center;
+}
+.analytics-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--vscode-foreground);
+  line-height: 1.2;
+}
+.analytics-stat-label {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 2px;
+}
+.analytics-bar-chart {
+  margin-top: 8px;
+}
+.analytics-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.analytics-bar-label {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  min-width: 70px;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.analytics-bar-track {
+  flex: 1;
+  height: 14px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.analytics-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  min-width: 2px;
+}
+.analytics-bar-count {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  min-width: 24px;
+  text-align: left;
+}

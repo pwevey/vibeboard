@@ -8,6 +8,7 @@ import { AutomationService } from '../services/AutomationService';
 import { JiraService } from '../services/JiraService';
 import { SecretStorageService } from '../services/SecretStorageService';
 import { generateId } from '../utils/uuid';
+import { getCurrentBranch, createAndCheckoutBranch, slugifyForBranch } from '../utils/git';
 
 /**
  * MessageHandler processes messages from the webview and dispatches
@@ -122,6 +123,19 @@ export class MessageHandler {
         if (this.automationService.isActive()) {
           await this.automationService.notifyTaskCompleted(message.payload.id);
         }
+        // Auto-complete parent when all subtasks are done
+        if (cTask?.parentTaskId) {
+          const parentData = this.storage.getData();
+          const siblings = parentData.tasks.filter(t => t.parentTaskId === cTask.parentTaskId);
+          const allDone = siblings.length > 0 && siblings.every(t => t.status === 'completed');
+          if (allDone) {
+            const parent = parentData.tasks.find(t => t.id === cTask.parentTaskId);
+            if (parent && parent.status !== 'completed') {
+              this.taskManager.completeTask(parent.id);
+              vscode.window.showInformationMessage(`Build Board: All subtasks done — "${parent.title}" auto-completed.`);
+            }
+          }
+        }
         this.sendStateUpdate();
         break;
       }
@@ -156,6 +170,29 @@ export class MessageHandler {
       case 'toggleTimer': {
         this.taskManager.toggleTimer(message.payload.id);
         this.sendStateUpdate();
+        break;
+      }
+
+      case 'createBranchFromTask': {
+        const data = this.storage.getData();
+        const task = data.tasks.find((t) => t.id === message.payload.taskId);
+        if (!task) { break; }
+        const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!cwd) {
+          vscode.window.showWarningMessage('No workspace folder open — cannot create a branch.');
+          break;
+        }
+        try {
+          const branchName = slugifyForBranch(task.tag, task.title);
+          await createAndCheckoutBranch(cwd, branchName);
+          task.branchName = branchName;
+          this.storage.setData(data);
+          this.sendStateUpdate();
+          vscode.window.showInformationMessage(`Switched to branch: ${branchName}`);
+        } catch (err: unknown) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          vscode.window.showErrorMessage(`Failed to create branch: ${errMsg}`);
+        }
         break;
       }
 
@@ -273,18 +310,23 @@ export class MessageHandler {
         if (!task) { break; }
         this.webview?.postMessage({ type: 'aiResult', payload: { action: 'breakdown', result: '...', taskId: task.id } });
         this.aiService.breakdownTask(task.title, task.description).then((subtasks) => {
-          // Create subtasks as real tasks
+          // Create subtasks as real tasks linked to the parent via parentTaskId
           const session = this.sessionManager.getActiveSession();
           if (session && subtasks.length > 0) {
             for (const title of subtasks) {
               if (title) {
-                this.taskManager.addTask({
+                const newTask = this.taskManager.addTask({
                   title,
                   tag: task.tag,
                   priority: task.priority,
                   status: 'up-next',
                   sessionId: session.id,
                 });
+                // Link subtask to parent
+                const d = this.storage.getData();
+                const created = d.tasks.find(t => t.id === newTask.id);
+                if (created) { created.parentTaskId = task.id; }
+                this.storage.setData(d);
               }
             }
             this.sendStateUpdate();

@@ -24,6 +24,9 @@ interface VBTask {
   timeSpentMs: number;
   timerStartedAt: string | null;
   carriedFromSessionId?: string;
+  parentTaskId?: string;
+  dueDate?: string;
+  branchName?: string;
   attachments?: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[];
   copilotLog?: { prompt: string; timestamp: string }[];
   sentToCopilot?: boolean;
@@ -402,7 +405,7 @@ function getColumnTasks(status: TaskStatus): VBTask[] {
   if (!state) { return []; }
   const activeBoardId = state.activeBoardId || 'default';
   let tasks = state.tasks
-    .filter((t) => t.status === status && t.sessionId === state!.activeSessionId && (t.boardId === activeBoardId || !t.boardId))
+    .filter((t) => t.status === status && t.sessionId === state!.activeSessionId && (t.boardId === activeBoardId || !t.boardId) && !t.parentTaskId)
     .sort((a, b) => a.order - b.order);
 
   if (searchQuery) {
@@ -1015,6 +1018,48 @@ function renderTaskCard(task: VBTask): string {
   const attachmentThumbs = (task.attachments || []).filter(a => a.mimeType.startsWith('image/')).slice(0, 3)
     .map(a => `<img class="task-attachment-thumb" src="${a.dataUri}" alt="${escapeAttr(a.filename)}" title="${escapeAttr(a.filename)}" data-preview-attachment="${a.id}" data-task-id="${task.id}" />`).join('');
 
+  // Due date badge with overdue indicator
+  let dueBadge = '';
+  if (task.dueDate && task.status !== 'completed') {
+    const now = new Date();
+    const due = new Date(task.dueDate + 'T23:59:59');
+    const daysLeft = Math.ceil((due.getTime() - now.getTime()) / 86400000);
+    const isOverdue = daysLeft < 0;
+    const isDueSoon = daysLeft >= 0 && daysLeft <= 2;
+    const cls = isOverdue ? 'due-badge overdue' : isDueSoon ? 'due-badge due-soon' : 'due-badge';
+    const label = isOverdue ? `Overdue (${Math.abs(daysLeft)}d)` : daysLeft === 0 ? 'Due today' : `Due in ${daysLeft}d`;
+    dueBadge = `<span class="${cls}" title="Due: ${task.dueDate}">&#128197; ${label}</span>`;
+  } else if (task.dueDate && task.status === 'completed') {
+    dueBadge = `<span class="due-badge" title="Due: ${task.dueDate}">&#128197; ${task.dueDate}</span>`;
+  }
+
+  // Branch badge
+  const branchBadge = task.branchName
+    ? `<span class="branch-badge" title="Branch: ${escapeAttr(task.branchName)}">&#127796; ${escapeHtml(task.branchName.length > 25 ? task.branchName.slice(0, 22) + '…' : task.branchName)}</span>`
+    : '';
+
+  // Subtask checklist — find children of this task
+  const subtasks = (state?.tasks || []).filter(t => t.parentTaskId === task.id);
+  const subtaskHtml = subtasks.length > 0
+    ? `<div class="subtask-checklist">
+        <div class="subtask-header">${subtasks.filter(s => s.status === 'completed').length}/${subtasks.length} subtasks</div>
+        ${subtasks.slice(0, 5).map(s => `<div class="subtask-item ${s.status === 'completed' ? 'done' : ''}">
+          <input type="checkbox" class="subtask-check" data-subtask-complete="${s.id}" ${s.status === 'completed' ? 'checked' : ''} />
+          <span class="subtask-title">${escapeHtml(s.title.length > 40 ? s.title.slice(0, 37) + '…' : s.title)}</span>
+        </div>`).join('')}
+        ${subtasks.length > 5 ? `<div class="subtask-more">+${subtasks.length - 5} more</div>` : ''}
+        <div class="subtask-progress-bar"><div class="subtask-progress-fill" style="width:${subtasks.length > 0 ? Math.round((subtasks.filter(s => s.status === 'completed').length / subtasks.length) * 100) : 0}%"></div></div>
+      </div>`
+    : '';
+
+  // Parent link — show if this task is a subtask
+  const parentLink = task.parentTaskId
+    ? (() => {
+        const parent = findTask(task.parentTaskId);
+        return parent ? `<span class="parent-link" title="Subtask of: ${escapeAttr(parent.title)}">&#8593; ${escapeHtml(parent.title.length > 20 ? parent.title.slice(0, 17) + '…' : parent.title)}</span>` : '';
+      })()
+    : '';
+
   return `<div class="task-card ${prioClass}" draggable="true" data-task-id="${task.id}" role="listitem" tabindex="0" aria-label="${escapeAttr(task.title)}${task.priority === 'high' ? ' - High Priority' : ''}${task.carriedFromSessionId ? ' - Carried over' : ''}" oncontextmenu="return false;">
     <div class="task-header">
       <input type="checkbox" class="task-checkbox" data-complete="${task.id}" ${isCompleted ? 'checked' : ''} title="Mark complete" aria-label="Mark ${escapeAttr(task.title)} complete" />
@@ -1027,12 +1072,16 @@ function renderTaskCard(task: VBTask): string {
         <button class="icon-btn" data-context="${task.id}" title="More" aria-label="More actions">&#8943;</button>
       </div>
     </div>
+    ${parentLink ? `<div class="task-parent-row">${parentLink}</div>` : ''}
     ${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ''}
     ${attachmentThumbs ? `<div class="task-attachments-row">${attachmentThumbs}</div>` : ''}
+    ${subtaskHtml}
     <div class="task-meta">
       <span class="task-priority-badge ${prioClass}" aria-label="Priority: ${task.priority || 'medium'}">${(task.priority || 'medium')[0].toUpperCase()}</span>
       <span class="task-tag ${task.tag}">${TAG_LABELS[task.tag]}</span>
       ${attachBadge}
+      ${dueBadge}
+      ${branchBadge}
       ${timeStr ? `<span class="task-timer-display ${timerActive ? 'active' : ''}" data-timer-display="${task.id}">${timeStr}</span>` : ''}
       <span class="task-time" title="${new Date(task.createdAt).toLocaleString()}">${timeAgo}</span>
     </div>
@@ -1143,6 +1192,7 @@ function renderTaskEditCard(task: VBTask): string {
     <div class="edit-controls">
       <select data-save-tag="${task.id}" aria-label="Tag">${tagOpts}</select>
       <select data-save-priority="${task.id}" aria-label="Priority">${prioOpts}</select>
+      <input type="date" class="edit-due-date" data-save-due="${task.id}" value="${task.dueDate || ''}" title="Due date" aria-label="Due date" />
       <div class="edit-buttons">
         <button class="secondary" data-add-attachment="${task.id}" title="Attach file">&#128206; Attach</button>
         <button class="secondary" data-cancel-edit="${task.id}">Cancel</button>
@@ -1155,6 +1205,106 @@ function renderTaskEditCard(task: VBTask): string {
 // ============================================================
 // No Session / Start Page
 // ============================================================
+
+/**
+ * Renders the analytics dashboard section for the start page.
+ * Shows key stats (completion rate, velocity, time tracked) and tag distribution.
+ */
+function renderAnalytics(activeProjectId: string | null): string {
+  if (!state) { return ''; }
+
+  // Gather sessions & tasks scoped to active project
+  const allSessions = state.sessions.filter((s) => s.status === 'ended');
+  const sessions = activeProjectId
+    ? allSessions.filter((s) => s.projectId === activeProjectId)
+    : allSessions;
+
+  const allTasks = state.tasks;
+  const tasks = activeProjectId
+    ? allTasks.filter((t) => {
+        const sess = state!.sessions.find((s) => s.id === t.sessionId);
+        return sess?.projectId === activeProjectId;
+      })
+    : allTasks;
+
+  if (tasks.length === 0 && sessions.length === 0) { return ''; }
+
+  const completed = tasks.filter((t) => t.status === 'completed');
+  const completionRate = tasks.length > 0 ? Math.round((completed.length / tasks.length) * 100) : 0;
+
+  // Average tasks per session
+  const tasksPerSession = sessions.length > 0 ? (tasks.length / sessions.length).toFixed(1) : '—';
+
+  // Total time tracked across all tasks
+  const totalTimeMs = tasks.reduce((sum, t) => sum + (t.timeSpentMs || 0), 0);
+  const totalTimeStr = totalTimeMs > 0 ? formatDurationCompact(totalTimeMs) : '—';
+
+  // Average session duration
+  let avgDurStr = '—';
+  if (sessions.length > 0) {
+    const totalDurMs = sessions.reduce((sum, s) => {
+      const endMs = s.endedAt ? new Date(s.endedAt).getTime() : Date.now();
+      const paused = s.totalPausedMs || 0;
+      return sum + Math.max(0, endMs - new Date(s.startedAt).getTime() - paused);
+    }, 0);
+    avgDurStr = formatDurationCompact(Math.round(totalDurMs / sessions.length));
+  }
+
+  // Overdue count
+  const now = new Date();
+  const overdue = tasks.filter((t) => t.dueDate && t.status !== 'completed' && new Date(t.dueDate) < now).length;
+
+  let html = `<div class="start-section analytics-section">
+    <div class="analytics-title">&#128202; Analytics</div>
+    <div class="analytics-grid">
+      <div class="analytics-stat"><div class="analytics-stat-value">${completed.length}/${tasks.length}</div><div class="analytics-stat-label">Tasks Completed</div></div>
+      <div class="analytics-stat"><div class="analytics-stat-value">${completionRate}%</div><div class="analytics-stat-label">Completion Rate</div></div>
+      <div class="analytics-stat"><div class="analytics-stat-value">${tasksPerSession}</div><div class="analytics-stat-label">Tasks / Session</div></div>
+      <div class="analytics-stat"><div class="analytics-stat-value">${avgDurStr}</div><div class="analytics-stat-label">Avg Session</div></div>
+      <div class="analytics-stat"><div class="analytics-stat-value">${totalTimeStr}</div><div class="analytics-stat-label">Time Tracked</div></div>
+      <div class="analytics-stat"><div class="analytics-stat-value">${sessions.length}</div><div class="analytics-stat-label">Sessions</div></div>`;
+
+  // Only show overdue stat if there are due dates in use
+  if (overdue > 0) {
+    html += `<div class="analytics-stat"><div class="analytics-stat-value" style="color:#ff5050;">${overdue}</div><div class="analytics-stat-label">Overdue</div></div>`;
+  }
+
+  html += `</div>`;
+
+  // Tag distribution bar chart
+  const tagCounts: Record<string, number> = {};
+  for (const t of tasks) {
+    tagCounts[t.tag] = (tagCounts[t.tag] || 0) + 1;
+  }
+  const TAG_COLORS: Record<string, string> = {
+    feature: '#4ec9b0',
+    bug: '#f14c4c',
+    refactor: '#dcdcaa',
+    note: '#9cdcfe',
+    plan: '#c586c0',
+    todo: '#ce9178',
+  };
+  const sortedTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+  const maxCount = sortedTags.length > 0 ? sortedTags[0][1] : 1;
+
+  if (sortedTags.length > 0) {
+    html += `<div class="analytics-bar-chart">`;
+    for (const [tag, count] of sortedTags) {
+      const pct = Math.round((count / maxCount) * 100);
+      const color = TAG_COLORS[tag] || '#888';
+      const label = TAG_LABELS[tag as TaskTag] || tag;
+      html += `<div class="analytics-bar-row">
+        <span class="analytics-bar-label">${label}</span>
+        <div class="analytics-bar-track"><div class="analytics-bar-fill" style="width:${pct}%;background:${color};"></div></div>
+        <span class="analytics-bar-count">${count}</span>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
 
 function renderNoSessionState(): string {
   const projects = state?.projects || [];
@@ -1243,6 +1393,9 @@ function renderNoSessionState(): string {
         <button class="secondary" id="btn-import-data" title="Import data from a Build Board JSON export or data.json backup">&#128229; Import JSON</button>
         <button class="secondary" id="btn-import-jira" title="Import issues from Jira into Build Board — requires Jira credentials in Settings">&#127919; Import from Jira</button>
       </div></div>`;
+
+    // --- Analytics Dashboard ---
+    html += renderAnalytics(activeProjectId);
 
     // Session history — filtered by active project
     const allEndedSessions = state.sessions
@@ -1655,6 +1808,17 @@ function bindEvents(): void {
     });
   });
 
+  // Subtask checkboxes — complete/reopen subtasks from parent card checklist
+  document.querySelectorAll<HTMLInputElement>('[data-subtask-complete]').forEach((el) => {
+    el.addEventListener('change', () => {
+      if (el.checked) {
+        vscode.postMessage({ type: 'completeTask', payload: { id: el.dataset.subtaskComplete! } });
+      } else {
+        vscode.postMessage({ type: 'moveTask', payload: { id: el.dataset.subtaskComplete!, newStatus: 'up-next', newOrder: 0 } });
+      }
+    });
+  });
+
   // Double-click to edit (on card or title)
   document.querySelectorAll<HTMLElement>('.task-card:not(.editing)').forEach((card) => {
     card.addEventListener('dblclick', (e) => {
@@ -2038,6 +2202,7 @@ function saveEdit(taskId: string): void {
   const unifiedInput = document.querySelector(`[data-save-unified="${taskId}"]`) as HTMLTextAreaElement;
   const tagSelect = document.querySelector(`[data-save-tag="${taskId}"]`) as HTMLSelectElement;
   const prioSelect = document.querySelector(`[data-save-priority="${taskId}"]`) as HTMLSelectElement;
+  const dueInput = document.querySelector(`[data-save-due="${taskId}"]`) as HTMLInputElement;
 
   if (!unifiedInput) { return; }
   const rawText = unifiedInput.value.trim();
@@ -2052,6 +2217,7 @@ function saveEdit(taskId: string): void {
   const changes: Record<string, string> = { title, description };
   if (tagSelect) { changes.tag = tagSelect.value; }
   if (prioSelect) { changes.priority = prioSelect.value; }
+  if (dueInput) { changes.dueDate = dueInput.value; }
 
   vscode.postMessage({ type: 'updateTask', payload: { id: taskId, changes } });
   editingTaskId = null;
@@ -2303,6 +2469,7 @@ function showContextMenu(taskId: string, event: Event): void {
     <div class="ctx-item" data-ctx-complete role="menuitem">${task.status === 'completed' ? '&#8634; Reopen' : '&#10003; Complete'}</div>
     <div class="ctx-item" data-ctx-timer role="menuitem">${task.timerStartedAt ? '&#9209; Stop Timer' : '&#9654; Start Timer'}</div>
     <div class="ctx-separator" role="separator"></div>
+    <div class="ctx-item" data-ctx-create-branch role="menuitem">&#127796; ${task.branchName ? 'Branch: ' + escapeHtml(task.branchName) : 'Create Branch'}</div>
     <div class="ctx-item" data-ctx-ai-breakdown role="menuitem">&#10024; AI Breakdown</div>
     <div class="ctx-item" data-ctx-send-copilot role="menuitem">&#128640; Send to Copilot</div>
     <div class="ctx-separator" role="separator"></div>
@@ -2333,6 +2500,7 @@ function showContextMenu(taskId: string, event: Event): void {
       else { vscode.postMessage({ type: 'completeTask', payload: { id: taskId } }); }
     }
     else if (target.hasAttribute('data-ctx-timer')) { vscode.postMessage({ type: 'toggleTimer', payload: { id: taskId } }); }
+    else if (target.hasAttribute('data-ctx-create-branch')) { vscode.postMessage({ type: 'createBranchFromTask', payload: { taskId } }); }
     else if (target.hasAttribute('data-ctx-ai-breakdown')) { vscode.postMessage({ type: 'aiBreakdown', payload: { taskId } }); }
     else if (target.hasAttribute('data-ctx-send-copilot')) { vscode.postMessage({ type: 'sendToCopilot', payload: { taskId } }); }
     else if (target.hasAttribute('data-ctx-delete')) { showDeleteConfirm(taskId, task.title); }
@@ -5684,9 +5852,31 @@ function renderHelpContent(section: string): string {
         <h4>Editing Tasks</h4>
         <ul>
           <li><strong>Double-click</strong> a task title to edit inline.</li>
-          <li>Click the <strong>pencil icon</strong> (&#9998;) to open the full edit form with title, description, tag, and priority fields.</li>
+          <li>Click the <strong>pencil icon</strong> (&#9998;) to open the full edit form with title, description, tag, priority, and <strong>due date</strong> fields.</li>
           <li>Press <kbd>Enter</kbd> on a focused task card to start editing.</li>
           <li>Press <kbd>Escape</kbd> to cancel editing.</li>
+        </ul>
+        <h4>Due Dates</h4>
+        <ul>
+          <li>Set a <strong>due date</strong> on any task via the edit form&rsquo;s date picker.</li>
+          <li>Tasks with due dates show a <strong>badge</strong> on the card:
+            <ul>
+              <li><span style="color:#ff5050;font-weight:600;">Red</span> &mdash; Overdue (past the due date).</li>
+              <li><span style="color:#ffc832;font-weight:600;">Yellow</span> &mdash; Due within 2 days.</li>
+              <li><span style="color:#ccc;">Default</span> &mdash; Due in 3+ days.</li>
+            </ul>
+          </li>
+          <li>The badge shows days remaining (e.g. &ldquo;2d left&rdquo;) or days overdue (e.g. &ldquo;3d overdue&rdquo;).</li>
+          <li>Clear a due date by emptying the date field in the edit form.</li>
+        </ul>
+        <h4>Subtasks</h4>
+        <ul>
+          <li>Use <strong>AI Breakdown</strong> (right-click &rarr; AI Breakdown) to split a task into subtasks automatically.</li>
+          <li>Subtasks are linked to their parent and appear as a <strong>nested checklist</strong> on the parent card.</li>
+          <li>A <strong>progress bar</strong> below the subtask header shows completion progress.</li>
+          <li>Check off subtasks directly from the parent card via their checkboxes.</li>
+          <li>When <strong>all subtasks</strong> are completed, the parent task is <strong>automatically marked complete</strong>.</li>
+          <li>Subtasks don&rsquo;t appear as standalone cards in columns &mdash; they&rsquo;re only visible on their parent.</li>
         </ul>
         <h4>Completing Tasks</h4>
         <ul>
@@ -5700,6 +5890,13 @@ function renderHelpContent(section: string): string {
           <li>Press <kbd>Delete</kbd> on a focused task card.</li>
           <li>A confirmation dialog will appear before deletion.</li>
           <li>Deleted tasks can be recovered with <strong>Undo</strong> (<kbd>Ctrl+Z</kbd>).</li>
+        </ul>
+        <h4>Git Branch Linking</h4>
+        <ul>
+          <li>Right-click a task and choose <strong>&#127796; Create Branch</strong> to create and checkout a branch named after the task.</li>
+          <li>Branch names follow the pattern <code>buildboard/&lt;tag&gt;/&lt;title-slug&gt;</code>.</li>
+          <li>Linked branches appear as a <strong>&#127796; branch badge</strong> on the task card.</li>
+          <li>If a branch is already linked, the context menu shows the branch name instead.</li>
         </ul>
         <h4>Priority Levels</h4>
         <ul>
@@ -6281,6 +6478,7 @@ function renderHelpContent(section: string): string {
           <li><strong>Start / Stop Timer</strong> &mdash; Toggle per-task time tracking.</li>
           <li><strong>AI Breakdown</strong> &mdash; Use AI to split a task into subtasks (requires Copilot Chat).</li>
           <li><strong>Send to Copilot</strong> &mdash; Send task content to Copilot Chat as a prompt.</li>
+          <li><strong>&#127796; Create Branch</strong> &mdash; Create and checkout a git branch from the task title.</li>
           <li><strong>Delete</strong> &mdash; Remove task (with confirmation).</li>
         </ul>
         <h4>Task Card Actions</h4>

@@ -52,6 +52,9 @@ export interface VBTask {
   timeSpentMs: number;     // accumulated time tracking
   timerStartedAt: string | null; // ISO 8601 when timer was last started
   carriedFromSessionId?: string; // set when a task was carried over from another session
+  parentTaskId?: string;   // subtask parent — links to parent VBTask.id
+  dueDate?: string;        // ISO 8601 date string (YYYY-MM-DD) for deadline tracking
+  branchName?: string;     // git branch associated with this task
   attachments?: VBAttachment[]; // image/file attachments
   copilotLog?: { prompt: string; timestamp: string }[]; // log of follow-up prompts sent to Copilot
   sentToCopilot?: boolean; // true while awaiting Copilot completion
@@ -164,10 +167,11 @@ export interface AutomationProgress {
 
 export type WebviewToExtensionMessage =
   | { type: 'addTask'; payload: { title: string; tag: TaskTag; status: TaskStatus; priority?: TaskPriority; description?: string; attachments?: VBAttachment[] } }
-  | { type: 'updateTask'; payload: { id: string; changes: Partial<Pick<VBTask, 'title' | 'description' | 'tag' | 'priority'>> } }
+  | { type: 'updateTask'; payload: { id: string; changes: Partial<Pick<VBTask, 'title' | 'description' | 'tag' | 'priority' | 'dueDate'>> } }
   | { type: 'moveTask'; payload: { id: string; newStatus: TaskStatus; newOrder: number } }
   | { type: 'deleteTask'; payload: { id: string } }
   | { type: 'completeTask'; payload: { id: string } }
+  | { type: 'createBranchFromTask'; payload: { taskId: string } }
   | { type: 'startSession'; payload: { name?: string } }
   | { type: 'endSession'; payload: Record<string, never> }
   | { type: 'pauseSession'; payload: Record<string, never> }
