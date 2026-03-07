@@ -1504,6 +1504,7 @@ export class MessageHandler {
         jiraProjectMapping: data.jiraProjectMapping || {},
         jiraEpicMapping: data.jiraEpicMapping || {},
         jiraStatusMapping: data.jiraStatusMapping || {},
+        jiraPromptDismissed: data.jiraPromptDismissed || false,
         boards: data.boards || [],
         activeBoardId: data.activeBoardId || null,
         summary: allTotals,
@@ -1600,6 +1601,7 @@ export class MessageHandler {
       let jiraProjectMapping: Record<string, string> | undefined;
       let jiraEpicMapping: Record<string, string> | undefined;
       let jiraStatusMapping: Record<string, { export: Record<string, string>; import: Record<string, string> }> | undefined;
+      let jiraPromptDismissed: boolean | undefined;
 
       if (imported.version === 1 && Array.isArray(imported.sessions) && Array.isArray(imported.tasks)) {
         // Raw workspace data format (direct copy of data.json)
@@ -1610,6 +1612,7 @@ export class MessageHandler {
         jiraProjectMapping = imported.jiraProjectMapping;
         jiraEpicMapping = imported.jiraEpicMapping;
         jiraStatusMapping = imported.jiraStatusMapping;
+        if (typeof imported.jiraPromptDismissed === 'boolean') { jiraPromptDismissed = imported.jiraPromptDismissed; }
       } else if (Array.isArray(imported.sessions) && Array.isArray(imported.tasks)) {
         // Export format — sessions may have .summary attached
         sessions = imported.sessions.map((s: any) => {
@@ -1629,6 +1632,9 @@ export class MessageHandler {
         }
         if (imported.jiraStatusMapping && typeof imported.jiraStatusMapping === 'object') {
           jiraStatusMapping = imported.jiraStatusMapping;
+        }
+        if (typeof imported.jiraPromptDismissed === 'boolean') {
+          jiraPromptDismissed = imported.jiraPromptDismissed;
         }
         if (Array.isArray(imported.boards)) {
           boards = imported.boards;
@@ -1703,6 +1709,9 @@ export class MessageHandler {
         } else {
           data.jiraStatusMapping = {};
         }
+        if (jiraPromptDismissed !== undefined) {
+          data.jiraPromptDismissed = jiraPromptDismissed;
+        }
       } else {
         // Merge — add non-duplicate sessions and tasks
         const existingSessionIds = new Set(data.sessions.map((s) => s.id));
@@ -1772,6 +1781,11 @@ export class MessageHandler {
               data.jiraStatusMapping[projectKey] = directions;
             }
           }
+        }
+
+        // Merge jiraPromptDismissed (imported value fills gap)
+        if (jiraPromptDismissed !== undefined && data.jiraPromptDismissed === undefined) {
+          data.jiraPromptDismissed = jiraPromptDismissed;
         }
 
         vscode.window.showInformationMessage(`Build Board: Merged ${addedSessions} sessions and ${addedTasks} tasks (${sessionCount - addedSessions} sessions and ${taskCount - addedTasks} tasks were duplicates).`);
