@@ -1,6 +1,6 @@
 /**
- * Vibe Board - Jira Integration Service
- * Creates Jira issues from Vibe Board tasks via REST API v3.
+ * Build Board - Jira Integration Service
+ * Creates Jira issues from Build Board tasks via REST API v3.
  * Credentials are retrieved from SecretStorageService (OS keychain).
  */
 
@@ -82,13 +82,13 @@ export class JiraService {
     if (!creds) {
       const summary = await this.secretStorage.getJiraSummary();
       const missing: string[] = [];
-      const config = vscode.workspace.getConfiguration('vibeboard');
+      const config = vscode.workspace.getConfiguration('buildboard');
       const baseUrl = (config.get<string>('jiraBaseUrl') || '').trim();
       if (!baseUrl) { missing.push('Base URL'); }
       if (!summary.email) { missing.push('Email'); }
       if (summary.tokenLength === 0) { missing.push('API Token'); }
       vscode.window.showErrorMessage(
-        `Vibe Board: Jira credentials incomplete — missing: ${missing.join(', ')}. Configure them in the Settings dialog.`
+        `Build Board: Jira credentials incomplete — missing: ${missing.join(', ')}. Configure them in the Settings dialog.`
       );
       return null;
     }
@@ -432,7 +432,7 @@ export class JiraService {
     descParagraphs.push({
       type: 'paragraph',
       content: [
-        { type: 'text', text: `— Exported from Vibe Board on ${new Date().toLocaleString()} —\n` + metaLines.join('\n'), marks: [{ type: 'em' }] },
+        { type: 'text', text: `— Exported from Build Board on ${new Date().toLocaleString()} —\n` + metaLines.join('\n'), marks: [{ type: 'em' }] },
       ],
     });
 
@@ -507,7 +507,7 @@ export class JiraService {
   // ================================================================
 
   /**
-   * Represents a Jira issue fetched for import into Vibe Board.
+   * Represents a Jira issue fetched for import into Build Board.
    */
   // (JiraImportIssue is defined in models.ts and re-used here via the return type.)
 

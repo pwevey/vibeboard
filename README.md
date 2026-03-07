@@ -1,4 +1,4 @@
-# Vibe Board
+# Build Board
 
 **AI Brainstorm & Prompt Workflow for VSCode**
 
@@ -23,7 +23,7 @@ A lightweight Kanban-style sidebar for developers who work with AI assistants. C
 
 ## Getting Started
 
-1. Click the **Vibe Board** icon in the Activity Bar (left sidebar).
+1. Click the **Build Board** icon in the Activity Bar (left sidebar).
 2. Press **Start Session** to begin.
 3. Add tasks, drag them around, check them off as you go.
 4. Press **End Session** to see your summary.
@@ -32,20 +32,20 @@ A lightweight Kanban-style sidebar for developers who work with AI assistants. C
 
 | Command | Shortcut | Description |
 |---------|----------|-------------|
-| `Vibe Board: Start Session` | — | Start a new work session |
-| `Vibe Board: End Session` | — | End the current session |
-| `Vibe Board: Quick Add Task` | `Ctrl+Shift+V` | Focus the quick-add input |
+| `Build Board: Start Session` | — | Start a new work session |
+| `Build Board: End Session` | — | End the current session |
+| `Build Board: Quick Add Task` | `Ctrl+Shift+V` | Focus the quick-add input |
 
 ## Settings
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `vibeboard.autoPromptSession` | `true` | Prompt to start a session when VSCode opens |
-| `vibeboard.carryOverTasks` | `true` | Carry unfinished tasks to the next session |
+| `buildboard.autoPromptSession` | `true` | Prompt to start a session when VSCode opens |
+| `buildboard.carryOverTasks` | `true` | Carry unfinished tasks to the next session |
 
 ## Data Storage
 
-All data is stored locally in VS Code's global storage directory, shared across all workspaces. No external services, no cloud sync, no telemetry. If you previously used workspace-scoped storage (`.vibeboard/data.json`), your data is automatically migrated on first load.
+All data is stored locally in VS Code's global storage directory, shared across all workspaces. No external services, no cloud sync, no telemetry. If you previously used workspace-scoped storage (`.buildboard/data.json`), your data is automatically migrated on first load.
 
 ## Development
 

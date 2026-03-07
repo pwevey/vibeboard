@@ -1,5 +1,5 @@
 /**
- * Vibe Board - Data Models
+ * Build Board - Data Models
  * Single source of truth for all TypeScript interfaces.
  */
 

@@ -1,7 +1,7 @@
-# Vibe Board — Copilot Instructions
+# Build Board — Copilot Instructions
 
 ## Project Overview
-Vibe Board is a VS Code extension providing a Kanban-style sidebar for AI-assisted development.
+Build Board is a VS Code extension providing a Kanban-style sidebar for AI-assisted development.
 - **Extension host**: TypeScript/CommonJS (`src/`) bundled to `dist/extension.js` and `dist/core.js`
 - **Webview UI**: Vanilla TypeScript IIFE (`src/ui/webview/main.ts`) bundled to `dist/webview/`
 - **Bundler**: esbuild (`esbuild.config.mjs`) — run `npm run build` or `npm run watch`

@@ -35,7 +35,7 @@ function ensureInitialized(): Promise<boolean> {
       await sp.initialize(globalStorageUri!);
     } catch (err) {
       console.error('[VB] Failed to initialize storage:', err);
-      vscode.window.showErrorMessage('Vibe Board: Failed to initialize storage.');
+      vscode.window.showErrorMessage('Build Board: Failed to initialize storage.');
       return false;
     }
 
@@ -73,10 +73,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Register commands (handlers call ensureInitialized on demand)
   context.subscriptions.push(
-    vscode.commands.registerCommand('vibeboard.startSession', async () => {
+    vscode.commands.registerCommand('buildboard.startSession', async () => {
       if (!(await ensureInitialized())) { return; }
       const projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-      const config = vscode.workspace.getConfiguration('vibeboard');
+      const config = vscode.workspace.getConfiguration('buildboard');
       const carryOver = config.get<boolean>('carryOverTasks', true);
 
       const newSession = sessionManager!.startSession(projectPath);
@@ -86,13 +86,13 @@ export function activate(context: vscode.ExtensionContext): void {
         const carried = taskManager!.carryOverAllTasks(newSession.id, activeProjectId ?? undefined);
         if (carried > 0) {
           vscode.window.showInformationMessage(
-            `Vibe Board: Session started! ${carried} task${carried === 1 ? '' : 's'} carried over.`
+            `Build Board: Session started! ${carried} task${carried === 1 ? '' : 's'} carried over.`
           );
         } else {
-          vscode.window.showInformationMessage('Vibe Board: Session started!');
+          vscode.window.showInformationMessage('Build Board: Session started!');
         }
       } else {
-        vscode.window.showInformationMessage('Vibe Board: Session started!');
+        vscode.window.showInformationMessage('Build Board: Session started!');
       }
 
       webviewProvider!.refresh();
@@ -100,23 +100,23 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('vibeboard.endSession', async () => {
+    vscode.commands.registerCommand('buildboard.endSession', async () => {
       if (!(await ensureInitialized())) { return; }
       const summary = sessionManager!.endSession();
       if (summary) {
         const duration = formatDuration(summary.duration);
         vscode.window.showInformationMessage(
-          `Vibe Board: Session ended! Duration: ${duration} | Completed: ${summary.tasksCompleted} | Carried over: ${summary.tasksCarriedOver}`
+          `Build Board: Session ended! Duration: ${duration} | Completed: ${summary.tasksCompleted} | Carried over: ${summary.tasksCarriedOver}`
         );
       } else {
-        vscode.window.showInformationMessage('Vibe Board: No active session.');
+        vscode.window.showInformationMessage('Build Board: No active session.');
       }
       webviewProvider!.refresh();
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('vibeboard.addTask', async () => {
+    vscode.commands.registerCommand('buildboard.addTask', async () => {
       if (!(await ensureInitialized())) { return; }
       if (!sessionManager!.hasActiveSession()) {
         const start = await vscode.window.showInformationMessage(
@@ -124,7 +124,7 @@ export function activate(context: vscode.ExtensionContext): void {
           'Start Session'
         );
         if (start === 'Start Session') {
-          await vscode.commands.executeCommand('vibeboard.startSession');
+          await vscode.commands.executeCommand('buildboard.startSession');
         }
         return;
       }
@@ -165,7 +165,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('vibeboard.exportMarkdown', async () => {
+    vscode.commands.registerCommand('buildboard.exportMarkdown', async () => {
       if (!(await ensureInitialized())) { return; }
       messageHandler!.handleMessage({ type: 'exportData', payload: { format: 'markdown' } });
     })
@@ -185,17 +185,17 @@ export function activate(context: vscode.ExtensionContext): void {
   // so the board is ready to show as soon as the sidebar appears.
   ensureInitialized().then((ok) => {
     if (!ok) { return; }
-    const config = vscode.workspace.getConfiguration('vibeboard');
+    const config = vscode.workspace.getConfiguration('buildboard');
     const autoPrompt = config.get<boolean>('autoPromptSession', true);
 
     if (autoPrompt && !sessionManager!.hasActiveSession()) {
       vscode.window.showInformationMessage(
-        'Vibe Board: Start a new session?',
+        'Build Board: Start a new session?',
         'Start Session',
         'Not Now'
       ).then((action) => {
         if (action === 'Start Session') {
-          vscode.commands.executeCommand('vibeboard.startSession');
+          vscode.commands.executeCommand('buildboard.startSession');
         }
       });
     }

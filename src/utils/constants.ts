@@ -25,7 +25,7 @@ export const TAGS: { id: TaskTag; label: string; color: string }[] = [
 /**
  * Storage file path relative to workspace root.
  */
-export const STORAGE_DIR = '.vibeboard';
+export const STORAGE_DIR = '.buildboard';
 export const STORAGE_FILE = 'data.json';
 export const BACKUP_DIR = 'backups';
 

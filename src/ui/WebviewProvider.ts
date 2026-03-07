@@ -7,7 +7,7 @@ import type { WebviewToExtensionMessage } from '../storage/models';
  * Supports lazy initialization — the MessageHandler is set after storage loads.
  */
 export class WebviewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = 'vibeboard.boardView';
+  public static readonly viewType = 'buildboard.boardView';
 
   private view: vscode.WebviewView | undefined;
   private messageHandler: MessageHandler | null = null;
@@ -96,13 +96,13 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} data:; media-src 'self';">
   <link href="${styleUri}" rel="stylesheet">
-  <title>Vibe Board</title>
+  <title>Build Board</title>
 </head>
 <body>
   <div id="app">
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;opacity:0.5;">
       <div style="width:24px;height:24px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:vb-spin 0.8s linear infinite;"></div>
-      <div style="margin-top:10px;font-size:12px;">Loading Vibe Board&hellip;</div>
+      <div style="margin-top:10px;font-size:12px;">Loading Build Board&hellip;</div>
     </div>
     <style>@keyframes vb-spin{to{transform:rotate(360deg)}}</style>
   </div>

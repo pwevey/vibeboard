@@ -1,5 +1,5 @@
 /**
- * Vibe Board - AI Services (Phase 2)
+ * Build Board - AI Services (Phase 2)
  * Uses vscode.lm API for Copilot-powered features.
  */
 
@@ -40,7 +40,7 @@ export class CopilotAIService implements IAIService {
 
   async generateSummary(tasks: { title: string; tag: string; status: string }[]): Promise<string> {
     const model = await this.getModel();
-    if (!model) { return 'AI features require GitHub Copilot Chat to be installed and signed in.\n\nTo set up:\n1. Install the "GitHub Copilot Chat" extension from the VS Code Marketplace\n2. Sign in with your GitHub account (Copilot subscription required)\n3. Restart VS Code and try again\n\nOnce Copilot Chat is active, Vibe Board will automatically use it for AI summaries, task breakdowns, and tag suggestions.'; }
+    if (!model) { return 'AI features require GitHub Copilot Chat to be installed and signed in.\n\nTo set up:\n1. Install the "GitHub Copilot Chat" extension from the VS Code Marketplace\n2. Sign in with your GitHub account (Copilot subscription required)\n3. Restart VS Code and try again\n\nOnce Copilot Chat is active, Build Board will automatically use it for AI summaries, task breakdowns, and tag suggestions.'; }
 
     const taskList = tasks.map((t) => `- [${t.status}] ${t.title} (${t.tag})`).join('\n');
     const prompt = `Summarize this work session in 2-3 sentences. Be concise and focus on what was accomplished:\n\n${taskList}`;

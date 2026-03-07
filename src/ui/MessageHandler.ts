@@ -134,9 +134,9 @@ export class MessageHandler {
       case 'undo': {
         const action = this.taskManager.undo();
         if (action) {
-          vscode.window.showInformationMessage(`Vibe Board: Undid "${action}"`);
+          vscode.window.showInformationMessage(`Build Board: Undid "${action}"`);
         } else {
-          vscode.window.showInformationMessage('Vibe Board: Nothing to undo');
+          vscode.window.showInformationMessage('Build Board: Nothing to undo');
         }
         this.sendStateUpdate();
         break;
@@ -145,9 +145,9 @@ export class MessageHandler {
       case 'redo': {
         const redoAction = this.taskManager.redo();
         if (redoAction) {
-          vscode.window.showInformationMessage(`Vibe Board: Redid "${redoAction}"`);
+          vscode.window.showInformationMessage(`Build Board: Redid "${redoAction}"`);
         } else {
-          vscode.window.showInformationMessage('Vibe Board: Nothing to redo');
+          vscode.window.showInformationMessage('Build Board: Nothing to redo');
         }
         this.sendStateUpdate();
         break;
@@ -414,7 +414,7 @@ export class MessageHandler {
       case 'startAutomation': {
         const { taskIds, threshold } = message.payload as { taskIds: string[]; threshold?: number };
         if (threshold !== undefined) {
-          await vscode.workspace.getConfiguration('vibeboard').update('automationAutoApproveThreshold', threshold, vscode.ConfigurationTarget.Global);
+          await vscode.workspace.getConfiguration('buildboard').update('automationAutoApproveThreshold', threshold, vscode.ConfigurationTarget.Global);
         }
         await this.automationService.start(taskIds);
         break;
@@ -582,7 +582,7 @@ export class MessageHandler {
 
       case 'startSession': {
         const projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-        const config = vscode.workspace.getConfiguration('vibeboard');
+        const config = vscode.workspace.getConfiguration('buildboard');
         const carryOver = config.get<boolean>('carryOverTasks', true);
         const sessionName = (message.payload as { name?: string; projectId?: string }).name;
         const projectId = (message.payload as { name?: string; projectId?: string }).projectId;
@@ -616,13 +616,13 @@ export class MessageHandler {
           const carried = this.taskManager.carryOverAllTasks(newSession.id, projectId);
           if (carried > 0) {
             vscode.window.showInformationMessage(
-              `Vibe Board: Session started! ${carried} task${carried === 1 ? '' : 's'} carried over.`
+              `Build Board: Session started! ${carried} task${carried === 1 ? '' : 's'} carried over.`
             );
           } else {
-            vscode.window.showInformationMessage('Vibe Board: Session started!');
+            vscode.window.showInformationMessage('Build Board: Session started!');
           }
         } else {
-          vscode.window.showInformationMessage('Vibe Board: Session started!');
+          vscode.window.showInformationMessage('Build Board: Session started!');
         }
 
         this.sendStateUpdate();
@@ -648,7 +648,7 @@ export class MessageHandler {
         if (board && !board.pausedAt) {
           board.pausedAt = new Date().toISOString();
           this.storage.setData(data);
-          vscode.window.showInformationMessage('Vibe Board: Board timer paused.');
+          vscode.window.showInformationMessage('Build Board: Board timer paused.');
         }
         this.sendStateUpdate();
         break;
@@ -662,7 +662,7 @@ export class MessageHandler {
           board.totalPausedMs = (board.totalPausedMs || 0) + pauseDuration;
           board.pausedAt = null;
           this.storage.setData(data);
-          vscode.window.showInformationMessage('Vibe Board: Board timer resumed.');
+          vscode.window.showInformationMessage('Build Board: Board timer resumed.');
         }
         this.sendStateUpdate();
         break;
@@ -785,13 +785,13 @@ export class MessageHandler {
         const { key, value } = message.payload as { key: string; value: unknown };
         const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl', 'storageScope'];
         if (allowedKeys.includes(key)) {
-          await vscode.workspace.getConfiguration('vibeboard').update(key, value, vscode.ConfigurationTarget.Global);
+          await vscode.workspace.getConfiguration('buildboard').update(key, value, vscode.ConfigurationTarget.Global);
           this.invalidateSettingsCache();
 
           // Storage scope change — also show a VS Code notification as a fallback
           if (key === 'storageScope') {
             const action = await vscode.window.showInformationMessage(
-              `Vibe Board: Storage scope changed to "${value}". Reload window to apply.`,
+              `Build Board: Storage scope changed to "${value}". Reload window to apply.`,
               'Reload Now'
             );
             if (action === 'Reload Now') {
@@ -818,7 +818,7 @@ export class MessageHandler {
       case 'exportHelpDocs': {
         const { content } = message.payload as { content: string };
         const uri = await vscode.window.showSaveDialog({
-          defaultUri: vscode.Uri.file('vibe-board-help.md'),
+          defaultUri: vscode.Uri.file('build-board-help.md'),
           filters: { 'Markdown': ['md'], 'Text': ['txt'] },
           title: 'Export Help Documentation'
         });
@@ -1024,12 +1024,12 @@ export class MessageHandler {
 
           if (created.length > 0) {
             vscode.window.showInformationMessage(
-              `Vibe Board: Created ${created.length} Jira issue${created.length === 1 ? '' : 's'}${errors.length > 0 ? ` (${errors.length} failed)` : ''}.`
+              `Build Board: Created ${created.length} Jira issue${created.length === 1 ? '' : 's'}${errors.length > 0 ? ` (${errors.length} failed)` : ''}.`
             );
             // Refresh webview state so exported badges appear
             this.sendStateUpdate();
           } else {
-            vscode.window.showErrorMessage('Vibe Board: Failed to create Jira issues. Check the export results for details.');
+            vscode.window.showErrorMessage('Build Board: Failed to create Jira issues. Check the export results for details.');
           }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -1037,7 +1037,7 @@ export class MessageHandler {
             type: 'jiraExportResult',
             payload: { success: false, created: 0, failed: 0, issues: [], errors: [`Unexpected error: ${msg}`] },
           });
-          vscode.window.showErrorMessage(`Vibe Board: Jira export failed — ${msg}`);
+          vscode.window.showErrorMessage(`Build Board: Jira export failed — ${msg}`);
         }
         break;
       }
@@ -1171,7 +1171,7 @@ export class MessageHandler {
 
           this.webview?.postMessage({ type: 'jiraImportResult', payload: { success: true, imported: importCount } });
           vscode.window.showInformationMessage(
-            `Vibe Board: Imported ${importCount} issue${importCount === 1 ? '' : 's'} from Jira.`
+            `Build Board: Imported ${importCount} issue${importCount === 1 ? '' : 's'} from Jira.`
           );
           this.sendStateUpdate();
         } catch (err: unknown) {
@@ -1225,7 +1225,7 @@ export class MessageHandler {
       this.webview.postMessage({ type: 'settingsUpdate', payload: this.settingsCache });
       return;
     }
-    const config = vscode.workspace.getConfiguration('vibeboard');
+    const config = vscode.workspace.getConfiguration('buildboard');
     const jiraSummary = await this.secretStorage.getJiraSummary();
     this.settingsCache = {
       autoBackup: config.get<boolean>('autoBackup', true),
@@ -1283,7 +1283,7 @@ export class MessageHandler {
     if (imageAttachments.length > 0) {
       const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
       if (workspaceFolder) {
-        const tempDir = vscode.Uri.joinPath(workspaceFolder.uri, '.vibeboard', 'temp');
+        const tempDir = vscode.Uri.joinPath(workspaceFolder.uri, '.buildboard', 'temp');
         try { await vscode.workspace.fs.createDirectory(tempDir); } catch { /* exists */ }
         for (const att of imageAttachments) {
           try {
@@ -1315,10 +1315,10 @@ export class MessageHandler {
       try {
         await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
         await vscode.env.clipboard.writeText(prompt);
-        vscode.window.showInformationMessage('Vibe Board: Prompt copied to clipboard. Paste it in the chat.');
+        vscode.window.showInformationMessage('Build Board: Prompt copied to clipboard. Paste it in the chat.');
       } catch {
         await vscode.env.clipboard.writeText(prompt);
-        vscode.window.showInformationMessage('Vibe Board: Prompt copied to clipboard. Open Copilot Chat and paste.');
+        vscode.window.showInformationMessage('Build Board: Prompt copied to clipboard. Open Copilot Chat and paste.');
       }
     }
 
@@ -1498,12 +1498,12 @@ export class MessageHandler {
       };
       content = JSON.stringify(exportObj, null, 2);
       ext = 'json';
-      defaultName = `vibeboard-export${nameSuffix}-${localDate}.json`;
+      defaultName = `buildboard-export${nameSuffix}-${localDate}.json`;
       filterLabel = 'JSON';
     } else if (format === 'csv') {
       content = this.generateCsv(filteredData, totals, periodLabel + scopeLabel, exportProjects);
       ext = 'csv';
-      defaultName = `vibeboard-export${nameSuffix}-${localDate}.csv`;
+      defaultName = `buildboard-export${nameSuffix}-${localDate}.csv`;
       filterLabel = 'CSV';
     } else {
       // Markdown export
@@ -1512,19 +1512,19 @@ export class MessageHandler {
         : history;
       content = this.generateMarkdown(filteredData, mdHistory, totals, periodLabel + scopeLabel, exportProjects);
       ext = 'md';
-      defaultName = `vibeboard-export${nameSuffix}-${localDate}.md`;
+      defaultName = `buildboard-export${nameSuffix}-${localDate}.md`;
       filterLabel = 'Markdown';
     }
 
     const uri = await vscode.window.showSaveDialog({
       defaultUri: vscode.Uri.file(defaultName),
       filters: { [filterLabel]: [ext] },
-      title: 'Export Vibe Board Data',
+      title: 'Export Build Board Data',
     });
 
     if (uri) {
       await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf-8'));
-      vscode.window.showInformationMessage(`Vibe Board: Exported to ${uri.fsPath}`);
+      vscode.window.showInformationMessage(`Build Board: Exported to ${uri.fsPath}`);
     }
   }
 
@@ -1533,7 +1533,7 @@ export class MessageHandler {
    */
   private async clearAllData(): Promise<void> {
     const confirm = await vscode.window.showWarningMessage(
-      'Are you sure you want to delete ALL Vibe Board data? This will permanently remove all sessions, tasks, and boards. This cannot be undone.',
+      'Are you sure you want to delete ALL Build Board data? This will permanently remove all sessions, tasks, and boards. This cannot be undone.',
       { modal: true },
       'Delete Everything'
     );
@@ -1543,7 +1543,7 @@ export class MessageHandler {
     const freshData = createDefaultWorkspaceData();
     this.storage.setData(freshData);
     this.sendStateUpdate();
-    vscode.window.showInformationMessage('Vibe Board: All data has been cleared.');
+    vscode.window.showInformationMessage('Build Board: All data has been cleared.');
   }
 
   /**
@@ -1553,7 +1553,7 @@ export class MessageHandler {
     const uris = await vscode.window.showOpenDialog({
       canSelectMany: false,
       filters: { 'JSON': ['json'] },
-      title: 'Import Vibe Board Data',
+      title: 'Import Build Board Data',
       openLabel: 'Import',
     });
 
@@ -1571,7 +1571,7 @@ export class MessageHandler {
       }
 
       // Support two formats:
-      // 1. Vibe Board export JSON (has .sessions array with .summary, .tasks array)
+      // 1. Build Board export JSON (has .sessions array with .summary, .tasks array)
       // 2. Raw workspace data (has .version, .sessions, .tasks)
 
       let sessions: any[] = [];
@@ -1615,7 +1615,7 @@ export class MessageHandler {
           boards = imported.boards;
         }
       } else {
-        vscode.window.showErrorMessage('Import failed: unrecognized file format. Use a Vibe Board JSON export or data.json backup.');
+        vscode.window.showErrorMessage('Import failed: unrecognized file format. Use a Build Board JSON export or data.json backup.');
         return;
       }
 
@@ -1755,14 +1755,14 @@ export class MessageHandler {
           }
         }
 
-        vscode.window.showInformationMessage(`Vibe Board: Merged ${addedSessions} sessions and ${addedTasks} tasks (${sessionCount - addedSessions} sessions and ${taskCount - addedTasks} tasks were duplicates).`);
+        vscode.window.showInformationMessage(`Build Board: Merged ${addedSessions} sessions and ${addedTasks} tasks (${sessionCount - addedSessions} sessions and ${taskCount - addedTasks} tasks were duplicates).`);
       }
 
       this.storage.setData(data);
       this.sendStateUpdate();
 
       if (choice.label === 'Replace') {
-        vscode.window.showInformationMessage(`Vibe Board: Imported ${sessionCount} sessions and ${taskCount} tasks.`);
+        vscode.window.showInformationMessage(`Build Board: Imported ${sessionCount} sessions and ${taskCount} tasks.`);
       }
     } catch (err: any) {
       vscode.window.showErrorMessage(`Import failed: ${err.message || err}`);
@@ -2071,7 +2071,7 @@ export class MessageHandler {
     projects?: VBProject[]
   ): string {
     const lines: string[] = [];
-    lines.push('# Vibe Board Export');
+    lines.push('# Build Board Export');
 
     // Build project lookup for session → project mapping
     const hasProjects = projects && projects.length > 0;

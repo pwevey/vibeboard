@@ -7,7 +7,7 @@ import { STORAGE_FILE, STORAGE_WRITE_DEBOUNCE_MS, BACKUP_DIR } from '../utils/co
  * Uses vscode.workspace.fs for remote workspace compatibility.
  * Supports two storage scopes:
  *   - "global" (default): VS Code's global storage directory — shared across all workspaces.
- *   - "workspace": `.vibeboard/` inside the workspace folder — project-specific data.
+ *   - "workspace": `.buildboard/` inside the workspace folder — project-specific data.
  * Includes automatic background backups.
  */
 export class StorageProvider {
@@ -25,29 +25,29 @@ export class StorageProvider {
 
   /**
    * Initialize storage — resolve file path and load data.
-   * Reads `vibeboard.storageScope` to decide between global and workspace storage.
-   * Auto-detects workspace scope if `.vibeboard/data.json` exists in the workspace
+   * Reads `buildboard.storageScope` to decide between global and workspace storage.
+   * Auto-detects workspace scope if `.buildboard/data.json` exists in the workspace
    * and the user hasn't explicitly set a scope.
    * On first run with global scope, migrates any existing workspace-scoped data.
    */
   async initialize(globalStorageUri: vscode.Uri): Promise<void> {
-    const config = vscode.workspace.getConfiguration('vibeboard');
+    const config = vscode.workspace.getConfiguration('buildboard');
     const explicitScope = config.inspect<string>('storageScope');
     const hasExplicitSetting = !!(
       explicitScope?.globalValue || explicitScope?.workspaceValue || explicitScope?.workspaceFolderValue
     );
     let scope = config.get<string>('storageScope', 'global');
 
-    // Auto-detect: if no explicit setting and workspace has .vibeboard/data.json, use workspace scope
+    // Auto-detect: if no explicit setting and workspace has .buildboard/data.json, use workspace scope
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!hasExplicitSetting && workspaceFolder) {
-      const oldDataUri = vscode.Uri.joinPath(workspaceFolder.uri, '.vibeboard', STORAGE_FILE);
+      const oldDataUri = vscode.Uri.joinPath(workspaceFolder.uri, '.buildboard', STORAGE_FILE);
       try {
         await vscode.workspace.fs.stat(oldDataUri);
         // File exists — auto-select workspace scope
         scope = 'workspace';
       } catch {
-        // No .vibeboard/data.json — keep default (global)
+        // No .buildboard/data.json — keep default (global)
       }
     }
 
@@ -61,7 +61,7 @@ export class StorageProvider {
         this.storageScope = 'global';
         dirUri = globalStorageUri;
       } else {
-        dirUri = vscode.Uri.joinPath(workspaceFolder.uri, '.vibeboard');
+        dirUri = vscode.Uri.joinPath(workspaceFolder.uri, '.buildboard');
       }
     } else {
       dirUri = globalStorageUri;
@@ -171,7 +171,7 @@ export class StorageProvider {
   }
 
   /**
-   * Migrate data from old workspace-scoped .vibeboard/data.json into global storage.
+   * Migrate data from old workspace-scoped .buildboard/data.json into global storage.
    * Only runs once — if global data already has sessions/tasks it's a no-op.
    * After a successful migration the old workspace file is renamed to data.json.migrated
    * so it won't be imported again.
@@ -180,7 +180,7 @@ export class StorageProvider {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) { return; }
 
-    const oldFileUri = vscode.Uri.joinPath(workspaceFolder.uri, '.vibeboard', 'data.json');
+    const oldFileUri = vscode.Uri.joinPath(workspaceFolder.uri, '.buildboard', 'data.json');
 
     try {
       const raw = await vscode.workspace.fs.readFile(oldFileUri);
@@ -259,11 +259,11 @@ export class StorageProvider {
         await this.flush();
 
         // Rename old file so it isn't migrated again
-        const migratedUri = vscode.Uri.joinPath(workspaceFolder.uri, '.vibeboard', 'data.json.migrated');
+        const migratedUri = vscode.Uri.joinPath(workspaceFolder.uri, '.buildboard', 'data.json.migrated');
         try { await vscode.workspace.fs.rename(oldFileUri, migratedUri, { overwrite: true }); } catch { /* best-effort */ }
 
         vscode.window.showInformationMessage(
-          `Vibe Board: Migrated ${this.data.sessions.length} session(s) and ${this.data.tasks.length} task(s) from workspace storage to global storage.`
+          `Build Board: Migrated ${this.data.sessions.length} session(s) and ${this.data.tasks.length} task(s) from workspace storage to global storage.`
         );
       }
     } catch {
@@ -273,12 +273,12 @@ export class StorageProvider {
 
   /**
    * Restore workspace data from a .migrated file when switching back to workspace scope.
-   * If .vibeboard/data.json doesn't exist but .vibeboard/data.json.migrated does,
+   * If .buildboard/data.json doesn't exist but .buildboard/data.json.migrated does,
    * rename .migrated back to data.json so the user's data reappears.
    */
   private async restoreFromMigrated(workspaceFolderUri: vscode.Uri): Promise<void> {
-    const dataUri = vscode.Uri.joinPath(workspaceFolderUri, '.vibeboard', STORAGE_FILE);
-    const migratedUri = vscode.Uri.joinPath(workspaceFolderUri, '.vibeboard', 'data.json.migrated');
+    const dataUri = vscode.Uri.joinPath(workspaceFolderUri, '.buildboard', STORAGE_FILE);
+    const migratedUri = vscode.Uri.joinPath(workspaceFolderUri, '.buildboard', 'data.json.migrated');
 
     try {
       // Check if data.json already exists — if so, nothing to restore
@@ -293,7 +293,7 @@ export class StorageProvider {
       // .migrated exists — rename it back to data.json
       await vscode.workspace.fs.rename(migratedUri, dataUri, { overwrite: false });
       vscode.window.showInformationMessage(
-        'Vibe Board: Restored workspace data from previous migration.'
+        'Build Board: Restored workspace data from previous migration.'
       );
     } catch {
       // No .migrated file either — fresh workspace start
@@ -306,7 +306,7 @@ export class StorageProvider {
   private async maybeAutoBackup(content: string): Promise<void> {
     if (!this.backupDirUri) { return; }
 
-    const config = vscode.workspace.getConfiguration('vibeboard');
+    const config = vscode.workspace.getConfiguration('buildboard');
     const enabled = config.get<boolean>('autoBackup', true);
     if (!enabled) { return; }
 
@@ -339,7 +339,7 @@ export class StorageProvider {
   private async rotateBackups(): Promise<void> {
     if (!this.backupDirUri) { return; }
 
-    const config = vscode.workspace.getConfiguration('vibeboard');
+    const config = vscode.workspace.getConfiguration('buildboard');
     const maxCount = config.get<number>('autoBackupMaxCount', 10);
 
     try {

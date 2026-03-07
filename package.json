@@ -1,9 +1,9 @@
 {
-  "name": "vibeboard",
-  "displayName": "Vibe Board",
+  "name": "buildboard",
+  "displayName": "Build Board",
   "description": "Kanban task board with GitHub Copilot integration — plan, send, automate, and track your AI-assisted workflow",
   "version": "0.1.0",
-  "publisher": "vibeboard",
+  "publisher": "buildboard",
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
@@ -22,102 +22,102 @@
     "planning"
   ],
   "activationEvents": [
-    "onView:vibeboard.boardView"
+    "onView:buildboard.boardView"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "vibeboard",
-          "title": "Vibe Board",
+          "id": "buildboard",
+          "title": "Build Board",
           "icon": "media/icon.svg"
         }
       ]
     },
     "views": {
-      "vibeboard": [
+      "buildboard": [
         {
           "type": "webview",
-          "id": "vibeboard.boardView",
+          "id": "buildboard.boardView",
           "name": "Board"
         }
       ]
     },
     "commands": [
       {
-        "command": "vibeboard.startSession",
-        "title": "Vibe Board: Start Session"
+        "command": "buildboard.startSession",
+        "title": "Build Board: Start Session"
       },
       {
-        "command": "vibeboard.endSession",
-        "title": "Vibe Board: End Session"
+        "command": "buildboard.endSession",
+        "title": "Build Board: End Session"
       },
       {
-        "command": "vibeboard.addTask",
-        "title": "Vibe Board: Quick Add Task"
+        "command": "buildboard.addTask",
+        "title": "Build Board: Quick Add Task"
       },
       {
-        "command": "vibeboard.exportMarkdown",
-        "title": "Vibe Board: Export Session as Markdown"
+        "command": "buildboard.exportMarkdown",
+        "title": "Build Board: Export Session as Markdown"
       }
     ],
     "keybindings": [
       {
-        "command": "vibeboard.addTask",
+        "command": "buildboard.addTask",
         "key": "ctrl+shift+v",
         "mac": "cmd+shift+v"
       }
     ],
     "configuration": {
-      "title": "Vibe Board",
+      "title": "Build Board",
       "properties": {
-        "vibeboard.autoPromptSession": {
+        "buildboard.autoPromptSession": {
           "type": "boolean",
           "default": true,
           "description": "Prompt to start a new session when VSCode opens"
         },
-        "vibeboard.carryOverTasks": {
+        "buildboard.carryOverTasks": {
           "type": "boolean",
           "default": true,
           "description": "Carry over unfinished tasks to the next session"
         },
-        "vibeboard.automationAutoApproveThreshold": {
+        "buildboard.automationAutoApproveThreshold": {
           "type": "number",
           "default": 100,
           "minimum": 0,
           "maximum": 100,
           "description": "Minimum AI confidence percentage (0-100) to auto-approve a task without requiring manual review. Set to 100 to always require manual approval."
         },
-        "vibeboard.autoBackup": {
+        "buildboard.autoBackup": {
           "type": "boolean",
           "default": true,
           "description": "Automatically back up data in the background"
         },
-        "vibeboard.autoBackupMaxCount": {
+        "buildboard.autoBackupMaxCount": {
           "type": "number",
           "default": 10,
           "minimum": 1,
           "maximum": 100,
           "description": "Maximum number of auto-backup files to keep. Oldest backups are deleted when the limit is exceeded."
         },
-        "vibeboard.autoBackupIntervalMin": {
+        "buildboard.autoBackupIntervalMin": {
           "type": "number",
           "default": 5,
           "minimum": 1,
           "maximum": 60,
           "description": "Minutes between automatic backups (1-60). Backups only occur when data has changed."
         },
-        "vibeboard.jiraBaseUrl": {
+        "buildboard.jiraBaseUrl": {
           "type": "string",
           "default": "",
           "description": "Jira instance base URL (e.g. https://your-domain.atlassian.net)"
         },
-        "vibeboard.storageScope": {
+        "buildboard.storageScope": {
           "type": "string",
           "enum": ["global", "workspace"],
           "default": "global",
-          "description": "Where to store Vibe Board data. 'global' shares data across all workspaces. 'workspace' stores data in .vibeboard/ inside the current workspace folder."
+          "description": "Where to store Build Board data. 'global' shares data across all workspaces. 'workspace' stores data in .buildboard/ inside the current workspace folder."
         }
       }
     }

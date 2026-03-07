@@ -1,5 +1,5 @@
 /**
- * Vibe Board - Secure Credential Storage
+ * Build Board - Secure Credential Storage
  *
  * Uses VS Code's SecretStorage API — backed by the OS keychain
  * (Windows Credential Manager / macOS Keychain / Linux Secret Service).
@@ -9,8 +9,8 @@
 
 import * as vscode from 'vscode';
 
-const KEY_JIRA_EMAIL = 'vibeboard.jira.email';
-const KEY_JIRA_TOKEN = 'vibeboard.jira.apiToken';
+const KEY_JIRA_EMAIL = 'buildboard.jira.email';
+const KEY_JIRA_TOKEN = 'buildboard.jira.apiToken';
 
 export interface JiraCredentials {
   baseUrl: string;
@@ -29,7 +29,7 @@ export class SecretStorageService {
    */
   async saveJiraCredentials(baseUrl: string, email: string, token: string): Promise<void> {
     // Base URL goes to settings (not a secret)
-    await vscode.workspace.getConfiguration('vibeboard')
+    await vscode.workspace.getConfiguration('buildboard')
       .update('jiraBaseUrl', baseUrl, vscode.ConfigurationTarget.Global);
 
     // Sensitive fields go to SecretStorage (empty = keep existing)
@@ -46,7 +46,7 @@ export class SecretStorageService {
    * Returns null if any required field is missing.
    */
   async getJiraCredentials(): Promise<JiraCredentials | null> {
-    const config = vscode.workspace.getConfiguration('vibeboard');
+    const config = vscode.workspace.getConfiguration('buildboard');
     const baseUrl = (config.get<string>('jiraBaseUrl') || '').replace(/\/+$/, '');
     const email = (await this.secrets.get(KEY_JIRA_EMAIL)) || '';
     const token = (await this.secrets.get(KEY_JIRA_TOKEN)) || '';
@@ -74,7 +74,7 @@ export class SecretStorageService {
     tokenLength: number;
     configured: boolean;
   }> {
-    const config = vscode.workspace.getConfiguration('vibeboard');
+    const config = vscode.workspace.getConfiguration('buildboard');
     const baseUrl = (config.get<string>('jiraBaseUrl') || '').trim();
     const email = (await this.secrets.get(KEY_JIRA_EMAIL)) || '';
     const token = (await this.secrets.get(KEY_JIRA_TOKEN)) || '';
@@ -92,7 +92,7 @@ export class SecretStorageService {
   async clearJiraCredentials(): Promise<void> {
     await this.secrets.delete(KEY_JIRA_EMAIL);
     await this.secrets.delete(KEY_JIRA_TOKEN);
-    await vscode.workspace.getConfiguration('vibeboard')
+    await vscode.workspace.getConfiguration('buildboard')
       .update('jiraBaseUrl', '', vscode.ConfigurationTarget.Global);
   }
 
@@ -101,7 +101,7 @@ export class SecretStorageService {
    * Called once on activation. Clears the plain-text values after migration.
    */
   async migrateFromSettings(): Promise<void> {
-    const config = vscode.workspace.getConfiguration('vibeboard');
+    const config = vscode.workspace.getConfiguration('buildboard');
     const plainEmail = config.get<string>('jiraEmail', '');
     const plainToken = config.get<string>('jiraApiToken', '');
 

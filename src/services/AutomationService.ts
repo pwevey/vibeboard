@@ -1,5 +1,5 @@
 /**
- * Vibe Board - Automation Service
+ * Build Board - Automation Service
  * Orchestrates the hybrid task automation loop:
  *   1. Send task to Copilot Chat
  *   2. Monitor file changes (file system watcher + debounce)
@@ -31,7 +31,7 @@ const CHANGE_TIMEOUT_MS = 120_000; // 2 minutes
 
 /** Minimum confidence to auto-approve without checkpoint (read from settings). */
 function getAutoApproveThreshold(): number {
-  return vscode.workspace.getConfiguration('vibeboard').get<number>('automationAutoApproveThreshold', 85);
+  return vscode.workspace.getConfiguration('buildboard').get<number>('automationAutoApproveThreshold', 85);
 }
 
 export class AutomationService {
@@ -95,7 +95,7 @@ export class AutomationService {
     this.startedAt = new Date().toISOString();
 
     vscode.window.showInformationMessage(
-      `Vibe Board: Automation started with ${tasks.length} task${tasks.length === 1 ? '' : 's'}.`
+      `Build Board: Automation started with ${tasks.length} task${tasks.length === 1 ? '' : 's'}.`
     );
 
     this.broadcastProgress();
@@ -108,7 +108,7 @@ export class AutomationService {
     this.cleanup(); // Clear any lingering timers
     this.state = 'paused';
     this.broadcastProgress();
-    vscode.window.showInformationMessage('Vibe Board: Automation paused.');
+    vscode.window.showInformationMessage('Build Board: Automation paused.');
   }
 
   /** Resume a paused automation run. */
@@ -116,7 +116,7 @@ export class AutomationService {
     if (this.state !== 'paused') { return; }
     this.state = 'running';
     this.broadcastProgress();
-    vscode.window.showInformationMessage('Vibe Board: Automation resumed.');
+    vscode.window.showInformationMessage('Build Board: Automation resumed.');
     await this.processNext();
   }
 
@@ -131,7 +131,7 @@ export class AutomationService {
     }
     this.state = 'idle';
     this.broadcastProgress();
-    vscode.window.showInformationMessage('Vibe Board: Automation cancelled.');
+    vscode.window.showInformationMessage('Build Board: Automation cancelled.');
   }
 
   /** Skip the current task and move to the next. */
@@ -184,7 +184,7 @@ export class AutomationService {
     this.state = 'paused';
     this.currentIndex++;
     this.broadcastProgress();
-    vscode.window.showInformationMessage('Vibe Board: Task rejected. Automation paused — resume to continue with next task.');
+    vscode.window.showInformationMessage('Build Board: Task rejected. Automation paused — resume to continue with next task.');
   }
 
   /** Retry a failed task by re-queuing it with an enhanced prompt. */
@@ -195,7 +195,7 @@ export class AutomationService {
 
     const retries = item.retryCount || 0;
     if (retries >= MAX_RETRY_COUNT) {
-      vscode.window.showWarningMessage(`Vibe Board: Maximum retries (${MAX_RETRY_COUNT}) reached for this task.`);
+      vscode.window.showWarningMessage(`Build Board: Maximum retries (${MAX_RETRY_COUNT}) reached for this task.`);
       return;
     }
 
@@ -426,7 +426,7 @@ export class AutomationService {
         const scheme = e.document.uri.scheme;
         if (scheme === 'output' || scheme === 'debug') { return; }
         const fsPath = e.document.uri.fsPath || '';
-        if (fsPath.includes('.vibeboard') || fsPath.includes('.git')) { return; }
+        if (fsPath.includes('.buildboard') || fsPath.includes('.git')) { return; }
         if (e.contentChanges.length > 0) {
           resetDebounce();
         }
@@ -517,7 +517,7 @@ export class AutomationService {
         this.taskManager.completeTask(item.taskId);
 
         vscode.window.showInformationMessage(
-          `Vibe Board: Auto-completed "${task.title}" (${verification.confidence}% confidence).`
+          `Build Board: Auto-completed "${task.title}" (${verification.confidence}% confidence).`
         );
 
         this.currentIndex++;
@@ -551,7 +551,7 @@ export class AutomationService {
     this.broadcastProgress();
 
     vscode.window.showInformationMessage(
-      `Vibe Board: Automation complete! ${completed} done, ${failed} failed, ${skipped} skipped.`
+      `Build Board: Automation complete! ${completed} done, ${failed} failed, ${skipped} skipped.`
     );
   }
 

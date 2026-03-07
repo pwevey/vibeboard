@@ -1,5 +1,5 @@
 /**
- * Vibe Board — Webview Frontend (v2)
+ * Build Board — Webview Frontend (v2)
  * Features: priorities, time tracking, undo, templates, multi-board,
  * markdown export, inline editing, context menus, drag-drop, search,
  * keyboard navigation, accessibility.
@@ -439,7 +439,7 @@ function renderSessionBar(session: VBSession | null): string {
 
   if (!session) {
     return `<div class="session-bar" role="toolbar" aria-label="Session controls">
-      <div class="session-info"><span style="font-size:12px;font-weight:600;">Vibe Board</span></div>
+      <div class="session-info"><span style="font-size:12px;font-weight:600;">Build Board</span></div>
       <div class="session-actions"><button class="btn-start-session">Start Session</button>${settingsBtn}${helpBtn}</div>
     </div>`;
   }
@@ -1143,8 +1143,8 @@ function renderNoSessionState(): string {
         <span>Jira: Create issues</span>
       </div>
       <div class="start-import-actions">
-        <button class="secondary" id="btn-import-data" title="Import data from a Vibe Board JSON export or data.json backup">&#128229; Import JSON</button>
-        <button class="secondary" id="btn-import-jira" title="Import issues from Jira into Vibe Board — requires Jira credentials in Settings">&#127919; Import from Jira</button>
+        <button class="secondary" id="btn-import-data" title="Import data from a Build Board JSON export or data.json backup">&#128229; Import JSON</button>
+        <button class="secondary" id="btn-import-jira" title="Import issues from Jira into Build Board — requires Jira credentials in Settings">&#127919; Import from Jira</button>
       </div></div>`;
 
     // Session history — filtered by active project
@@ -2239,13 +2239,13 @@ function showSettingsDialog(): void {
         <span class="start-setting-label">Storage Scope</span>
         <select id="storage-scope-select" class="setting-select" style="flex:1;padding:4px 6px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;">
           <option value="global"${extensionSettings.storageScope !== 'workspace' ? ' selected' : ''}>Global (shared across workspaces)</option>
-          <option value="workspace"${extensionSettings.storageScope === 'workspace' ? ' selected' : ''}>Workspace (.vibeboard/ in project folder)</option>
+          <option value="workspace"${extensionSettings.storageScope === 'workspace' ? ' selected' : ''}>Workspace (.buildboard/ in project folder)</option>
         </select>
       </label>
       <label class="start-setting-row">
         <input type="checkbox" class="setting-checkbox" data-setting="autoBackup" ${extensionSettings.autoBackup ? 'checked' : ''} />
         <span class="start-setting-label">Auto-Backup</span>
-        <span class="start-setting-desc">Automatically back up data to the ${extensionSettings.storageScope === 'workspace' ? '.vibeboard/ workspace folder' : "extension's global storage folder"}</span>
+        <span class="start-setting-desc">Automatically back up data to the ${extensionSettings.storageScope === 'workspace' ? '.buildboard/ workspace folder' : "extension's global storage folder"}</span>
       </label>
       <label class="start-setting-row" id="setting-row-backup-count" style="${extensionSettings.autoBackup ? '' : 'opacity:0.5;pointer-events:none;'}">
         <span class="start-setting-label">Max Backup Files</span>
@@ -2297,7 +2297,7 @@ function showSettingsDialog(): void {
     </div>
     <div class="start-settings" id="jira-status-mapping-section" style="margin-top:12px;${extensionSettings.jiraConfigured ? '' : 'display:none;'}">
       <label class="start-setting-row" style="font-weight:600;font-size:11px;margin-bottom:4px;opacity:0.8;">&#128260; Status Mapping</label>
-      <p class="settings-section-desc" style="margin:0 0 6px;">Map Vibe Board columns to Jira statuses for export, and Jira statuses to Vibe Board columns for import.</p>
+      <p class="settings-section-desc" style="margin:0 0 6px;">Map Build Board columns to Jira statuses for export, and Jira statuses to Build Board columns for import.</p>
       <label class="start-setting-row setting-text-row">
         <span class="start-setting-label">Jira Project</span>
         <select id="jira-mapping-project-select" class="jira-select" style="flex:1;">
@@ -2639,11 +2639,11 @@ function showSettingsDialog(): void {
 
         mappingContent.innerHTML = `
           <div style="margin-top:8px;">
-            <h5 style="margin:0 0 4px;font-size:11px;opacity:0.8;">Export: Vibe Board &#8594; Jira</h5>
+            <h5 style="margin:0 0 4px;font-size:11px;opacity:0.8;">Export: Build Board &#8594; Jira</h5>
             <div class="jira-mapping-grid">${exportRows}</div>
           </div>
           <div style="margin-top:10px;">
-            <h5 style="margin:0 0 4px;font-size:11px;opacity:0.8;">Import: Jira &#8594; Vibe Board</h5>
+            <h5 style="margin:0 0 4px;font-size:11px;opacity:0.8;">Import: Jira &#8594; Build Board</h5>
             <div class="jira-mapping-grid">${importRows}</div>
           </div>`;
 
@@ -3161,7 +3161,7 @@ function showEndSessionJiraPrompt(boardIds: string[]): void {
     // Jira is NOT configured — informational tip
     overlay.innerHTML = `<div class="modal-card jira-dialog" style="max-width:400px">
       <h3>&#128161; Did you know?</h3>
-      <p>You can export your Vibe Board tasks directly to <strong>Jira</strong> as issues &mdash; with automatic field mapping, status transitions, and duplicate prevention.</p>
+      <p>You can export your Build Board tasks directly to <strong>Jira</strong> as issues &mdash; with automatic field mapping, status transitions, and duplicate prevention.</p>
       <p style="font-size:12px;opacity:0.8">Set it up in <strong>&#9881; Settings</strong> &rarr; <strong>Jira Integration</strong>.</p>
       <label class="jira-filter-row" style="margin-top:8px">
         <input type="checkbox" id="jira-end-dismiss" />
@@ -3591,7 +3591,7 @@ function showJiraCredentialsPrompt(): void {
     <h3>&#127919; Jira Setup Required</h3>
     <p>To export tasks to Jira, configure your credentials in the <strong>Settings</strong> dialog (gear icon):</p>
     <ol class="jira-setup-steps">
-      <li>Click the <strong>&#9881; gear icon</strong> at the top of Vibe Board</li>
+      <li>Click the <strong>&#9881; gear icon</strong> at the top of Build Board</li>
       <li>Scroll to the <strong>Jira Integration</strong> section</li>
       <li>Enter your <strong>Base URL</strong> (e.g. https://your-domain.atlassian.net)</li>
       <li>Enter your <strong>Email</strong></li>
@@ -4184,7 +4184,7 @@ function showJiraStatusMapping(
 
   overlay.querySelector('.jira-dialog')!.innerHTML = `
     <h3>&#127919; Status Mapping</h3>
-    <p class="jira-mapping-desc">Map Vibe Board statuses to Jira statuses. Issues will be transitioned after creation.</p>
+    <p class="jira-mapping-desc">Map Build Board statuses to Jira statuses. Issues will be transitioned after creation.</p>
     <div class="jira-mapping-grid">
       ${mappingRows}
     </div>
@@ -4728,7 +4728,7 @@ function showJiraImportStatusMapping(
 
   overlay.querySelector('.jira-dialog')!.innerHTML = `
     <h3>&#128229; Status Mapping</h3>
-    <p class="jira-mapping-desc">Map Jira statuses to Vibe Board columns for the ${selectedIssues.length} selected issue${selectedIssues.length === 1 ? '' : 's'}.</p>
+    <p class="jira-mapping-desc">Map Jira statuses to Build Board columns for the ${selectedIssues.length} selected issue${selectedIssues.length === 1 ? '' : 's'}.</p>
     <div class="jira-mapping-grid">
       ${mappingRows}
     </div>
@@ -5303,7 +5303,7 @@ function showHelp(): void {
   overlay.setAttribute('aria-label', 'Help & Documentation');
   overlay.innerHTML = `<div class="help-panel">
     <div class="help-header">
-      <h2>&#10067; Vibe Board Help</h2>
+      <h2>&#10067; Build Board Help</h2>
       <div style="display:flex;align-items:center;gap:6px;">
         <button class="secondary" id="btn-help-export" title="Export help docs as Markdown" style="font-size:11px;padding:3px 10px;">&#128196; Export</button>
         <button class="icon-btn help-close-btn" id="btn-help-close" aria-label="Close help">&times;</button>
@@ -5427,7 +5427,7 @@ function showHelp(): void {
   // Export help docs as Markdown
   document.getElementById('btn-help-export')?.addEventListener('click', () => {
     const allSections = Object.keys(helpTabLabels);
-    let markdown = '# Vibe Board — Help Documentation\n\n';
+    let markdown = '# Build Board — Help Documentation\n\n';
     markdown += `*Exported: ${new Date().toLocaleString()}*\n\n---\n\n`;
     markdown += '## Table of Contents\n\n';
     for (const section of allSections) {
@@ -5452,8 +5452,8 @@ function renderHelpContent(section: string): string {
   switch (section) {
     case 'getting-started':
       return `
-        <h3>Welcome to Vibe Board</h3>
-        <p>Vibe Board is a Kanban-style task board built right into VS Code. Plan, organize, and send tasks directly to <strong>GitHub Copilot</strong> &mdash; or automate your entire queue and let AI work through them one by one while you review.</p>
+        <h3>Welcome to Build Board</h3>
+        <p>Build Board is a Kanban-style task board built right into VS Code. Plan, organize, and send tasks directly to <strong>GitHub Copilot</strong> &mdash; or automate your entire queue and let AI work through them one by one while you review.</p>
         <h4>Quick Start</h4>
         <ol>
           <li><strong>Start a Session</strong> &mdash; Click the <em>Start Session</em> button to begin tracking your work. Sessions time your overall workflow.</li>
@@ -5473,7 +5473,7 @@ function renderHelpContent(section: string): string {
           <li><strong>Columns</strong> &mdash; Five columns: <em>In Progress</em>, <em>Up Next</em>, <em>Backlog</em>, <em>Completed</em>, and <em>Notes</em>. Click headers to collapse.</li>
         </ul>
         <h4>AI &amp; Automation</h4>
-        <p>Vibe Board integrates deeply with <strong>GitHub Copilot Chat</strong> &mdash; from one-click sends and follow-ups to fully automated task queues with AI-powered verification. See the <em>AI Features</em> and <em>Automation</em> tabs for details.</p>`;
+        <p>Build Board integrates deeply with <strong>GitHub Copilot Chat</strong> &mdash; from one-click sends and follow-ups to fully automated task queues with AI-powered verification. See the <em>AI Features</em> and <em>Automation</em> tabs for details.</p>`;
 
     case 'tasks':
       return `
@@ -5607,7 +5607,7 @@ function renderHelpContent(section: string): string {
         <h3>Projects</h3>
         <h4>What Is a Project?</h4>
         <p>Projects let you group related sessions together. The typical use case is <strong>one project per workspace or codebase</strong> &mdash; for example, a &ldquo;Backend API&rdquo; project for your server repo and a &ldquo;Frontend App&rdquo; project for your client repo. But you can also create <strong>multiple projects within the same workspace</strong> to separate different initiatives, epics, or feature tracks.</p>
-        <p>Because Vibe Board uses <strong>global storage</strong> by default, your projects and sessions are available no matter which folder you have open. Projects give you the organizational layer to keep things tidy across workspaces.</p>
+        <p>Because Build Board uses <strong>global storage</strong> by default, your projects and sessions are available no matter which folder you have open. Projects give you the organizational layer to keep things tidy across workspaces.</p>
         <h4>Groups</h4>
         <p>Each project has an optional <strong>Group</strong> that lets you organize projects into sections on the start page. For example, you might group projects by codebase (&ldquo;backend&rdquo;, &ldquo;frontend&rdquo;) or by team.</p>
         <ul>
@@ -5619,7 +5619,7 @@ function renderHelpContent(section: string): string {
         <h4>Creating a Project</h4>
         <ul>
           <li>On the start page, click <strong>+ New Project</strong> in the project bar.</li>
-          <li>The project name is <strong>auto-filled</strong> from the current workspace folder name. If a project with that name already exists, a number is appended (e.g. &ldquo;vibeboard 2&rdquo;).</li>
+          <li>The project name is <strong>auto-filled</strong> from the current workspace folder name. If a project with that name already exists, a number is appended (e.g. &ldquo;my-project 2&rdquo;).</li>
           <li>Pick a color to distinguish it visually and optionally assign a group.</li>
           <li>Projects appear as colored chips on the start page.</li>
         </ul>
@@ -5699,7 +5699,7 @@ function renderHelpContent(section: string): string {
         <ol>
           <li>Install the <strong>GitHub Copilot Chat</strong> extension from the VS Code Marketplace.</li>
           <li>Sign in with your GitHub account (a Copilot subscription is required).</li>
-          <li>Restart VS Code. Vibe Board will automatically detect the language model.</li>
+          <li>Restart VS Code. Build Board will automatically detect the language model.</li>
         </ol>
         <p>If Copilot Chat is not available, AI buttons will show a setup message explaining what's needed.</p>
         <h4>AI Session Summary</h4>
@@ -5817,7 +5817,7 @@ function renderHelpContent(section: string): string {
         <h4>Auto-Approve Threshold</h4>
         <p>By default, all tasks require manual approval (threshold is 100%). You can lower this in VS Code settings to auto-approve high-confidence results:</p>
         <ul>
-          <li>Open <strong>Settings</strong> (<kbd>Ctrl+,</kbd>) and search for <em>vibeboard.automationAutoApproveThreshold</em>.</li>
+          <li>Open <strong>Settings</strong> (<kbd>Ctrl+,</kbd>) and search for <em>buildboard.automationAutoApproveThreshold</em>.</li>
           <li>Set a value between 0 and 100. Higher = more manual checkpoints. Set to <strong>100</strong> to always require manual approval.</li>
         </ul>
         <h4>Requirements</h4>
@@ -5891,7 +5891,7 @@ function renderHelpContent(section: string): string {
     case 'export':
       return `
         <h3>Exporting &amp; Importing Data</h3>
-        <p>Vibe Board supports three export formats. All formats include comprehensive data with summary totals.</p>
+        <p>Build Board supports three export formats. All formats include comprehensive data with summary totals.</p>
         <h4>Export Formats</h4>
         <ul>
           <li><strong>JSON</strong> &mdash; Full data backup with summary totals, all sessions (with per-session stats), active session details, and every task. Best for backups or programmatic use. Exports all data regardless of time period.</li>
@@ -5925,7 +5925,7 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Importing Data</h4>
         <ul>
-          <li>Click <strong>Import JSON</strong> on the start page to restore data from a Vibe Board JSON export or a raw <code>data.json</code> backup.</li>
+          <li>Click <strong>Import JSON</strong> on the start page to restore data from a Build Board JSON export or a raw <code>data.json</code> backup.</li>
           <li><strong>Replace</strong> &mdash; Overwrites all current data with the imported file. Use for restoring a backup.</li>
           <li><strong>Merge</strong> &mdash; Adds imported sessions and tasks to your existing data. Duplicates (matching IDs) are skipped. Use for combining data from multiple workspaces.</li>
           <li>Boards are also imported/merged when present in the file.</li>
@@ -5934,19 +5934,19 @@ function renderHelpContent(section: string): string {
         <h4>How to Export</h4>
         <ul>
           <li><strong>Start page</strong> &mdash; When no session is active, export and import buttons appear at the top of the start page.</li>
-          <li><strong>Command Palette</strong> &mdash; Run <em>Vibe Board: Export Session as Markdown</em> from the command palette at any time.</li>
+          <li><strong>Command Palette</strong> &mdash; Run <em>Build Board: Export Session as Markdown</em> from the command palette at any time.</li>
           <li><strong>Help docs</strong> &mdash; Click the <strong>Export</strong> button in the Help dialog header to save all help documentation as a Markdown file.</li>
         </ul>
         <h4>Data Storage</h4>
         <ul>
-          <li>By default, all Vibe Board data is stored locally in VS Code's global storage directory, shared across all workspaces.</li>
-          <li>You can switch to <strong>workspace</strong> storage in <strong>Settings &rarr; Storage Scope</strong> to store data in <code>.vibeboard/</code> inside the current workspace folder instead.</li>
+          <li>By default, all Build Board data is stored locally in VS Code's global storage directory, shared across all workspaces.</li>
+          <li>You can switch to <strong>workspace</strong> storage in <strong>Settings &rarr; Storage Scope</strong> to store data in <code>.buildboard/</code> inside the current workspace folder instead.</li>
           <li>Data is auto-saved with a 300ms debounce after each change.</li>
           <li>No data is sent to external servers.</li>
-          <li>If you previously used Vibe Board with workspace-scoped storage, your data is automatically migrated to global storage on first load.</li>
+          <li>If you previously used Build Board with workspace-scoped storage, your data is automatically migrated to global storage on first load.</li>
         </ul>
         <h4>Auto-Backup</h4>
-        <p>Vibe Board automatically creates backup copies of your data in the background so you never lose work.</p>
+        <p>Build Board automatically creates backup copies of your data in the background so you never lose work.</p>
         <ul>
           <li>Backups are saved to the global storage directory as timestamped JSON files (e.g. <code>data-backup-2026-03-04T10-30-00.json</code>).</li>
           <li>A new backup is created at most every <strong>5 minutes</strong> (configurable) when data changes.</li>
@@ -5955,9 +5955,9 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Auto-Backup Settings</h4>
         <ul>
-          <li><code>vibeboard.autoBackup</code> &mdash; Enable or disable auto-backups (default: <strong>on</strong>).</li>
-          <li><code>vibeboard.autoBackupMaxCount</code> &mdash; Maximum number of backup files to keep (default: <strong>10</strong>, range: 1&ndash;100).</li>
-          <li><code>vibeboard.autoBackupIntervalMin</code> &mdash; Minutes between backups (default: <strong>5</strong>, range: 1&ndash;60).</li>
+          <li><code>buildboard.autoBackup</code> &mdash; Enable or disable auto-backups (default: <strong>on</strong>).</li>
+          <li><code>buildboard.autoBackupMaxCount</code> &mdash; Maximum number of backup files to keep (default: <strong>10</strong>, range: 1&ndash;100).</li>
+          <li><code>buildboard.autoBackupIntervalMin</code> &mdash; Minutes between backups (default: <strong>5</strong>, range: 1&ndash;60).</li>
           <li>You can also configure these in the <strong>&#9881; Settings</strong> dialog (click the gear icon in the toolbar).</li>
         </ul>
         <h4>Clear All Data</h4>
@@ -5967,18 +5967,18 @@ function renderHelpContent(section: string): string {
           <li>Consider exporting your data first as a backup &mdash; this action cannot be undone.</li>
         </ul>
         <h4>Jira Integration</h4>
-        <p>Export tasks directly to Jira as issues. Each Vibe Board task becomes a Jira issue with auto-mapped fields.</p>
+        <p>Export tasks directly to Jira as issues. Each Build Board task becomes a Jira issue with auto-mapped fields.</p>
         <ul>
           <li><strong>Setup</strong> &mdash; Configure your Jira credentials in the Settings dialog (gear icon). Email and API token are stored securely in your OS keychain &mdash; never in plain text.</li>
           <li><strong>API Token</strong> &mdash; Generate one at <em>id.atlassian.com &rarr; Security &rarr; API tokens</em>.</li>
           <li><strong>Export Dialog</strong> &mdash; Click the Jira button on the start page to open a full-screen picker showing your Jira projects and session tasks.</li>
-          <li><strong>End-Session Export Prompt</strong> &mdash; When ending a session, Vibe Board prompts you to export unexported tasks to Jira. Toggle this on or off in <strong>&#9881; Settings &rarr; Jira Integration</strong>.</li>
+          <li><strong>End-Session Export Prompt</strong> &mdash; When ending a session, Build Board prompts you to export unexported tasks to Jira. Toggle this on or off in <strong>&#9881; Settings &rarr; Jira Integration</strong>.</li>
         </ul>
         <h4>Project Mapping</h4>
         <ul>
           <li>The export dialog lets you pick which <strong>Jira project</strong> to create issues in.</li>
-          <li>Check <strong>&ldquo;Remember for [Project]&rdquo;</strong> to save the mapping between your active Vibe Board project and the selected Jira project.</li>
-          <li>Next time you export from the same Vibe Board project, the mapped Jira project is <strong>pre-selected automatically</strong>.</li>
+          <li>Check <strong>&ldquo;Remember for [Project]&rdquo;</strong> to save the mapping between your active Build Board project and the selected Jira project.</li>
+          <li>Next time you export from the same Build Board project, the mapped Jira project is <strong>pre-selected automatically</strong>.</li>
           <li>Change the Jira project or uncheck the checkbox to update or clear the mapping.</li>
         </ul>
         <h4>Duplicate Prevention</h4>
@@ -5990,9 +5990,9 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Status Mapping</h4>
         <ul>
-          <li>After selecting tasks, a <strong>status mapping step</strong> lets you map each Vibe Board column (In Progress, Up Next, Backlog, Completed, Notes) to a Jira status in the target project.</li>
+          <li>After selecting tasks, a <strong>status mapping step</strong> lets you map each Build Board column (In Progress, Up Next, Backlog, Completed, Notes) to a Jira status in the target project.</li>
           <li>Jira statuses are fetched from your project automatically.</li>
-          <li>After issues are created, Vibe Board <strong>transitions</strong> each issue to the mapped Jira status so they land in the correct workflow state.</li>
+          <li>After issues are created, Build Board <strong>transitions</strong> each issue to the mapped Jira status so they land in the correct workflow state.</li>
           <li>You can also configure status mappings in <strong>&#9881; Settings &rarr; Status Mapping</strong>. Select a Jira project to view and edit both export (VB &rarr; Jira) and import (Jira &rarr; VB) mappings in one place.</li>
           <li>Mappings configured in Settings are used as defaults during export and import dialogs.</li>
         </ul>
@@ -6001,7 +6001,7 @@ function renderHelpContent(section: string): string {
           <li>The export dialog includes an <strong>Epic</strong> dropdown that lists all epics in the selected Jira project.</li>
           <li>Select an epic to <strong>link every exported task</strong> to that epic automatically.</li>
           <li>Choose <strong>&ldquo;&#xFF0B; Create new epic&hellip;&rdquo;</strong> to create a brand-new epic in the Jira project and link tasks to it in one step.</li>
-          <li>Check <strong>&ldquo;Remember for [Project]&rdquo;</strong> on the epic row to save the mapping between your active Vibe Board project and the selected epic.</li>
+          <li>Check <strong>&ldquo;Remember for [Project]&rdquo;</strong> on the epic row to save the mapping between your active Build Board project and the selected epic.</li>
           <li>Next time you export from the same project, the mapped epic is <strong>pre-selected automatically</strong>.</li>
         </ul>
         <h4>Jira Field Mapping</h4>
@@ -6017,10 +6017,10 @@ function renderHelpContent(section: string): string {
           <li>When an <strong>active session</strong> is running, only that session&rsquo;s tasks appear in the export dialog.</li>
           <li>When a <strong>project filter</strong> is active (but no session), tasks from all sessions in that project are shown.</li>
           <li>With <strong>no session or project filter</strong>, all tasks across all sessions are listed.</li>
-          <li>Tasks are <strong>grouped by Vibe Board column</strong> (In Progress, Up Next, Backlog, Completed, Notes) with collapsible groups and per-group Select All checkboxes.</li>
+          <li>Tasks are <strong>grouped by Build Board column</strong> (In Progress, Up Next, Backlog, Completed, Notes) with collapsible groups and per-group Select All checkboxes.</li>
         </ul>
         <h4>Importing from Jira</h4>
-        <p>Import Jira issues into Vibe Board as tasks. Click the <strong>Import from Jira</strong> button on the start page to open the import dialog.</p>
+        <p>Import Jira issues into Build Board as tasks. Click the <strong>Import from Jira</strong> button on the start page to open the import dialog.</p>
         <h4>Import &mdash; Step 1: Search</h4>
         <ul>
           <li>Select a <strong>Jira project</strong> from the dropdown. If you have a project mapping saved, the mapped project is pre-selected automatically.</li>
@@ -6038,11 +6038,11 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Import &mdash; Step 3: Status Mapping</h4>
         <ul>
-          <li>Map each <strong>Jira status</strong> present in your selected issues to a <strong>Vibe Board column</strong> (Up Next, In Progress, Backlog, Completed, Notes).</li>
+          <li>Map each <strong>Jira status</strong> present in your selected issues to a <strong>Build Board column</strong> (Up Next, In Progress, Backlog, Completed, Notes).</li>
           <li>Smart defaults are applied automatically &mdash; e.g. &ldquo;In Progress&rdquo; maps to In Progress, &ldquo;To Do&rdquo; maps to Up Next, &ldquo;Done&rdquo; maps to Completed.</li>
           <li>Previously saved mappings for the Jira project are loaded automatically and take priority over defaults.</li>
           <li>Check <strong>&ldquo;Remember this mapping&rdquo;</strong> to save the import mapping for the Jira project so it auto-populates next time.</li>
-          <li>If no session is active when you confirm, Vibe Board prompts you to <strong>start a session first</strong> and then completes the import automatically.</li>
+          <li>If no session is active when you confirm, Build Board prompts you to <strong>start a session first</strong> and then completes the import automatically.</li>
         </ul>`;
 
     case 'shortcuts':
@@ -6091,21 +6091,21 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>VS Code Commands</h4>
         <ul>
-          <li><code>Vibe Board: Start Session</code></li>
-          <li><code>Vibe Board: End Session</code></li>
-          <li><code>Vibe Board: Quick Add Task</code></li>
-          <li><code>Vibe Board: Export Session as Markdown</code></li>
+          <li><code>Build Board: Start Session</code></li>
+          <li><code>Build Board: End Session</code></li>
+          <li><code>Build Board: Quick Add Task</code></li>
+          <li><code>Build Board: Export Session as Markdown</code></li>
         </ul>
         <h4>Settings</h4>
         <p>You can configure these in <strong>VS Code Settings</strong> (<kbd>Ctrl+,</kbd>) or by clicking the <strong>&#9881; Settings</strong> icon in the toolbar.</p>
         <ul>
-          <li><code>vibeboard.autoPromptSession</code> &mdash; Prompt to start a session when VS Code opens (default: true).</li>
-          <li><code>vibeboard.carryOverTasks</code> &mdash; Carry over unfinished tasks to the next session (default: true).</li>
-          <li><code>vibeboard.autoBackup</code> &mdash; Automatically back up data (default: true).</li>
-          <li><code>vibeboard.autoBackupMaxCount</code> &mdash; Maximum backup files to keep (default: 10).</li>
-          <li><code>vibeboard.autoBackupIntervalMin</code> &mdash; Minutes between backups (default: 5, range: 1&ndash;60).</li>
-          <li><code>vibeboard.storageScope</code> &mdash; Where Vibe Board stores data: <strong>Global</strong> (default, shared across all workspaces) or <strong>Workspace</strong> (stored in <code>.vibeboard/</code> inside the current folder). Changing this requires a reload. If you previously used workspace storage and switch to global, your data is automatically migrated. Switching back to workspace restores the original workspace data.</li>
-          <li><code>vibeboard.jiraBaseUrl</code> &mdash; Your Jira Cloud base URL (e.g. <em>https://yourteam.atlassian.net</em>). Email and API token are stored in the OS keychain via the Settings dialog.</li>
+          <li><code>buildboard.autoPromptSession</code> &mdash; Prompt to start a session when VS Code opens (default: true).</li>
+          <li><code>buildboard.carryOverTasks</code> &mdash; Carry over unfinished tasks to the next session (default: true).</li>
+          <li><code>buildboard.autoBackup</code> &mdash; Automatically back up data (default: true).</li>
+          <li><code>buildboard.autoBackupMaxCount</code> &mdash; Maximum backup files to keep (default: 10).</li>
+          <li><code>buildboard.autoBackupIntervalMin</code> &mdash; Minutes between backups (default: 5, range: 1&ndash;60).</li>
+          <li><code>buildboard.storageScope</code> &mdash; Where Build Board stores data: <strong>Global</strong> (default, shared across all workspaces) or <strong>Workspace</strong> (stored in <code>.buildboard/</code> inside the current folder). Changing this requires a reload. If you previously used workspace storage and switch to global, your data is automatically migrated. Switching back to workspace restores the original workspace data.</li>
+          <li><code>buildboard.jiraBaseUrl</code> &mdash; Your Jira Cloud base URL (e.g. <em>https://yourteam.atlassian.net</em>). Email and API token are stored in the OS keychain via the Settings dialog.</li>
         </ul>`;
 
     default:

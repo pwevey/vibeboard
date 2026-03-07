@@ -1,5 +1,5 @@
 /**
- * Vibe Board - Git Utilities
+ * Build Board - Git Utilities
  * Provides git diff and change detection for the automation feature.
  */
 

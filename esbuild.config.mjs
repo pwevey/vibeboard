@@ -56,7 +56,7 @@ async function buildCSS() {
       minify: true,
       logLevel: 'silent',
     });
-    console.log('[vibeboard] CSS minified to dist/webview/');
+    console.log('[buildboard] CSS minified to dist/webview/');
   } else {
     const src = path.resolve('src/ui/webview/styles.css');
     const dest = path.resolve('dist/webview/styles.css');
@@ -65,7 +65,7 @@ async function buildCSS() {
       fs.mkdirSync(destDir, { recursive: true });
     }
     fs.copyFileSync(src, dest);
-    console.log('[vibeboard] CSS copied to dist/webview/');
+    console.log('[buildboard] CSS copied to dist/webview/');
   }
 }
 
@@ -79,13 +79,13 @@ async function build() {
       await coreCtx.watch();
       await webCtx.watch();
       await buildCSS();
-      console.log('[vibeboard] Watching for changes...');
+      console.log('[buildboard] Watching for changes...');
     } else {
       await esbuild.build(extensionConfig);
       await esbuild.build(coreConfig);
       await esbuild.build(webviewConfig);
       await buildCSS();
-      console.log('[vibeboard] Build complete.');
+      console.log('[buildboard] Build complete.');
     }
   } catch (err) {
     console.error(err);
