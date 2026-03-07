@@ -548,7 +548,8 @@ function renderAutomationBar(): string {
   } else if (autoState === 'reviewing') {
     actions = `<button class="auto-bar-btn" id="btn-auto-revise" title="Send revision feedback to Copilot">&#9998; Revise</button>
       <button class="auto-bar-btn success" id="btn-auto-approve" title="Approve and complete task">&#10003; Approve</button>
-      <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject and skip">&#10007; Reject</button>`;
+      <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject and skip">&#10007; Reject</button>
+      <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
   }
 
   // Checkpoint detail (verification result) or waiting message
