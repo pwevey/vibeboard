@@ -528,7 +528,7 @@ function renderAutomationBar(): string {
     const retryBtn = failedIdx >= 0
       ? `<button class="auto-bar-btn" id="btn-auto-retry-last" data-retry-index="${failedIdx}" title="Retry failed task">&circlearrowright; Retry</button>`
       : '';
-    actions = `<button class="auto-bar-btn primary" id="btn-auto-resume" title="Resume">&#9654; Resume</button>
+    actions = `<button class="auto-bar-btn primary" id="btn-auto-resume" title="Continue to next task">&#9654; Next</button>
       ${retryBtn}
       <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
   } else if (autoState === 'reviewing') {
