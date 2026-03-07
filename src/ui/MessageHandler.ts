@@ -599,15 +599,23 @@ export class MessageHandler {
           this.storage.setData(d);
         }
 
-        // Ensure at least one board exists, named after the session
+        // Reset board timers for the new session
         {
           const updatedData = this.storage.getData();
+          const boardName = sessionName || 'Main Board';
           if (!updatedData.boards || updatedData.boards.length === 0) {
-            const boardName = sessionName || 'Main Board';
             updatedData.boards = [{ id: 'default', name: boardName, createdAt: new Date().toISOString(), pausedAt: null, totalPausedMs: 0 }];
             updatedData.activeBoardId = 'default';
-            this.storage.setData(updatedData);
+          } else {
+            // Boards exist from a previous session — reset all timers
+            const now = new Date().toISOString();
+            for (const board of updatedData.boards) {
+              board.createdAt = now;
+              board.pausedAt = null;
+              board.totalPausedMs = 0;
+            }
           }
+          this.storage.setData(updatedData);
         }
 
         // Carry over incomplete tasks from ended sessions, scoped to project
