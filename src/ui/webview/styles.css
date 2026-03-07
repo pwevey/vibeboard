@@ -3903,3 +3903,146 @@ textarea:focus-visible {
   min-width: 24px;
   text-align: left;
 }
+
+/* ── Subtask Rename Inline Input ───────────────── */
+.subtask-rename-input {
+  flex: 1;
+  padding: 2px 4px;
+  font-size: 12px;
+  border: 1px solid var(--vscode-focusBorder, #007acc);
+  background: var(--vscode-input-background, #1e1e1e);
+  color: var(--vscode-input-foreground, #ccc);
+  border-radius: 3px;
+  outline: none;
+  min-width: 0;
+}
+
+/* ── Edit Card Subtasks ────────────────────────── */
+.edit-subtasks {
+  margin-top: 8px;
+  padding: 8px 0 0 0;
+  border-top: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.08));
+}
+.edit-subtasks-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  margin-bottom: 6px;
+}
+.edit-subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+.edit-subtask-row input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+.edit-subtask-title {
+  flex: 1;
+  padding: 3px 6px;
+  font-size: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--vscode-foreground);
+  border-radius: 3px;
+  outline: none;
+  min-width: 0;
+}
+.edit-subtask-title:focus {
+  border-color: var(--vscode-focusBorder, #007acc);
+  background: var(--vscode-input-background, #1e1e1e);
+}
+.edit-subtask-delete {
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0.5;
+  line-height: 1;
+}
+.edit-subtask-delete:hover {
+  opacity: 1;
+  color: var(--vscode-errorForeground, #f14c4c);
+}
+.edit-subtask-add-row {
+  margin-top: 4px;
+}
+.edit-subtask-new {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 12px;
+  border: 1px solid var(--vscode-input-border, rgba(255,255,255,0.15));
+  background: var(--vscode-input-background, #1e1e1e);
+  color: var(--vscode-input-foreground, #ccc);
+  border-radius: 3px;
+  outline: none;
+}
+.edit-subtask-new:focus {
+  border-color: var(--vscode-focusBorder, #007acc);
+}
+.edit-subtask-new::placeholder {
+  color: var(--vscode-input-placeholderForeground, #888);
+}
+
+/* ── Quick-Add Subtasks ────────────────────────── */
+.quick-add-subtasks {
+  padding: 4px 0;
+}
+.quick-add-subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 12px;
+  color: var(--vscode-foreground);
+}
+.quick-add-subtask-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quick-add-subtask-text::before {
+  content: '└ ';
+  opacity: 0.4;
+}
+.quick-add-subtask-remove {
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0.5;
+  line-height: 1;
+}
+.quick-add-subtask-remove:hover {
+  opacity: 1;
+  color: var(--vscode-errorForeground, #f14c4c);
+}
+.quick-add-subtask-add-row {
+  margin-top: 2px;
+}
+.quick-add-subtask-input {
+  width: 100%;
+  padding: 3px 6px;
+  font-size: 12px;
+  border: 1px solid var(--vscode-input-border, rgba(255,255,255,0.15));
+  background: var(--vscode-input-background, #1e1e1e);
+  color: var(--vscode-input-foreground, #ccc);
+  border-radius: 3px;
+  outline: none;
+}
+.quick-add-subtask-input:focus {
+  border-color: var(--vscode-focusBorder, #007acc);
+}
+.quick-add-subtask-input::placeholder {
+  color: var(--vscode-input-placeholderForeground, #888);
+}

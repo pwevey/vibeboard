@@ -95,6 +95,25 @@ export class MessageHandler {
           }
         }
 
+        // If quick-add included pending subtasks, create them linked to the parent
+        const quickAddSubtasks = (message.payload as { subtasks?: string[] }).subtasks;
+        if (quickAddSubtasks && quickAddSubtasks.length > 0) {
+          const data = this.storage.getData();
+          const parentTask = data.tasks[data.tasks.length - 1]; // the task we just added
+          if (parentTask) {
+            for (const subtaskTitle of quickAddSubtasks) {
+              this.taskManager.addTask({
+                title: subtaskTitle,
+                tag: parentTask.tag,
+                priority: parentTask.priority,
+                status: 'up-next',
+                sessionId: session.id,
+                parentTaskId: parentTask.id,
+              });
+            }
+          }
+        }
+
         this.sendStateUpdate();
         break;
       }
@@ -371,6 +390,16 @@ export class MessageHandler {
         let prompt = task.title;
         if (task.description) {
           prompt += '\n\n' + task.description;
+        }
+
+        // Include subtasks — append as a numbered checklist
+        const subtasks = data.tasks.filter((t) => t.parentTaskId === task.id);
+        if (subtasks.length > 0) {
+          prompt += '\n\nSubtasks:\n' + subtasks.map((s, i) => {
+            const check = s.status === 'completed' ? '[x]' : '[ ]';
+            return `${i + 1}. ${check} ${s.title}`;
+          }).join('\n');
+          prompt += '\n\nPlease implement each unchecked subtask above sequentially.';
         }
 
         // Prepend context instructions (project-level then task-level)

@@ -154,6 +154,8 @@ let pendingAIDescription: string = '';
 let voiceRecognition: unknown = null;
 let isVoiceRecording = false;
 let pendingQuickAddAttachments: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[] = [];
+/** Subtask titles staged for the next quick-add task creation */
+let pendingQuickAddSubtasks: string[] = [];
 let followUpTaskId: string | null = null;
 let inlineSubtaskParentId: string | null = null; // When set, shows inline subtask add input on this parent card
 let pendingFollowUpAttachments: { id: string; filename: string; mimeType: string; dataUri: string; addedAt: string }[] = [];
@@ -974,6 +976,15 @@ function renderQuickAdd(): string {
       <button class="icon-btn attach-qa-btn" id="btn-quick-attach" title="Attach file" aria-label="Attach file to new task">&#128206;</button>
       <button id="btn-quick-add">Add</button>
     </div>
+    <div class="quick-add-subtasks">
+      ${pendingQuickAddSubtasks.map((s, i) => `<div class="quick-add-subtask-item">
+        <span class="quick-add-subtask-text">${escapeHtml(s)}</span>
+        <button class="quick-add-subtask-remove" data-remove-subtask="${i}" title="Remove subtask">&#10005;</button>
+      </div>`).join('')}
+      <div class="quick-add-subtask-add-row">
+        <input type="text" class="quick-add-subtask-input" id="quick-add-subtask-input" placeholder="+ Add subtask…" />
+      </div>
+    </div>
     <div class="template-bar">${templateBtns}</div>
   </div>`;
 }
@@ -1055,7 +1066,7 @@ function renderTaskCard(task: VBTask): string {
         ${subtasks.length > 0 ? `<div class="subtask-header">${subtasks.filter(s => s.status === 'completed').length}/${subtasks.length} subtasks</div>` : ''}
         ${subtasks.slice(0, 5).map(s => `<div class="subtask-item ${s.status === 'completed' ? 'done' : ''}">
           <input type="checkbox" class="subtask-check" data-subtask-complete="${s.id}" ${s.status === 'completed' ? 'checked' : ''} />
-          <span class="subtask-title">${escapeHtml(s.title.length > 40 ? s.title.slice(0, 37) + '…' : s.title)}</span>
+          <span class="subtask-title" data-subtask-rename="${s.id}" title="Click to rename">${escapeHtml(s.title.length > 40 ? s.title.slice(0, 37) + '…' : s.title)}</span>
         </div>`).join('')}
         ${subtasks.length > 5 ? `<div class="subtask-more">+${subtasks.length - 5} more</div>` : ''}
         ${subtaskInputHtml}
@@ -1196,10 +1207,25 @@ function renderTaskEditCard(task: VBTask): string {
   // Combine title + description into a single textarea (first line = title, rest = description)
   const editValue = task.description ? `${task.title}\n${task.description}` : task.title;
 
+  // Subtasks section — show existing subtasks with editable titles + delete, and an add row
+  const subtasks = (state?.tasks || []).filter(t => t.parentTaskId === task.id);
+  const subtaskEditHtml = `<div class="edit-subtasks">
+    <div class="edit-subtasks-label">Subtasks${subtasks.length > 0 ? ` (${subtasks.length})` : ''}:</div>
+    ${subtasks.map((s, i) => `<div class="edit-subtask-row">
+      <input type="checkbox" class="subtask-check" data-edit-subtask-check="${s.id}" ${s.status === 'completed' ? 'checked' : ''} />
+      <input type="text" class="edit-subtask-title" data-edit-subtask-title="${s.id}" value="${escapeAttr(s.title)}" placeholder="Subtask title" />
+      <button class="edit-subtask-delete" data-edit-subtask-delete="${s.id}" title="Remove subtask">&#10005;</button>
+    </div>`).join('')}
+    <div class="edit-subtask-add-row">
+      <input type="text" class="edit-subtask-new" data-edit-subtask-new="${task.id}" placeholder="+ Add subtask…" />
+    </div>
+  </div>`;
+
   return `<div class="task-card editing" data-task-id="${task.id}" role="listitem">
     <textarea class="edit-unified-input" data-save-unified="${task.id}" placeholder="First line is the title, rest is description" rows="3" aria-label="Edit task">${escapeHtml(editValue)}</textarea>
     <div class="edit-hint">First line &#8594; title &middot; remaining lines &#8594; description</div>
     ${attachmentHtml}
+    ${subtaskEditHtml}
     <div class="edit-controls">
       <select data-save-tag="${task.id}" aria-label="Tag">${tagOpts}</select>
       <select data-save-priority="${task.id}" aria-label="Priority">${prioOpts}</select>
@@ -1872,6 +1898,37 @@ function bindEvents(): void {
     });
   });
 
+  // Subtask rename — click title to edit inline
+  document.querySelectorAll<HTMLElement>('[data-subtask-rename]').forEach((span) => {
+    span.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const subtaskId = span.dataset.subtaskRename!;
+      const subtask = findTask(subtaskId);
+      if (!subtask) { return; }
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'subtask-rename-input';
+      input.value = subtask.title;
+      span.textContent = '';
+      span.appendChild(input);
+      input.focus();
+      input.select();
+      const commit = () => {
+        const newTitle = input.value.trim();
+        if (newTitle && newTitle !== subtask.title) {
+          vscode.postMessage({ type: 'updateTask', payload: { id: subtaskId, changes: { title: newTitle } } });
+        } else {
+          render();
+        }
+      };
+      input.addEventListener('blur', commit, { once: true });
+      input.addEventListener('keydown', (ke) => {
+        if (ke.key === 'Enter') { ke.preventDefault(); input.blur(); }
+        if (ke.key === 'Escape') { ke.preventDefault(); input.value = subtask.title; input.blur(); }
+      });
+    });
+  });
+
   // Double-click to edit (on card or title)
   document.querySelectorAll<HTMLElement>('.task-card:not(.editing)').forEach((card) => {
     card.addEventListener('dblclick', (e) => {
@@ -1996,10 +2053,16 @@ function bindQuickAdd(): void {
       payload.attachments = pendingQuickAddAttachments;
     }
 
+    // Include pending subtasks if any
+    if (pendingQuickAddSubtasks.length > 0) {
+      payload.subtasks = [...pendingQuickAddSubtasks];
+    }
+
     vscode.postMessage({ type: 'addTask', payload });
     addInput.value = '';
     pendingAIDescription = '';
     pendingQuickAddAttachments = [];
+    pendingQuickAddSubtasks = [];
     pendingAIClassification = null;
     // Reset dropdown state to defaults
     quickAddTag = 'feature';
@@ -2066,6 +2129,34 @@ function bindQuickAdd(): void {
       e.stopPropagation();
       const removeId = el.dataset.removePending!;
       pendingQuickAddAttachments = pendingQuickAddAttachments.filter(a => a.id !== removeId);
+      render();
+    });
+  });
+
+  // Quick-add subtask input — Enter to add subtask to pending list
+  const subtaskInput = document.getElementById('quick-add-subtask-input') as HTMLInputElement | null;
+  subtaskInput?.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const val = subtaskInput.value.trim();
+      if (val) {
+        pendingQuickAddSubtasks.push(val);
+        subtaskInput.value = '';
+        render();
+        // Re-focus the subtask input after re-render
+        setTimeout(() => {
+          (document.getElementById('quick-add-subtask-input') as HTMLInputElement)?.focus();
+        }, 0);
+      }
+    }
+  });
+
+  // Remove pending subtask
+  document.querySelectorAll<HTMLElement>('[data-remove-subtask]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(el.dataset.removeSubtask!, 10);
+      pendingQuickAddSubtasks.splice(idx, 1);
       render();
     });
   });
@@ -2245,6 +2336,54 @@ function bindEditEvents(): void {
           };
           reader.readAsDataURL(blob);
           break;
+        }
+      }
+    });
+  });
+
+  // Edit-card subtask controls
+  // Subtask checkbox toggle in edit card
+  document.querySelectorAll<HTMLInputElement>('[data-edit-subtask-check]').forEach((el) => {
+    el.addEventListener('change', () => {
+      const id = el.dataset.editSubtaskCheck!;
+      if (el.checked) {
+        vscode.postMessage({ type: 'completeTask', payload: { id } });
+      } else {
+        vscode.postMessage({ type: 'moveTask', payload: { id, newStatus: 'up-next', newOrder: 0 } });
+      }
+    });
+  });
+  // Subtask title rename in edit card — save on blur or Enter
+  document.querySelectorAll<HTMLInputElement>('[data-edit-subtask-title]').forEach((input) => {
+    const subtaskId = input.dataset.editSubtaskTitle!;
+    const origVal = input.value;
+    const commitRename = () => {
+      const newTitle = input.value.trim();
+      if (newTitle && newTitle !== origVal) {
+        vscode.postMessage({ type: 'updateTask', payload: { id: subtaskId, changes: { title: newTitle } } });
+      }
+    };
+    input.addEventListener('blur', commitRename);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    });
+  });
+  // Subtask delete in edit card
+  document.querySelectorAll<HTMLElement>('[data-edit-subtask-delete]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.editSubtaskDelete!;
+      vscode.postMessage({ type: 'deleteTask', payload: { id } });
+    });
+  });
+  // Add new subtask from edit card
+  document.querySelectorAll<HTMLInputElement>('[data-edit-subtask-new]').forEach((input) => {
+    const parentId = input.dataset.editSubtaskNew!;
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const title = input.value.trim();
+        if (title) {
+          vscode.postMessage({ type: 'addSubtask', payload: { parentTaskId: parentId, title } });
         }
       }
     });
