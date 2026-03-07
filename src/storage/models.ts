@@ -201,6 +201,7 @@ export type WebviewToExtensionMessage =
   | { type: 'resumeAutomation'; payload: Record<string, never> }
   | { type: 'cancelAutomation'; payload: Record<string, never> }
   | { type: 'skipAutomationTask'; payload: Record<string, never> }
+  | { type: 'skipQueuedTask'; payload: { queueIndex: number } }
   | { type: 'approveAutomationTask'; payload: Record<string, never> }
   | { type: 'rejectAutomationTask'; payload: Record<string, never> }
   | { type: 'retryAutomationTask'; payload: { queueIndex: number } }

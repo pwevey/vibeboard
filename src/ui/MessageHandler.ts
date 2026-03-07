@@ -440,6 +440,12 @@ export class MessageHandler {
         break;
       }
 
+      case 'skipQueuedTask': {
+        const { queueIndex } = (message as { type: 'skipQueuedTask'; payload: { queueIndex: number } }).payload;
+        this.automationService.skipQueued(queueIndex);
+        break;
+      }
+
       case 'approveAutomationTask': {
         await this.automationService.approveCurrent();
         break;

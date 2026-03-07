@@ -572,7 +572,11 @@ function renderAutomationBar(): string {
       : item.status === 'failed' && retryCount >= maxRetries
       ? ' <span class="auto-retry-exhausted" title="Max retries reached">(max retries)</span>'
       : '';
-    return `<div class="auto-queue-item ${cls}"><span class="auto-queue-dot">${statusDot}</span> <span class="auto-queue-name">${name}</span>${retryBtn}</div>`;
+    // Show a Skip button for pending future tasks (after current index)
+    const skipBtn = item.status === 'pending' && i > currentIndex
+      ? ` <button class="auto-skip-queued-btn" data-skip-index="${i}" title="Skip this task">Skip</button>`
+      : '';
+    return `<div class="auto-queue-item ${cls}"><span class="auto-queue-dot">${statusDot}</span> <span class="auto-queue-name">${name}</span>${skipBtn}${retryBtn}</div>`;
   }).join('');
 
   return `<div class="automation-bar" role="region" aria-label="Automation progress">
@@ -1380,6 +1384,17 @@ function bindEvents(): void {
   });
   document.getElementById('btn-auto-reject')?.addEventListener('click', () => {
     vscode.postMessage({ type: 'rejectAutomationTask', payload: {} });
+  });
+
+  // Skip buttons for queued (future) tasks
+  document.querySelectorAll<HTMLElement>('.auto-skip-queued-btn').forEach((btn) => {
+    const idx = parseInt(btn.dataset.skipIndex || '-1', 10);
+    if (idx >= 0) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        vscode.postMessage({ type: 'skipQueuedTask', payload: { queueIndex: idx } });
+      });
+    }
   });
 
   // Retry buttons in automation queue

@@ -160,6 +160,15 @@ export class AutomationService {
     await this.processNext();
   }
 
+  /** Skip a specific queued (future) task by index without affecting the current task. */
+  skipQueued(index: number): void {
+    const item = this.queue[index];
+    if (!item || index <= this.currentIndex) { return; }
+    if (item.status !== 'pending') { return; }
+    item.status = 'skipped';
+    this.broadcastProgress();
+  }
+
   /** User approves the current checkpoint — mark done and advance. */
   async approveCurrent(): Promise<void> {
     const current = this.queue[this.currentIndex];
