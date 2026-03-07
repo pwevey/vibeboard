@@ -434,7 +434,7 @@ export class MessageHandler {
       }
 
       case 'cancelAutomation': {
-        this.automationService.cancel();
+        await this.automationService.cancel();
         break;
       }
 
@@ -455,7 +455,13 @@ export class MessageHandler {
       }
 
       case 'rejectAutomationTask': {
-        this.automationService.rejectCurrent();
+        await this.automationService.rejectCurrent();
+        break;
+      }
+
+      case 'reviseAutomationTask': {
+        const { feedback } = (message as { type: 'reviseAutomationTask'; payload: { feedback: string } }).payload;
+        await this.automationService.reviseCurrent(feedback);
         break;
       }
 
@@ -800,7 +806,7 @@ export class MessageHandler {
 
       case 'updateSetting': {
         const { key, value } = message.payload as { key: string; value: unknown };
-        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl', 'storageScope', 'automationAutoApproveThreshold', 'automationNoActivityTimeout'];
+        const allowedKeys = ['autoBackup', 'autoBackupMaxCount', 'autoBackupIntervalMin', 'autoPromptSession', 'carryOverTasks', 'jiraBaseUrl', 'storageScope', 'automationAutoApproveThreshold', 'automationNoActivityTimeout', 'automationBranching'];
         if (allowedKeys.includes(key)) {
           await vscode.workspace.getConfiguration('buildboard').update(key, value, vscode.ConfigurationTarget.Global);
           this.invalidateSettingsCache();

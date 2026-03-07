@@ -178,6 +178,7 @@ interface VBSettings {
   jiraApiTokenLength: number;
   automationAutoApproveThreshold: number;
   automationNoActivityTimeout: number;
+  automationBranching: boolean;
 }
 let extensionSettings: VBSettings = {
   autoBackup: true,
@@ -193,6 +194,7 @@ let extensionSettings: VBSettings = {
   jiraApiTokenLength: 0,
   automationAutoApproveThreshold: 100,
   automationNoActivityTimeout: 30,
+  automationBranching: false,
 };
 
 // Automation state
@@ -519,9 +521,10 @@ function renderAutomationBar(): string {
   if (autoState === 'running') {
     const stepStatus = currentItem?.status || 'pending';
     if (stepStatus === 'waiting') {
-      // During waiting, show Pause + Approve/Reject so user can pause to inspect Copilot
+      // During waiting, show Pause + Approve/Revise/Reject so user can interact with Copilot
       actions = `<button class="auto-bar-btn" id="btn-auto-pause" title="Pause automation">&#9208;</button>
         <button class="auto-bar-btn success" id="btn-auto-approve" title="Copilot is done — approve and complete">&#10003; Approve</button>
+        <button class="auto-bar-btn" id="btn-auto-revise" title="Send revision feedback to Copilot">&#9998; Revise</button>
         <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject changes">&#10007; Reject</button>
         <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
     } else {
@@ -544,6 +547,7 @@ function renderAutomationBar(): string {
       <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
   } else if (autoState === 'reviewing') {
     actions = `<button class="auto-bar-btn success" id="btn-auto-approve" title="Approve and complete task">&#10003; Approve</button>
+      <button class="auto-bar-btn" id="btn-auto-revise" title="Send revision feedback to Copilot">&#9998; Revise</button>
       <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject and skip">&#10007; Reject</button>`;
   }
 
@@ -572,6 +576,18 @@ function renderAutomationBar(): string {
       <div class="auto-verdict" style="opacity:0.7;">Verifying changes…</div>
     </div>`;
   }
+
+  // Revise feedback area — shown when Revise button is clicked
+  const showReviseArea = autoState === 'reviewing' || (autoState === 'running' && currentItem?.status === 'waiting');
+  const reviseArea = showReviseArea
+    ? `<div class="auto-revise-area" id="auto-revise-area" style="display:none;">
+        <textarea id="auto-revise-input" class="auto-revise-input" rows="3" placeholder="Describe what needs to change…"></textarea>
+        <div class="auto-revise-actions">
+          <button class="auto-bar-btn" id="btn-auto-revise-cancel">Cancel</button>
+          <button class="auto-bar-btn primary" id="btn-auto-revise-send">&#9654; Send Feedback</button>
+        </div>
+      </div>`
+    : '';
 
   // Queue mini-list
   const queueItems = queue.map((item, i) => {
@@ -613,6 +629,7 @@ function renderAutomationBar(): string {
     <div class="auto-progress-bar"><div class="auto-progress-fill" style="width:${pct}%"></div></div>
     <div class="auto-current">Current: <strong>${currentTitle}</strong></div>
     ${checkpointDetail}
+    ${reviseArea}
     <div class="auto-queue">${queueItems}</div>
   </div>`;
 }
@@ -672,6 +689,11 @@ function showAutomationTaskPicker(): void {
         <span id="auto-timeout-value" style="font-weight:600;min-width:36px;text-align:right;">${extensionSettings.automationNoActivityTimeout}s</span>
       </label>
       <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:4px 0 0;">Seconds to wait for file changes after sending a task to Copilot. Increase for complex tasks that need more Copilot thinking time.</p>
+      <label style="font-size:12px;display:flex;align-items:center;gap:8px;margin-top:8px;">
+        <input type="checkbox" id="auto-branching-toggle" ${extensionSettings.automationBranching ? 'checked' : ''} />
+        <span>Git branch isolation</span>
+      </label>
+      <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:4px 0 0;">Create a separate git branch for each task. Approve merges the branch; reject deletes it.</p>
     </div>
     <div class="modal-actions">
       <button class="secondary" id="auto-pick-cancel">Cancel</button>
@@ -785,8 +807,13 @@ function showAutomationTaskPicker(): void {
     const threshold = thresholdSlider ? parseInt(thresholdSlider.value, 10) : 100;
     const timeoutEl = document.getElementById('auto-timeout-slider') as HTMLInputElement;
     const timeout = timeoutEl ? parseInt(timeoutEl.value, 10) : 30;
+    const branchingToggle = document.getElementById('auto-branching-toggle') as HTMLInputElement;
+    const branching = branchingToggle ? branchingToggle.checked : false;
     overlay.remove();
     if (selected.length === 0) { return; }
+    // Persist branching setting before starting
+    vscode.postMessage({ type: 'updateSetting', payload: { key: 'automationBranching', value: branching } });
+    extensionSettings.automationBranching = branching;
     vscode.postMessage({ type: 'startAutomation', payload: { taskIds: selected, threshold, timeout } });
   });
 
@@ -1420,6 +1447,33 @@ function bindEvents(): void {
   });
   document.getElementById('btn-auto-reject')?.addEventListener('click', () => {
     vscode.postMessage({ type: 'rejectAutomationTask', payload: {} });
+  });
+
+  // Revise button — toggle the feedback input area
+  document.getElementById('btn-auto-revise')?.addEventListener('click', () => {
+    const area = document.getElementById('auto-revise-area');
+    if (area) {
+      area.style.display = area.style.display === 'none' ? 'block' : 'none';
+      const input = document.getElementById('auto-revise-input') as HTMLTextAreaElement | null;
+      if (input && area.style.display === 'block') { input.focus(); }
+    }
+  });
+
+  // Revise cancel — hide the feedback area
+  document.getElementById('btn-auto-revise-cancel')?.addEventListener('click', () => {
+    const area = document.getElementById('auto-revise-area');
+    if (area) { area.style.display = 'none'; }
+  });
+
+  // Revise send — submit feedback to Copilot
+  document.getElementById('btn-auto-revise-send')?.addEventListener('click', () => {
+    const input = document.getElementById('auto-revise-input') as HTMLTextAreaElement | null;
+    const feedback = input?.value.trim();
+    if (!feedback) { return; }
+    vscode.postMessage({ type: 'reviseAutomationTask', payload: { feedback } });
+    // Hide the revise area after sending
+    const area = document.getElementById('auto-revise-area');
+    if (area) { area.style.display = 'none'; }
   });
 
   // Retry button in top automation bar (paused state)
@@ -2351,6 +2405,11 @@ function showSettingsDialog(): void {
         <span class="setting-slider-value" data-slider-for="automationNoActivityTimeout" style="font-weight:600;min-width:36px;text-align:right;">${extensionSettings.automationNoActivityTimeout}s</span>
       </label>
       <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:4px 0 0;">Seconds to wait for file changes after sending a task to Copilot. Increase for complex tasks that need more Copilot thinking time.</p>
+      <label style="font-size:12px;display:flex;align-items:center;gap:8px;margin-top:8px;">
+        <input type="checkbox" class="setting-checkbox" data-setting="automationBranching" ${extensionSettings.automationBranching ? 'checked' : ''} />
+        <span>Git branch isolation</span>
+      </label>
+      <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:4px 0 0;">Create a separate git branch for each task. Approve merges the branch; reject deletes it.</p>
     </div>
     <div class="settings-section-divider"></div>
     <h4 class="settings-section-title">&#127919; Jira Integration</h4>
@@ -5933,6 +5992,7 @@ function renderHelpContent(section: string): string {
           <li><strong>Retry</strong> &mdash; Re-send a failed/rejected task to Copilot (appears when paused with a failed task).</li>
           <li><strong>Skip</strong> &mdash; Skip individual pending tasks in the queue list.</li>
           <li><strong>Approve / Reject</strong> &mdash; Accept or reject the current task at a checkpoint.</li>
+          <li><strong>Revise</strong> &mdash; Send feedback to Copilot without rejecting. Copilot will adjust the changes based on your feedback, and the task stays active.</li>
           <li><strong>Cancel</strong> &mdash; Stop automation entirely.</li>
         </ul>
         <h4>Retrying Failed Tasks</h4>
@@ -5947,7 +6007,17 @@ function renderHelpContent(section: string): string {
         <ul>
           <li><strong>Auto-Approve Threshold</strong> (0&ndash;100%) &mdash; Minimum AI confidence to auto-complete a task. Set to <strong>0%</strong> for fully hands-free automation. Set to <strong>100%</strong> to always require manual approval. Default: 100%.</li>
           <li><strong>No-Activity Timeout</strong> (5&ndash;300 seconds) &mdash; How long to wait for file changes after sending a task to Copilot. If no workspace edits are detected within this period, the task is auto-approved (at 0% threshold) or checkpointed for review. Increase for complex tasks that need more Copilot thinking time. Default: 30 seconds.</li>
+          <li><strong>Git Branch Isolation</strong> (on/off) &mdash; When enabled, each task runs on its own git branch (<code>buildboard/&lt;tag&gt;/&lt;title-slug&gt;</code>). Approving a task merges the branch into your base branch; rejecting deletes it. This gives each task a clean slate and makes it easy to undo changes. Default: off.</li>
         </ul>
+        <h4>Revise Feedback</h4>
+        <p>During a review checkpoint or while waiting for changes, you can click <strong>&#9998; Revise</strong> to send additional feedback to Copilot without rejecting the current task:</p>
+        <ul>
+          <li>A text area appears where you describe what needs to change.</li>
+          <li>Click <strong>&#9654; Send Feedback</strong> to re-send the task with your feedback.</li>
+          <li>Copilot receives your revision instructions along with the original task context.</li>
+          <li>The automation then watches for new changes just like the initial send.</li>
+        </ul>
+        <p>This is useful when Copilot's work is mostly correct but needs small adjustments &mdash; no need to reject and retry from scratch.</p>
         <h4>Requirements</h4>
         <ul>
           <li><strong>GitHub Copilot Chat</strong> must be installed and active (for sending tasks and AI verification).</li>
@@ -6235,6 +6305,7 @@ function renderHelpContent(section: string): string {
           <li><code>buildboard.storageScope</code> &mdash; Where Build Board stores data: <strong>Global</strong> (default, shared across all workspaces) or <strong>Workspace</strong> (stored in <code>.buildboard/</code> inside the current folder). Changing this requires a reload. If you previously used workspace storage and switch to global, your data is automatically migrated. Switching back to workspace restores the original workspace data.</li>
           <li><code>buildboard.automationAutoApproveThreshold</code> &mdash; Minimum AI confidence (0&ndash;100%) to auto-approve a task during automation. Set to 0 for fully hands-free. Default: 100.</li>
           <li><code>buildboard.automationNoActivityTimeout</code> &mdash; Seconds to wait for file changes after sending a task to Copilot (5&ndash;300). Default: 30.</li>
+          <li><code>buildboard.automationBranching</code> &mdash; Create a separate git branch for each automation task. Approve merges; reject deletes. Default: false.</li>
           <li><code>buildboard.jiraBaseUrl</code> &mdash; Your Jira Cloud base URL (e.g. <em>https://yourteam.atlassian.net</em>). Email and API token are stored in the OS keychain via the Settings dialog.</li>
         </ul>`;
 

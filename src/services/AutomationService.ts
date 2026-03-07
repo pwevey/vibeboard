@@ -20,7 +20,7 @@ import {
 import { StorageProvider } from '../storage/StorageProvider';
 import { TaskManager } from '../tasks/TaskManager';
 import { CopilotAIService } from './index';
-import { getGitDiff, getChangedFiles, getDiffStat } from '../utils/git';
+import { getGitDiff, getChangedFiles, getDiffStat, getCurrentBranch, createAndCheckoutBranch, checkoutBranch, mergeBranch, deleteBranch, commitAll, stashChanges, stashPop, slugifyForBranch } from '../utils/git';
 import { MAX_RETRY_COUNT } from '../storage/models';
 
 /** How long to wait after the last file change before capturing (ms). */
@@ -44,6 +44,11 @@ function getAutoApproveThreshold(): number {
   return vscode.workspace.getConfiguration('buildboard').get<number>('automationAutoApproveThreshold', 85);
 }
 
+/** Whether per-task git branching is enabled (read from settings). */
+function isBranchingEnabled(): boolean {
+  return vscode.workspace.getConfiguration('buildboard').get<boolean>('automationBranching', false);
+}
+
 export class AutomationService {
   private state: AutomationState = 'idle';
   private queue: AutomationQueueItem[] = [];
@@ -51,6 +56,8 @@ export class AutomationService {
   private startedAt: string | undefined;
   /** Monotonic counter incremented on each start/cancel to invalidate stale async flows. */
   private runId = 0;
+  /** The branch the user was on when automation started (used to return after branching). */
+  private baseBranch: string | undefined;
 
   private fileWatcher: vscode.FileSystemWatcher | undefined;
   private docChangeListener: vscode.Disposable | undefined;
@@ -109,6 +116,16 @@ export class AutomationService {
     this.startedAt = new Date().toISOString();
     this.runId++;
 
+    // Capture the current branch so we can return to it after branching operations
+    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (cwd && isBranchingEnabled()) {
+      try {
+        this.baseBranch = await getCurrentBranch(cwd);
+      } catch {
+        this.baseBranch = undefined;
+      }
+    }
+
     vscode.window.showInformationMessage(
       `Build Board: Automation started with ${tasks.length} task${tasks.length === 1 ? '' : 's'}.`
     );
@@ -150,9 +167,26 @@ export class AutomationService {
   }
 
   /** Cancel the automation run entirely. */
-  cancel(): void {
+  async cancel(): Promise<void> {
     this.runId++;
     this.cleanup();
+
+    // If branching is enabled, return to the base branch and clean up task branches
+    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (cwd && this.baseBranch && isBranchingEnabled()) {
+      try {
+        await checkoutBranch(cwd, this.baseBranch);
+        // Delete all task branches that weren't merged
+        for (const item of this.queue) {
+          if (item.branchName && item.status !== 'done') {
+            await deleteBranch(cwd, item.branchName);
+          }
+        }
+      } catch {
+        // Best-effort cleanup
+      }
+    }
+
     // Mark remaining pending tasks as skipped
     for (const item of this.queue) {
       if (item.status === 'pending' || item.status === 'sending' || item.status === 'waiting') {
@@ -173,6 +207,18 @@ export class AutomationService {
     if (current.status !== 'sending' && current.status !== 'waiting' &&
         current.status !== 'verifying' && current.status !== 'checkpoint') {
       return;
+    }
+
+    // If branching is enabled, return to base and delete the task branch
+    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (cwd && current.branchName && this.baseBranch && isBranchingEnabled()) {
+      try {
+        await checkoutBranch(cwd, this.baseBranch);
+        await deleteBranch(cwd, current.branchName);
+        current.branchName = undefined;
+      } catch {
+        // Best-effort cleanup
+      }
     }
 
     current.status = 'skipped';
@@ -206,6 +252,22 @@ export class AutomationService {
 
     this.cleanup(); // Clear any lingering timers from waitForChanges
 
+    // If branching is enabled, commit changes on the task branch, then merge into base
+    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (cwd && current.branchName && this.baseBranch && isBranchingEnabled()) {
+      try {
+        const data2 = this.storage.getData();
+        const t2 = data2.tasks.find((t) => t.id === current.taskId);
+        const commitMsg = t2 ? `feat: ${t2.title}` : `feat: automation task`;
+        await commitAll(cwd, commitMsg);
+        await checkoutBranch(cwd, this.baseBranch);
+        await mergeBranch(cwd, current.branchName);
+        await deleteBranch(cwd, current.branchName);
+      } catch (err) {
+        vscode.window.showWarningMessage(`Build Board: Branch merge failed — ${err instanceof Error ? err.message : 'unknown error'}. Changes remain on branch "${current.branchName}".`);
+      }
+    }
+
     current.status = 'done';
     current.completedAt = new Date().toISOString();
 
@@ -224,11 +286,23 @@ export class AutomationService {
   }
 
   /** User rejects the current checkpoint — mark failed and pause. */
-  rejectCurrent(): void {
+  async rejectCurrent(): Promise<void> {
     const current = this.queue[this.currentIndex];
     if (!current) { return; }
 
     this.cleanup(); // Clear any lingering timers from waitForChanges
+
+    // If branching is enabled, discard the task branch and return to base
+    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (cwd && current.branchName && this.baseBranch && isBranchingEnabled()) {
+      try {
+        await checkoutBranch(cwd, this.baseBranch);
+        await deleteBranch(cwd, current.branchName);
+        current.branchName = undefined;
+      } catch {
+        // Best-effort cleanup
+      }
+    }
 
     current.status = 'failed';
     current.completedAt = new Date().toISOString();
@@ -243,11 +317,71 @@ export class AutomationService {
     );
     if (allResolved) {
       this.runId++;
-      this.finish();
+      await this.finish();
     } else {
       this.state = 'paused';
       this.broadcastProgress();
       vscode.window.showInformationMessage('Build Board: Task rejected. Automation paused — resume to continue with next task.');
+    }
+  }
+
+  /** User sends revision feedback — stay on same task/branch, send feedback to Copilot. */
+  async reviseCurrent(feedback: string): Promise<void> {
+    const current = this.queue[this.currentIndex];
+    if (!current) { return; }
+
+    // Only allow revise from reviewing or waiting states
+    if (this.state !== 'reviewing' && !(this.state === 'running' && current.status === 'waiting')) {
+      return;
+    }
+
+    this.cleanup(); // Clear any lingering timers
+
+    const data = this.storage.getData();
+    const task = data.tasks.find((t) => t.id === current.taskId);
+    if (!task) { return; }
+
+    // Stay on the same branch — just re-send with feedback
+    current.status = 'sending';
+    this.state = 'running';
+    this.broadcastProgress();
+
+    const myRunId = this.runId;
+    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+    // Build a revision prompt that includes context and feedback
+    let prompt = `[REVISION] The previous changes for "${task.title}" need adjustments.\n\n`;
+    prompt += `Feedback: ${feedback}`;
+    if (task.description) {
+      prompt += `\n\nOriginal task description:\n${task.description}`;
+    }
+
+    // Send revision to Copilot
+    if (this.sendToCopilot) {
+      await this.sendToCopilot(prompt, [], task.tag);
+    }
+
+    // Guard: if this run was superseded while awaiting sendToCopilot, bail out
+    if (this.runId !== myRunId) { return; }
+
+    // Guard: if paused while awaiting sendToCopilot, mark as waiting and bail
+    if (this.state === 'paused') {
+      current.status = 'waiting';
+      this.broadcastProgress();
+      return;
+    }
+
+    // Watch for new changes from Copilot's revision
+    current.status = 'waiting';
+    this.broadcastProgress();
+
+    if (cwd) {
+      await this.waitForChanges(cwd, current, task, myRunId);
+    } else {
+      current.status = 'checkpoint';
+      current.result = 'No workspace folder — cannot verify changes.';
+      this.state = 'reviewing';
+      this.broadcastProgress();
     }
   }
 
@@ -271,6 +405,18 @@ export class AutomationService {
     item.changedFiles = undefined;
     item.completedAt = undefined;
     item.startedAt = undefined;
+
+    // If branching is enabled, delete the old task branch so a fresh one is created
+    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (cwd && item.branchName && this.baseBranch && isBranchingEnabled()) {
+      try {
+        await checkoutBranch(cwd, this.baseBranch);
+        await deleteBranch(cwd, item.branchName);
+        item.branchName = undefined;
+      } catch {
+        // Best-effort cleanup
+      }
+    }
 
     // Remove it from its current position
     this.queue.splice(queueIndex, 1);
@@ -335,7 +481,7 @@ export class AutomationService {
       q.status === 'done' || q.status === 'skipped' || q.status === 'failed'
     );
     if (allResolved) {
-      this.finish();
+      await this.finish();
     } else {
       this.broadcastProgress();
     }
@@ -366,7 +512,7 @@ export class AutomationService {
 
     // Check if we're done
     if (this.currentIndex >= this.queue.length) {
-      this.finish();
+      await this.finish();
       return;
     }
 
@@ -439,6 +585,19 @@ export class AutomationService {
 
     // Record baseline for change detection
     const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+    // If branching is enabled, create and switch to a per-task branch
+    if (cwd && this.baseBranch && isBranchingEnabled()) {
+      try {
+        // Ensure we're on the base branch before creating the task branch
+        await checkoutBranch(cwd, this.baseBranch);
+        const branchName = slugifyForBranch(task.tag, task.title);
+        await createAndCheckoutBranch(cwd, branchName);
+        item.branchName = branchName;
+      } catch (err) {
+        vscode.window.showWarningMessage(`Build Board: Failed to create branch — ${err instanceof Error ? err.message : 'unknown error'}. Continuing without branching.`);
+      }
+    }
 
     // Send to Copilot
     if (this.sendToCopilot) {
@@ -692,11 +851,27 @@ export class AutomationService {
   }
 
   /** Automation run complete. */
-  private finish(): void {
+  private async finish(): Promise<void> {
     this.cleanup();
     const completed = this.queue.filter((q) => q.status === 'done').length;
     const failed = this.queue.filter((q) => q.status === 'failed').length;
     const skipped = this.queue.filter((q) => q.status === 'skipped').length;
+
+    // Return to base branch if branching was used
+    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (cwd && this.baseBranch && isBranchingEnabled()) {
+      try {
+        await checkoutBranch(cwd, this.baseBranch);
+        // Clean up any remaining unmerged task branches
+        for (const item of this.queue) {
+          if (item.branchName && item.status !== 'done') {
+            await deleteBranch(cwd, item.branchName);
+          }
+        }
+      } catch {
+        // Best-effort cleanup
+      }
+    }
 
     this.state = 'idle';
     this.broadcastProgress();

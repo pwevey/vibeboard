@@ -96,6 +96,11 @@
           "maximum": 300,
           "description": "Seconds to wait for file changes after sending a task to Copilot. If no workspace edits are detected within this period, the task is auto-approved (at 0% threshold) or checkpointed for review."
         },
+        "buildboard.automationBranching": {
+          "type": "boolean",
+          "default": false,
+          "description": "Create a separate git branch for each automation task. Approve merges the branch; reject deletes it."
+        },
         "buildboard.autoBackup": {
           "type": "boolean",
           "default": true,

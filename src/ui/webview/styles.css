@@ -3015,6 +3015,37 @@ textarea:focus-visible {
   word-break: break-all;
 }
 
+/* Revise feedback area */
+.auto-revise-area {
+  margin: 6px 0;
+  padding: 6px 8px;
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 4px;
+}
+.auto-revise-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 48px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 3px;
+}
+.auto-revise-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+.auto-revise-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+
 .auto-queue {
   display: flex;
   flex-direction: column;

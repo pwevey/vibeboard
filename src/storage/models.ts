@@ -145,6 +145,7 @@ export interface AutomationQueueItem {
   startedAt?: string;        // ISO 8601
   completedAt?: string;      // ISO 8601
   retryCount?: number;       // how many times this task has been retried (max 3)
+  branchName?: string;       // per-task git branch (when branching is enabled)
 }
 
 /** Maximum number of retry attempts per task. */
@@ -204,6 +205,7 @@ export type WebviewToExtensionMessage =
   | { type: 'skipQueuedTask'; payload: { queueIndex: number } }
   | { type: 'approveAutomationTask'; payload: Record<string, never> }
   | { type: 'rejectAutomationTask'; payload: Record<string, never> }
+  | { type: 'reviseAutomationTask'; payload: { feedback: string } }
   | { type: 'retryAutomationTask'; payload: { queueIndex: number } }
   | { type: 'createProject'; payload: { id?: string; name: string; color?: string; workspace?: string; copilotContext?: string } }
   | { type: 'renameProject'; payload: { projectId: string; name: string } }

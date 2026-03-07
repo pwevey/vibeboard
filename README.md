@@ -42,6 +42,9 @@ A lightweight Kanban-style sidebar for developers who work with AI assistants. C
 |---------|---------|-------------|
 | `buildboard.autoPromptSession` | `true` | Prompt to start a session when VSCode opens |
 | `buildboard.carryOverTasks` | `true` | Carry unfinished tasks to the next session |
+| `buildboard.automationAutoApproveThreshold` | `100` | Minimum AI confidence (0–100%) to auto-approve a task during automation |
+| `buildboard.automationNoActivityTimeout` | `30` | Seconds to wait for file changes after sending a task to Copilot (5–300) |
+| `buildboard.automationBranching` | `false` | Create a separate git branch per automation task; approve merges, reject deletes |
 
 ## Data Storage
 
