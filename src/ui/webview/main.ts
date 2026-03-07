@@ -515,11 +515,9 @@ function renderAutomationBar(): string {
       // During waiting, show Approve/Reject so user can act immediately when Copilot finishes
       actions = `<button class="auto-bar-btn success" id="btn-auto-approve" title="Copilot is done — approve and complete">&#10003; Approve</button>
         <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject changes">&#10007; Reject</button>
-        <button class="auto-bar-btn" id="btn-auto-skip" title="Skip this task">Skip</button>
         <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
     } else {
       actions = `<button class="auto-bar-btn" id="btn-auto-pause" title="Pause">&#9208;</button>
-        <button class="auto-bar-btn" id="btn-auto-skip" title="Skip this task">Skip</button>
         <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
     }
   } else if (autoState === 'paused') {
@@ -528,7 +526,7 @@ function renderAutomationBar(): string {
   } else if (autoState === 'reviewing') {
     actions = `<button class="auto-bar-btn success" id="btn-auto-approve" title="Approve and complete task">&#10003; Approve</button>
       <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject and skip">&#10007; Reject</button>
-      <button class="auto-bar-btn" id="btn-auto-skip" title="Skip without rejecting">Skip</button>`;
+      <button class="auto-bar-btn" id="btn-auto-skip" title="Skip without approving or rejecting">Skip</button>`;
   }
 
   // Checkpoint detail (verification result) or waiting message
