@@ -2707,10 +2707,16 @@ function showStartSessionDialog(): void {
       <option value="__new__">+ New Project</option>
     </select>
     <div id="new-project-inline" style="display:none;margin-bottom:8px;">
-      <input type="text" id="new-project-name" placeholder="Project name..." style="width:100%;padding:6px;margin:4px 0;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
-      <div class="project-color-picker" style="margin:4px 0 0;">
+      <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;margin-top:4px;">Name</label>
+      <input type="text" id="new-project-name" placeholder="Project name..." style="width:100%;padding:6px;margin:0 0 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+      <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Group <span style="opacity:0.6;">(optional)</span></label>
+      <input type="text" id="new-project-group" placeholder="e.g. Work, Personal, Client Name" style="width:100%;padding:6px;margin:0 0 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;" />
+      <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:4px;">Color</label>
+      <div class="project-color-picker" style="margin:0 0 8px;">
         ${PROJECT_COLORS.map((c, i) => `<button type="button" class="project-color-btn${i === 0 ? ' selected' : ''}" data-color="${c}" style="background:${c};" aria-label="Color ${c}"></button>`).join('')}
       </div>
+      <label style="font-size:11px;color:var(--vscode-descriptionForeground);display:block;margin-bottom:2px;">Copilot Context <span style="opacity:0.6;">(optional)</span></label>
+      <textarea id="new-project-context" placeholder="e.g. Always add comments, run tests, update help docs..." rows="2" style="width:100%;padding:6px;margin:0;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;resize:vertical;font-family:inherit;font-size:12px;"></textarea>
     </div>
     <div class="modal-actions" style="margin-top:8px;">
       <button class="secondary" id="modal-cancel">Cancel</button>
@@ -2769,7 +2775,11 @@ function showStartSessionDialog(): void {
       const newName = newProjectNameInput?.value.trim();
       if (!newName) { newProjectNameInput?.focus(); return; }
       const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
-      vscode.postMessage({ type: 'createProject', payload: { name: newName, color: selectedNewColor, id: newId } });
+      const groupInput = document.getElementById('new-project-group') as HTMLInputElement;
+      const contextInput = document.getElementById('new-project-context') as HTMLTextAreaElement;
+      const workspace = groupInput?.value.trim() || undefined;
+      const copilotContext = contextInput?.value.trim() || undefined;
+      vscode.postMessage({ type: 'createProject', payload: { name: newName, color: selectedNewColor, id: newId, workspace, copilotContext } });
       projectId = newId;
     }
 
