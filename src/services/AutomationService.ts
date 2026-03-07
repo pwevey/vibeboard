@@ -123,6 +123,9 @@ export class AutomationService {
         this.baseBranch = await getCurrentBranch(cwd);
       } catch {
         this.baseBranch = undefined;
+        vscode.window.showWarningMessage(
+          'Build Board: Git branch isolation is enabled but git is not available or this folder is not a git repository. Automation will continue without branching.'
+        );
       }
     }
 
