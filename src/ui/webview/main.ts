@@ -519,12 +519,13 @@ function renderAutomationBar(): string {
   if (autoState === 'running') {
     const stepStatus = currentItem?.status || 'pending';
     if (stepStatus === 'waiting') {
-      // During waiting, show Approve/Reject so user can act immediately when Copilot finishes
-      actions = `<button class="auto-bar-btn success" id="btn-auto-approve" title="Copilot is done — approve and complete">&#10003; Approve</button>
+      // During waiting, show Pause + Approve/Reject so user can pause to inspect Copilot
+      actions = `<button class="auto-bar-btn" id="btn-auto-pause" title="Pause automation">&#9208;</button>
+        <button class="auto-bar-btn success" id="btn-auto-approve" title="Copilot is done — approve and complete">&#10003; Approve</button>
         <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject changes">&#10007; Reject</button>
         <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
     } else {
-      actions = `<button class="auto-bar-btn" id="btn-auto-pause" title="Pause">&#9208;</button>
+      actions = `<button class="auto-bar-btn" id="btn-auto-pause" title="Pause automation">&#9208;</button>
         <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject changes">&#10007; Reject</button>
         <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
     }
@@ -535,7 +536,11 @@ function renderAutomationBar(): string {
     const retryBtn = failedIdx >= 0
       ? `<button class="auto-bar-btn" id="btn-auto-retry-last" data-retry-index="${failedIdx}" title="Retry failed task">&circlearrowright; Retry</button>`
       : '';
-    actions = `${retryBtn}<button class="auto-bar-btn primary" id="btn-auto-resume" title="Continue to next task">&#9654; Next</button>
+    // Show "Resume" when paused mid-task (waiting), "Next" when paused after reject
+    const isMidTask = currentItem && (currentItem.status === 'waiting' || currentItem.status === 'sending');
+    const resumeLabel = isMidTask ? '&#9654; Resume' : '&#9654; Next';
+    const resumeTitle = isMidTask ? 'Resume automation' : 'Continue to next task';
+    actions = `${retryBtn}<button class="auto-bar-btn primary" id="btn-auto-resume" title="${resumeTitle}">${resumeLabel}</button>
       <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
   } else if (autoState === 'reviewing') {
     actions = `<button class="auto-bar-btn success" id="btn-auto-approve" title="Approve and complete task">&#10003; Approve</button>

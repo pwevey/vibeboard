@@ -132,6 +132,20 @@ export class AutomationService {
     this.state = 'running';
     this.broadcastProgress();
     vscode.window.showInformationMessage('Build Board: Automation resumed.');
+
+    // If paused mid-task while waiting for changes, restart the file watch
+    // instead of re-sending the task to Copilot
+    const current = this.queue[this.currentIndex];
+    if (current && current.status === 'waiting') {
+      const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const data = this.storage.getData();
+      const task = data.tasks.find((t) => t.id === current.taskId);
+      if (cwd && task) {
+        await this.waitForChanges(cwd, current, task, this.runId);
+        return;
+      }
+    }
+
     await this.processNext();
   }
 
@@ -433,6 +447,14 @@ export class AutomationService {
 
     // Guard: if this run was superseded while awaiting sendToCopilot, bail out
     if (this.runId !== myRunId) { return; }
+
+    // Guard: if paused while awaiting sendToCopilot, mark as waiting and bail
+    // — resume() will restart the file watch
+    if (this.state === 'paused') {
+      item.status = 'waiting';
+      this.broadcastProgress();
+      return;
+    }
 
     // Step 2: Watch for file changes
     item.status = 'waiting';
