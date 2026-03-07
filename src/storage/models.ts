@@ -198,6 +198,7 @@ export type WebviewToExtensionMessage =
   | { type: 'addAttachment'; payload: { taskId: string } }
   | { type: 'removeAttachment'; payload: { taskId: string; attachmentId: string } }
   | { type: 'pasteAttachment'; payload: { taskId: string; dataUri: string; filename: string } }
+  | { type: 'voiceUnavailable'; payload: Record<string, never> }
   | { type: 'pickFilesForQuickAdd'; payload: Record<string, never> }
   | { type: 'sendFollowUp'; payload: { taskId: string; prompt: string; attachments?: VBAttachment[] } }
   | { type: 'pickFilesForFollowUp'; payload: { taskId: string } }

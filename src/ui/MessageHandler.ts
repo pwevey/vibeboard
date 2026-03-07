@@ -680,6 +680,14 @@ export class MessageHandler {
         break;
       }
 
+      case 'voiceUnavailable': {
+        // SpeechRecognition API is not available in VS Code webviews
+        vscode.window.showWarningMessage(
+          'Voice input is not available. The Web Speech API is not supported in VS Code webview panels.'
+        );
+        break;
+      }
+
       case 'pickFilesForQuickAdd': {
         // Open file dialog for quick-add attachments (before task exists)
         const files = await vscode.window.showOpenDialog({

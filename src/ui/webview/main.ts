@@ -1207,6 +1207,7 @@ function renderFollowUpSection(taskId: string): string {
 function renderTaskEditCard(task: VBTask): string {
   const tagOpts = TAG_OPTIONS.map((t) => `<option value="${t}" ${task.tag === t ? 'selected' : ''}>${TAG_LABELS[t]}</option>`).join('');
   const prioOpts = PRIORITY_OPTIONS.map((p) => `<option value="${p}" ${task.priority === p ? 'selected' : ''}>${PRIORITY_LABELS[p]}</option>`).join('');
+  const micSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>`;
 
   const attachments = (task.attachments || []);
   const attachmentHtml = attachments.length > 0
@@ -1242,7 +1243,7 @@ function renderTaskEditCard(task: VBTask): string {
   </div>`;
 
   return `<div class="task-card editing" data-task-id="${task.id}" role="listitem">
-    <textarea class="edit-unified-input" data-save-unified="${task.id}" placeholder="First line is the title, rest is description" rows="3" aria-label="Edit task">${escapeHtml(editValue)}</textarea>
+    <textarea class="edit-unified-input" id="edit-input-${task.id}" data-save-unified="${task.id}" placeholder="First line is the title, rest is description" rows="3" aria-label="Edit task">${escapeHtml(editValue)}</textarea>
     <div class="edit-hint">First line &#8594; title &middot; remaining lines &#8594; description</div>
     ${attachmentHtml}
     ${subtaskEditHtml}
@@ -1250,8 +1251,9 @@ function renderTaskEditCard(task: VBTask): string {
       <select data-save-tag="${task.id}" aria-label="Tag">${tagOpts}</select>
       <select data-save-priority="${task.id}" aria-label="Priority">${prioOpts}</select>
       <input type="date" class="edit-due-date" data-save-due="${task.id}" value="${task.dueDate || ''}" title="Due date" aria-label="Due date" />
+      <button class="icon-btn voice-btn" data-edit-voice="${task.id}" title="Voice input">${micSvg}</button>
+      <button class="icon-btn attach-qa-btn" data-add-attachment="${task.id}" title="Attach file" aria-label="Attach file">&#128206;</button>
       <div class="edit-buttons">
-        <button class="secondary" data-add-attachment="${task.id}" title="Attach file">&#128206; Attach</button>
         <button class="secondary" data-cancel-edit="${task.id}">Cancel</button>
         <button data-save-edit="${task.id}">Save</button>
       </div>
@@ -2299,8 +2301,8 @@ function toggleVoiceRecording(targetElement?: HTMLTextAreaElement | null): void 
 
   if (!voiceRecognition) { initVoiceRecognition(); }
   if (!voiceRecognition) {
-    const input = document.getElementById(voiceTargetId) as HTMLTextAreaElement | null;
-    if (input) { input.placeholder = 'Voice input not supported in this environment'; }
+    // SpeechRecognition API not available in VS Code webviews — notify user
+    vscode.postMessage({ type: 'voiceUnavailable', payload: {} });
     return;
   }
 
@@ -2322,7 +2324,9 @@ function toggleVoiceRecording(targetElement?: HTMLTextAreaElement | null): void 
 function updateVoiceButton(): void {
   const btn = document.getElementById('btn-voice');
   const fuBtn = document.getElementById('btn-follow-up-voice');
-  for (const b of [btn, fuBtn]) {
+  // Also update any edit-card voice buttons (data-edit-voice)
+  const editVoiceBtns = document.querySelectorAll<HTMLElement>('[data-edit-voice]');
+  for (const b of [btn, fuBtn, ...editVoiceBtns]) {
     if (!b) { continue; }
     b.classList.toggle('recording', isVoiceRecording);
     b.title = isVoiceRecording ? 'Stop recording' : 'Voice input';
@@ -2353,6 +2357,14 @@ function bindEditEvents(): void {
   });
   document.querySelectorAll<HTMLElement>('[data-cancel-edit]').forEach((el) => {
     el.addEventListener('click', () => { editingTaskId = null; render(); });
+  });
+  // Voice input for edit card textarea
+  document.querySelectorAll<HTMLElement>('[data-edit-voice]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const taskId = btn.dataset.editVoice!;
+      const ta = document.getElementById(`edit-input-${taskId}`) as HTMLTextAreaElement | null;
+      toggleVoiceRecording(ta);
+    });
   });
   // Auto-resize unified edit textareas to fit content, handle Escape to cancel
   document.querySelectorAll<HTMLTextAreaElement>('[data-save-unified]').forEach((ta) => {
