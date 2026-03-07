@@ -159,10 +159,17 @@ export class MessageHandler {
         break;
       }
 
-      case 'deleteTask':
+      case 'deleteTask': {
+        // Cascade — delete subtasks first so each gets its own undo entry
+        const delData = this.storage.getData();
+        const subtasks = delData.tasks.filter(t => t.parentTaskId === message.payload.id);
+        for (const sub of subtasks) {
+          this.taskManager.deleteTask(sub.id);
+        }
         this.taskManager.deleteTask(message.payload.id);
         this.sendStateUpdate();
         break;
+      }
 
       case 'undo': {
         const action = this.taskManager.undo();
