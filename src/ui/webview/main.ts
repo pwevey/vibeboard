@@ -1216,7 +1216,6 @@ function renderTaskEditCard(task: VBTask): string {
   const subtaskEditHtml = `<div class="edit-subtasks">
     <div class="edit-subtasks-label">Subtasks${subtasks.length > 0 ? ` (${subtasks.length})` : ''}:</div>
     ${subtasks.map((s, i) => `<div class="edit-subtask-row">
-      <input type="checkbox" class="subtask-check" data-edit-subtask-check="${s.id}" ${s.status === 'completed' ? 'checked' : ''} />
       <input type="text" class="edit-subtask-title" data-edit-subtask-title="${s.id}" value="${escapeAttr(s.title)}" placeholder="Subtask title" />
       <button class="edit-subtask-delete" data-edit-subtask-delete="${s.id}" title="Remove subtask">&#10005;</button>
     </div>`).join('')}
@@ -2381,17 +2380,6 @@ function bindEditEvents(): void {
   });
 
   // Edit-card subtask controls
-  // Subtask checkbox toggle in edit card
-  document.querySelectorAll<HTMLInputElement>('[data-edit-subtask-check]').forEach((el) => {
-    el.addEventListener('change', () => {
-      const id = el.dataset.editSubtaskCheck!;
-      if (el.checked) {
-        vscode.postMessage({ type: 'completeTask', payload: { id } });
-      } else {
-        vscode.postMessage({ type: 'moveTask', payload: { id, newStatus: 'up-next', newOrder: 0 } });
-      }
-    });
-  });
   // Subtask title rename in edit card — save on blur or Enter
   document.querySelectorAll<HTMLInputElement>('[data-edit-subtask-title]').forEach((input) => {
     const subtaskId = input.dataset.editSubtaskTitle!;
