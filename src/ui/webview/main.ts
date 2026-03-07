@@ -6077,11 +6077,13 @@ function renderHelpContent(section: string): string {
           <li><strong>Automation Bar</strong> &mdash; Appears during automation, showing the current task, queue progress, and pause/skip/cancel controls.</li>
           <li><strong>Stats Bar</strong> &mdash; Live counts for total tasks, completed, in progress, up next, and high-priority items.</li>
           <li><strong>Search &amp; Filter</strong> &mdash; Filter tasks by text, tag, or priority.</li>
-          <li><strong>Quick Add</strong> &mdash; Fast task creation with tag, priority, and column selectors plus template buttons, voice input, and AI Improve.</li>
+          <li><strong>Quick Add</strong> &mdash; Fast task creation with tag, priority, and column selectors plus subtask staging, template buttons, voice input, and AI Improve.</li>
           <li><strong>Columns</strong> &mdash; Five columns: <em>In Progress</em>, <em>Up Next</em>, <em>Backlog</em>, <em>Completed</em>, and <em>Notes</em>. Click headers to collapse.</li>
         </ul>
         <h4>AI &amp; Automation</h4>
-        <p>Build Board integrates deeply with <strong>GitHub Copilot Chat</strong> &mdash; from one-click sends and follow-ups to fully automated task queues with AI-powered verification. See the <em>AI Features</em> and <em>Automation</em> tabs for details.</p>`;
+        <p>Build Board integrates deeply with <strong>GitHub Copilot Chat</strong> &mdash; from one-click sends and follow-ups to fully automated task queues with AI-powered verification. See the <em>AI Features</em> and <em>Automation</em> tabs for details.</p>
+        <h4>Analytics</h4>
+        <p>A live <strong>Analytics Dashboard</strong> appears below the board, showing completion rates, tag distribution, priority breakdown, and productivity metrics for the current session.</p>`;
 
     case 'tasks':
       return `
@@ -6092,11 +6094,12 @@ function renderHelpContent(section: string): string {
           <li>Select a <strong>tag</strong> (Feature, Bug, Refactor, Note, Plan, Todo), <strong>priority</strong> (High, Medium, Low), and <strong>column</strong> before adding.</li>
           <li>Use <kbd>Ctrl+N</kbd> to focus the quick-add input from anywhere.</li>
           <li>Use template buttons (emoji row) for pre-filled task types.</li>
+          <li><strong>Add subtasks during creation</strong> &mdash; Use the <em>+ Add subtask&hellip;</em> input below the textarea to stage subtasks before clicking Add. Press <kbd>Enter</kbd> or click <strong>&#10003;</strong> to add each subtask. Click <strong>&#10005;</strong> to clear. Subtasks are created and linked to the parent task automatically.</li>
         </ul>
         <h4>Editing Tasks</h4>
         <ul>
           <li><strong>Double-click</strong> a task title to edit inline.</li>
-          <li>Click the <strong>pencil icon</strong> (&#9998;) to open the full edit form with title, description, tag, priority, and <strong>due date</strong> fields.</li>
+          <li>Click the <strong>pencil icon</strong> (&#9998;) to open the full edit form with title, description, tag, priority, <strong>due date</strong>, and <strong>subtask management</strong>.</li>
           <li>Press <kbd>Enter</kbd> on a focused task card to start editing.</li>
           <li>Press <kbd>Escape</kbd> to cancel editing.</li>
         </ul>
@@ -6116,10 +6119,13 @@ function renderHelpContent(section: string): string {
         <h4>Subtasks</h4>
         <ul>
           <li><strong>Manual subtasks</strong> &mdash; Right-click a task &rarr; <em>Add Subtask</em> to type a subtask title inline on the card. Press <kbd>Enter</kbd> to add, <kbd>Escape</kbd> to cancel.</li>
-          <li><strong>AI Break to Subtasks</strong> &mdash; Right-click a task &rarr; <em>AI Break to Subtasks</em> to have AI split it into actionable subtasks automatically.</li>
-          <li>Subtasks are linked to their parent and appear as a <strong>nested checklist</strong> on the parent card.</li>
-          <li>A <strong>progress bar</strong> below the subtask header shows completion progress.</li>
-          <li>Check off subtasks directly from the parent card via their checkboxes.</li>
+          <li><strong>AI Break to Subtasks</strong> &mdash; Right-click a task &rarr; <em>AI Break to Subtasks</em> to have AI split it into actionable subtasks automatically. A <strong>review dialog</strong> appears showing the generated subtasks &mdash; click <strong>OK</strong> to keep them or <strong>Cancel</strong> to undo (only AI-generated subtasks are removed; existing subtasks are preserved).</li>
+          <li><strong>Add during creation</strong> &mdash; Use the <em>+ Add subtask&hellip;</em> input in the quick-add area to define subtasks before creating the parent task.</li>
+          <li><strong>Manage in edit card</strong> &mdash; Open the edit form to see a full subtask list where you can rename titles, delete subtasks, or add new ones with the <strong>&#10003;</strong>/<strong>&#10005;</strong> buttons.</li>
+          <li><strong>Rename subtasks</strong> &mdash; Click a subtask title on the task card to rename it inline. Press <kbd>Enter</kbd> or click away to save, <kbd>Escape</kbd> to cancel.</li>
+          <li>Subtasks appear as a <strong>nested checklist</strong> on the parent card with a <strong>progress bar</strong> showing completion.</li>
+          <li><strong>Expand/collapse</strong> &mdash; If a task has more than 5 subtasks, click <em>+N more</em> to expand the full list, and <em>&#9650; Show less</em> to collapse.</li>
+          <li><strong>Check/uncheck</strong> subtasks directly from the parent card checkboxes to mark them complete or reopen them.</li>
           <li>When <strong>all subtasks</strong> are completed, the parent task is <strong>automatically marked complete</strong>.</li>
           <li>Subtasks don&rsquo;t appear as standalone cards in columns &mdash; they&rsquo;re only visible on their parent.</li>
         </ul>
@@ -6197,6 +6203,14 @@ function renderHelpContent(section: string): string {
           <li>Use the <strong>tag dropdown</strong> to show only a specific tag.</li>
           <li>Use the <strong>priority dropdown</strong> to filter by priority level.</li>
           <li>Filters apply across all columns simultaneously.</li>
+        </ul>
+        <h4>Analytics Dashboard</h4>
+        <p>A live analytics section appears below the board columns, providing real-time insights into your session:</p>
+        <ul>
+          <li><strong>Stat cards</strong> &mdash; Total tasks, completed count, completion rate percentage, and average time per task.</li>
+          <li><strong>Tag distribution</strong> &mdash; A color-coded horizontal bar chart showing how many tasks you have per tag (Feature, Bug, Refactor, etc.).</li>
+          <li><strong>Priority breakdown</strong> &mdash; Bar chart showing task counts by priority level (High, Medium, Low).</li>
+          <li>Analytics update automatically as you add, complete, and move tasks.</li>
         </ul>`;
 
     case 'sessions':
@@ -6349,12 +6363,13 @@ function renderHelpContent(section: string): string {
         <ul>
           <li>Right-click a task and choose <strong>AI Break to Subtasks</strong> from the context menu.</li>
           <li>The AI splits the task into 3&ndash;5 actionable subtasks, which are linked to the parent task.</li>
+          <li>A <strong>review dialog</strong> appears listing the generated subtasks. Click <strong>OK</strong> to accept or <strong>Cancel</strong> to undo and delete only the AI-generated subtasks (any manually added subtasks are preserved).</li>
         </ul>
         <h4>Send to Copilot</h4>
         <ul>
           <li>Click the <strong>rocket icon</strong> (&#x1F680;) on any task card to send it directly to <strong>Copilot Chat</strong>.</li>
           <li>You can also right-click a task and choose <strong>Send to Copilot</strong> from the context menu.</li>
-          <li>The task title and description are placed into the Copilot Chat input so you can start prompting immediately.</li>
+          <li>The task title, description, and <strong>all subtasks</strong> (as a numbered checklist with completion status) are placed into the Copilot Chat input so you can start prompting immediately.</li>
           <li><strong>Plan tasks</strong> automatically open in <strong>Ask mode</strong>, so Copilot provides a planning response instead of making changes immediately.</li>
           <li>The task is <strong>automatically moved to In Progress</strong> and flagged as sent to Copilot.</li>
           <li>If Copilot Chat is not available, the prompt is copied to your clipboard instead.</li>
