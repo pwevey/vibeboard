@@ -1401,7 +1401,9 @@ body.is-dragging .task-card:not(.dragging) {
   min-width: 280px;
   max-width: 480px;
   max-height: 80vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .settings-dialog-header {
@@ -1409,6 +1411,19 @@ body.is-dragging .task-card:not(.dragging) {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.2));
+  flex-shrink: 0;
+}
+
+.settings-dialog > .start-settings {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .settings-dialog-header h3 {

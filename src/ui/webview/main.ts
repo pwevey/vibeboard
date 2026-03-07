@@ -2390,11 +2390,6 @@ function showSettingsDialog(): void {
       </label>
       <div id="jira-mapping-content"></div>
     </div>
-    <div class="jira-save-row" style="margin-top:12px;justify-content:center;">
-      <button class="secondary settings-save-all-btn" id="settings-save-bottom">Save</button>
-      <span class="jira-save-status" id="settings-save-status"></span>
-    </div>
-
   </div>`;
   document.body.appendChild(overlay);
 
@@ -2580,7 +2575,7 @@ function showSettingsDialog(): void {
     });
 
     // Show saved confirmation near the clicked button
-    const statusId = clickedBtn?.id === 'settings-save-top' ? '#settings-save-status-top' : '#settings-save-status';
+    const statusId = '#settings-save-status-top';
     const status = overlay.querySelector(statusId) as HTMLElement | null;
     if (status) {
       status.textContent = '\u2713 Saved';
