@@ -6536,18 +6536,26 @@ function renderHelpContent(section: string): string {
     case 'attachments':
       return `
         <h3>Attachments</h3>
-        <p>Attach images and files to any task. Great for screenshots, mockups, and reference materials.</p>
+        <p>Attach files to any task. Great for screenshots, mockups, reference docs, and code snippets.</p>
+        <h4>Supported File Types</h4>
+        <ul>
+          <li><strong>Images</strong> &mdash; PNG, JPG, GIF, WebP, SVG, BMP</li>
+          <li><strong>Documents</strong> &mdash; PDF, Word (DOC/DOCX), Excel (XLS/XLSX), PowerPoint (PPTX), TXT, Markdown, CSV</li>
+          <li><strong>Code</strong> &mdash; JS, TS, Python, Ruby, Go, Java, C, C++, C#, Rust, Shell, SQL, R</li>
+          <li><strong>Data</strong> &mdash; JSON, XML, YAML, HTML, CSS, LOG, ZIP</li>
+        </ul>
         <h4>Adding Attachments</h4>
         <ul>
           <li>Click the <strong>paperclip icon</strong> (&#128206;) on a task card or in the edit form to open a file picker.</li>
-          <li>Select one or more images (PNG, JPG, GIF, WebP, SVG, BMP) or any file.</li>
+          <li>The file picker only shows supported file types &mdash; unsupported formats are filtered out.</li>
           <li><strong>Paste images</strong> directly into the description field when editing &mdash; paste from clipboard (Ctrl+V) and images are attached automatically.</li>
         </ul>
         <h4>Viewing Attachments</h4>
         <ul>
           <li>Image thumbnails appear on the task card below the description.</li>
           <li>Up to 3 thumbnail previews are shown; the attachment count badge (&#128206;) shows the total.</li>
-          <li>Click any thumbnail to open a <strong>full-size preview</strong> in a modal.</li>
+          <li>Click any image thumbnail to open a <strong>full-size preview</strong> in a modal.</li>
+          <li>Non-image attachments are shown with a file icon (&#128196;) and filename.</li>
         </ul>
         <h4>Managing Attachments</h4>
         <ul>
@@ -6556,8 +6564,8 @@ function renderHelpContent(section: string): string {
         </ul>
         <h4>Attachments + Copilot</h4>
         <ul>
-          <li>When you <strong>Send to Copilot</strong> a task with image attachments, the images are saved to a temporary folder and attached directly to the Copilot Chat prompt.</li>
-          <li>You can also attach images in the <strong>follow-up section</strong> &mdash; use the paperclip button or paste images (<kbd>Ctrl+V</kbd>) into the follow-up text area. These are sent along with your follow-up prompt.</li>
+          <li>When you <strong>Send to Copilot</strong> a task with attachments, all files (images, documents, code, etc.) are saved to a temporary folder and attached directly to the Copilot Chat prompt.</li>
+          <li>You can also attach files in the <strong>follow-up section</strong> &mdash; use the paperclip button or paste images (<kbd>Ctrl+V</kbd>) into the follow-up text area. These are sent along with your follow-up prompt.</li>
         </ul>`;
 
     case 'export':

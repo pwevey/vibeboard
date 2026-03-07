@@ -10,6 +10,38 @@ import { SecretStorageService } from '../services/SecretStorageService';
 import { generateId } from '../utils/uuid';
 import { getCurrentBranch, createAndCheckoutBranch, slugifyForBranch } from '../utils/git';
 
+/** Supported file extensions → MIME type mapping for attachments. */
+const ATTACHMENT_MIME_MAP: Record<string, string> = {
+  // Images
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml',
+  // Documents
+  pdf: 'application/pdf', doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  // Text & code
+  txt: 'text/plain', md: 'text/markdown', csv: 'text/csv',
+  json: 'application/json', xml: 'application/xml', yaml: 'text/yaml', yml: 'text/yaml',
+  html: 'text/html', css: 'text/css',
+  js: 'text/javascript', ts: 'text/typescript',
+  py: 'text/x-python', rb: 'text/x-ruby', go: 'text/x-go',
+  java: 'text/x-java', c: 'text/x-c', cpp: 'text/x-c++',
+  cs: 'text/x-csharp', rs: 'text/x-rust', sh: 'text/x-shellscript',
+  sql: 'text/x-sql', r: 'text/x-r',
+  // Archives / misc
+  zip: 'application/zip', log: 'text/plain',
+};
+
+/** File picker filter groups (only supported extensions appear in the dialog). */
+const ATTACHMENT_FILTERS: Record<string, string[]> = {
+  'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'],
+  'Documents': ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'pptx', 'txt', 'md', 'csv'],
+  'Code': ['js', 'ts', 'py', 'rb', 'go', 'java', 'c', 'cpp', 'cs', 'rs', 'sh', 'sql', 'r'],
+  'Data': ['json', 'xml', 'yaml', 'yml', 'html', 'css', 'log', 'zip'],
+};
+
 /**
  * MessageHandler processes messages from the webview and dispatches
  * to the appropriate manager. It also sends state updates back.
@@ -478,7 +510,7 @@ export class MessageHandler {
         const fuTaskId = message.payload.taskId;
         const fuFiles = await vscode.window.showOpenDialog({
           canSelectMany: true,
-          filters: { 'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], 'All Files': ['*'] },
+          filters: ATTACHMENT_FILTERS,
           title: 'Attach files to follow-up',
         });
         if (fuFiles && fuFiles.length > 0) {
@@ -487,8 +519,7 @@ export class MessageHandler {
             try {
               const fileData = await vscode.workspace.fs.readFile(fileUri);
               const ext = fileUri.path.split('.').pop()?.toLowerCase() || '';
-              const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml' };
-              const mime = mimeMap[ext] || 'application/octet-stream';
+              const mime = ATTACHMENT_MIME_MAP[ext] || 'application/octet-stream';
               const base64 = Buffer.from(fileData).toString('base64');
               const dataUri = `data:${mime};base64,${base64}`;
               const filename = fileUri.path.split('/').pop() || 'file';
@@ -578,10 +609,7 @@ export class MessageHandler {
         // Open file dialog and add the selected image(s) to the task
         const files = await vscode.window.showOpenDialog({
           canSelectMany: true,
-          filters: {
-            'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'],
-            'All Files': ['*'],
-          },
+          filters: ATTACHMENT_FILTERS,
           title: 'Attach files to task',
         });
         if (!files || files.length === 0) { break; }
@@ -596,12 +624,7 @@ export class MessageHandler {
             const fileBytes = await vscode.workspace.fs.readFile(fileUri);
             const filename = fileUri.path.split('/').pop() || 'attachment';
             const ext = filename.split('.').pop()?.toLowerCase() || '';
-            const mimeMap: Record<string, string> = {
-              png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-              gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
-              svg: 'image/svg+xml',
-            };
-            const mimeType = mimeMap[ext] || 'application/octet-stream';
+            const mimeType = ATTACHMENT_MIME_MAP[ext] || 'application/octet-stream';
             const base64 = Buffer.from(fileBytes).toString('base64');
             const dataUri = `data:${mimeType};base64,${base64}`;
 
@@ -660,10 +683,7 @@ export class MessageHandler {
         // Open file dialog for quick-add attachments (before task exists)
         const files = await vscode.window.showOpenDialog({
           canSelectMany: true,
-          filters: {
-            'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'],
-            'All Files': ['*'],
-          },
+          filters: ATTACHMENT_FILTERS,
           title: 'Attach files to new task',
         });
         if (!files || files.length === 0) { break; }
@@ -674,12 +694,7 @@ export class MessageHandler {
             const fileBytes = await vscode.workspace.fs.readFile(fileUri);
             const filename = fileUri.path.split('/').pop() || 'attachment';
             const ext = filename.split('.').pop()?.toLowerCase() || '';
-            const mimeMap: Record<string, string> = {
-              png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-              gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
-              svg: 'image/svg+xml',
-            };
-            const mimeType = mimeMap[ext] || 'application/octet-stream';
+            const mimeType = ATTACHMENT_MIME_MAP[ext] || 'application/octet-stream';
             const base64 = Buffer.from(fileBytes).toString('base64');
             const dataUri = `data:${mimeType};base64,${base64}`;
 
@@ -1433,21 +1448,20 @@ export class MessageHandler {
    * @param useAgentMode If true, opens chat in Agent mode (for automation).
    */
   private async sendPromptToCopilot(prompt: string, attachments: VBAttachment[] = [], useAgentMode = false, useAskMode = false): Promise<void> {
-    const imageAttachments = attachments.filter((a) => a.mimeType.startsWith('image/'));
-    const savedImagePaths: vscode.Uri[] = [];
+    const savedFilePaths: vscode.Uri[] = [];
 
-    if (imageAttachments.length > 0) {
+    if (attachments.length > 0) {
       const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
       if (workspaceFolder) {
         const tempDir = vscode.Uri.joinPath(workspaceFolder.uri, '.buildboard', 'temp');
         try { await vscode.workspace.fs.createDirectory(tempDir); } catch { /* exists */ }
-        for (const att of imageAttachments) {
+        for (const att of attachments) {
           try {
             const base64Data = att.dataUri.replace(/^data:[^;]+;base64,/, '');
             const bytes = Buffer.from(base64Data, 'base64');
             const tempFile = vscode.Uri.joinPath(tempDir, att.filename);
             await vscode.workspace.fs.writeFile(tempFile, bytes);
-            savedImagePaths.push(tempFile);
+            savedFilePaths.push(tempFile);
           } catch { /* skip */ }
         }
       }
@@ -1461,8 +1475,8 @@ export class MessageHandler {
       } else if (useAskMode) {
         chatOptions.mode = 'ask';
       }
-      if (savedImagePaths.length > 0) {
-        chatOptions.attachFiles = savedImagePaths;
+      if (savedFilePaths.length > 0) {
+        chatOptions.attachFiles = savedFilePaths;
         chatOptions.isPartialQuery = true;
       }
       await vscode.commands.executeCommand('workbench.action.chat.open', chatOptions);
@@ -1478,7 +1492,7 @@ export class MessageHandler {
       }
     }
 
-    if (chatOpened && savedImagePaths.length > 0) {
+    if (chatOpened && savedFilePaths.length > 0) {
       await new Promise((r) => setTimeout(r, 1000));
       try {
         await vscode.commands.executeCommand('workbench.action.chat.submit');
