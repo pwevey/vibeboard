@@ -2301,6 +2301,7 @@ function showSettingsDialog(): void {
         <button class="icon-btn" id="settings-close-btn" aria-label="Close settings">&times;</button>
       </div>
     </div>
+    <div class="settings-body">
     <div class="start-settings">
       <label class="start-setting-row">
         <span class="start-setting-label">Storage Scope</span>
@@ -2389,6 +2390,7 @@ function showSettingsDialog(): void {
         </select>
       </label>
       <div id="jira-mapping-content"></div>
+    </div>
     </div>
   </div>`;
   document.body.appendChild(overlay);
