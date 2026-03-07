@@ -504,6 +504,7 @@ export class AutomationService {
 
   /** Capture git diff and verify with LM API. */
   private async captureAndVerify(cwd: string, item: AutomationQueueItem, task: VBTask): Promise<void> {
+    if (this.state === 'idle') { return; }
     item.status = 'verifying';
     this.broadcastProgress();
 
@@ -514,6 +515,9 @@ export class AutomationService {
         getChangedFiles(cwd),
         getDiffStat(cwd),
       ]);
+
+      // Guard: if cancelled while awaiting git operations, bail out
+      if (this.state === 'idle') { return; }
 
       item.changedFiles = changedFiles;
       item.diffSummary = diffStat;
@@ -542,6 +546,7 @@ export class AutomationService {
       }
 
       if (changedFiles.length === 0) {
+        if (this.state === 'idle') { return; }
         item.status = 'checkpoint';
         item.result = 'No file changes detected. Verify manually.';
         this.state = 'reviewing';
@@ -559,6 +564,9 @@ export class AutomationService {
         truncatedDiff,
         changedFiles
       );
+
+      // Guard: if cancelled while awaiting verification, bail out
+      if (this.state === 'idle') { return; }
 
       item.result = `${verification.explanation} (Confidence: ${verification.confidence}%)`;
 
@@ -582,15 +590,17 @@ export class AutomationService {
         this.broadcastProgress();
 
         // Check for pause before next
-        if (this.state === 'paused') { return; }
+        if (this.state === 'paused' || this.state === 'idle') { return; }
         await this.processNext();
       } else {
         // Low confidence or not completed — checkpoint for user review
+        if (this.state === 'idle') { return; }
         item.status = 'checkpoint';
         this.state = 'reviewing';
         this.broadcastProgress();
       }
     } catch {
+      if (this.state === 'idle') { return; }
       item.status = 'checkpoint';
       item.result = 'Verification error — please review manually.';
       this.state = 'reviewing';
