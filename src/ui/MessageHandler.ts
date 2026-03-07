@@ -1264,6 +1264,7 @@ export class MessageHandler {
       jiraApiTokenLength: jiraSummary.tokenLength,
       automationAutoApproveThreshold: config.get<number>('automationAutoApproveThreshold', 100),
       automationNoActivityTimeout: config.get<number>('automationNoActivityTimeout', 30),
+      automationBranching: config.get<boolean>('automationBranching', false),
     };
     this.webview.postMessage({ type: 'settingsUpdate', payload: this.settingsCache });
   }
