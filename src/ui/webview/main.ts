@@ -1132,9 +1132,12 @@ function renderTaskEditCard(task: VBTask): string {
       </div>`
     : '';
 
+  // Combine title + description into a single textarea (first line = title, rest = description)
+  const editValue = task.description ? `${task.title}\n${task.description}` : task.title;
+
   return `<div class="task-card editing" data-task-id="${task.id}" role="listitem">
-    <input type="text" class="edit-title-input" data-save-title="${task.id}" value="${escapeAttr(task.title)}" placeholder="Task title" aria-label="Edit title" />
-    <textarea class="edit-desc-input" data-save-desc="${task.id}" placeholder="Description (optional)" rows="3" aria-label="Edit description">${escapeHtml(task.description)}</textarea>
+    <textarea class="edit-unified-input" data-save-unified="${task.id}" placeholder="First line is the title, rest is description" rows="3" aria-label="Edit task">${escapeHtml(editValue)}</textarea>
+    <div class="edit-hint">First line &#8594; title &middot; remaining lines &#8594; description</div>
     ${attachmentHtml}
     <div class="edit-controls">
       <select data-save-tag="${task.id}" aria-label="Tag">${tagOpts}</select>
@@ -1660,8 +1663,8 @@ function bindEvents(): void {
       editingTaskId = card.dataset.taskId!;
       render();
       setTimeout(() => {
-        const input = document.querySelector(`[data-save-title="${editingTaskId}"]`) as HTMLInputElement;
-        input?.focus(); input?.select();
+        const input = document.querySelector(`[data-save-unified="${editingTaskId}"]`) as HTMLTextAreaElement;
+        input?.focus();
       }, 0);
     });
   });
@@ -1673,8 +1676,8 @@ function bindEvents(): void {
       editingTaskId = el.dataset.edit!;
       render();
       setTimeout(() => {
-        const input = document.querySelector(`[data-save-title="${editingTaskId}"]`) as HTMLInputElement;
-        input?.focus(); input?.select();
+        const input = document.querySelector(`[data-save-unified="${editingTaskId}"]`) as HTMLTextAreaElement;
+        input?.focus();
       }, 0);
     });
   });
@@ -1990,19 +1993,16 @@ function bindEditEvents(): void {
   document.querySelectorAll<HTMLElement>('[data-cancel-edit]').forEach((el) => {
     el.addEventListener('click', () => { editingTaskId = null; render(); });
   });
-  document.querySelectorAll<HTMLInputElement>('[data-save-title]').forEach((el) => {
-    el.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Enter') { e.preventDefault(); saveEdit(el.dataset.saveTitle!); }
-      if (e.key === 'Escape') { editingTaskId = null; render(); }
-    });
-  });
-  // Auto-resize description textareas to fit content
-  document.querySelectorAll<HTMLTextAreaElement>('[data-save-desc]').forEach((ta) => {
+  // Auto-resize unified edit textareas to fit content, handle Escape to cancel
+  document.querySelectorAll<HTMLTextAreaElement>('[data-save-unified]').forEach((ta) => {
     ta.style.height = 'auto';
     ta.style.height = Math.min(Math.max(ta.scrollHeight, 80), 300) + 'px';
     ta.addEventListener('input', () => {
       ta.style.height = 'auto';
       ta.style.height = Math.min(Math.max(ta.scrollHeight, 80), 300) + 'px';
+    });
+    ta.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { editingTaskId = null; render(); }
     });
     // Paste image support — paste an image from clipboard into the edit form
     ta.addEventListener('paste', (e: ClipboardEvent) => {
@@ -2034,17 +2034,21 @@ function bindEditEvents(): void {
 }
 
 function saveEdit(taskId: string): void {
-  const titleInput = document.querySelector(`[data-save-title="${taskId}"]`) as HTMLInputElement;
-  const descInput = document.querySelector(`[data-save-desc="${taskId}"]`) as HTMLTextAreaElement;
+  const unifiedInput = document.querySelector(`[data-save-unified="${taskId}"]`) as HTMLTextAreaElement;
   const tagSelect = document.querySelector(`[data-save-tag="${taskId}"]`) as HTMLSelectElement;
   const prioSelect = document.querySelector(`[data-save-priority="${taskId}"]`) as HTMLSelectElement;
 
-  if (!titleInput) { return; }
-  const title = titleInput.value.trim();
-  if (!title) { return; }
+  if (!unifiedInput) { return; }
+  const rawText = unifiedInput.value.trim();
+  if (!rawText) { return; }
 
-  const changes: Record<string, string> = { title };
-  if (descInput) { changes.description = descInput.value; }
+  // First line is the title, everything after is the description (mirrors quick-add)
+  const lines = rawText.split('\n');
+  const title = lines[0].trim();
+  if (!title) { return; }
+  const description = lines.slice(1).join('\n').trim();
+
+  const changes: Record<string, string> = { title, description };
   if (tagSelect) { changes.tag = tagSelect.value; }
   if (prioSelect) { changes.priority = prioSelect.value; }
 

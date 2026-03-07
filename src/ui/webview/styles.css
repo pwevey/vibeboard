@@ -654,27 +654,10 @@ body.is-dragging .task-card:not(.dragging) {
    Inline Edit UI
    ============================================================ */
 
-.edit-title-input {
+.edit-unified-input {
   width: 100%;
   font-family: var(--vscode-font-family);
   font-size: 12px;
-  font-weight: 500;
-  padding: 4px 8px;
-  border: 1px solid var(--vscode-input-border);
-  border-radius: 2px;
-  background: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  outline: none;
-}
-
-.edit-title-input:focus {
-  border-color: var(--vscode-focusBorder);
-}
-
-.edit-desc-input {
-  width: 100%;
-  font-family: var(--vscode-font-family);
-  font-size: 11px;
   padding: 4px 8px;
   border: 1px solid var(--vscode-input-border);
   border-radius: 2px;
@@ -687,8 +670,15 @@ body.is-dragging .task-card:not(.dragging) {
   line-height: 1.4;
 }
 
-.edit-desc-input:focus {
+.edit-unified-input:focus {
   border-color: var(--vscode-focusBorder);
+}
+
+.edit-hint {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+  margin: -2px 0 2px 2px;
+  opacity: 0.8;
 }
 
 .edit-controls {
