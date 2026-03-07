@@ -683,12 +683,13 @@ body.is-dragging .task-card:not(.dragging) {
 
 .edit-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
 
 .edit-controls select {
-  flex: 1;
+  flex: 1 1 auto;
   font-family: var(--vscode-font-family);
   font-size: 11px;
   padding: 3px 6px;
@@ -704,6 +705,7 @@ body.is-dragging .task-card:not(.dragging) {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 /* ============================================================
@@ -3847,13 +3849,14 @@ textarea:focus-visible {
 
 /* ── Edit Due Date ─────────────────────────────── */
 .edit-due-date {
-  width: 100%;
-  padding: 6px 8px;
+  flex: 0 0 auto;
+  width: auto;
+  padding: 3px 6px;
   border: 1px solid var(--vscode-input-border, rgba(255,255,255,0.15));
   background: var(--vscode-input-background, #1e1e1e);
   color: var(--vscode-input-foreground, #ccc);
-  border-radius: 4px;
-  font-size: 13px;
+  border-radius: 2px;
+  font-size: 11px;
   outline: none;
 }
 .edit-due-date:focus {
