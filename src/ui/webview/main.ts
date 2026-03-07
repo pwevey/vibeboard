@@ -510,9 +510,18 @@ function renderAutomationBar(): string {
   // Action buttons based on state
   let actions = '';
   if (autoState === 'running') {
-    actions = `<button class="auto-bar-btn" id="btn-auto-pause" title="Pause">&#9208;</button>
-      <button class="auto-bar-btn" id="btn-auto-skip" title="Skip this task">Skip</button>
-      <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
+    const stepStatus = currentItem?.status || 'pending';
+    if (stepStatus === 'waiting') {
+      // During waiting, show Approve/Reject so user can act immediately when Copilot finishes
+      actions = `<button class="auto-bar-btn success" id="btn-auto-approve" title="Copilot is done — approve and complete">&#10003; Approve</button>
+        <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject changes">&#10007; Reject</button>
+        <button class="auto-bar-btn" id="btn-auto-skip" title="Skip this task">Skip</button>
+        <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
+    } else {
+      actions = `<button class="auto-bar-btn" id="btn-auto-pause" title="Pause">&#9208;</button>
+        <button class="auto-bar-btn" id="btn-auto-skip" title="Skip this task">Skip</button>
+        <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
+    }
   } else if (autoState === 'paused') {
     actions = `<button class="auto-bar-btn primary" id="btn-auto-resume" title="Resume">&#9654; Resume</button>
       <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
@@ -536,7 +545,7 @@ function renderAutomationBar(): string {
     </div>`;
   } else if (currentItem?.status === 'waiting') {
     checkpointDetail = `<div class="auto-checkpoint-detail">
-      <div class="auto-verdict" style="opacity:0.7;">Watching for file changes from Copilot… Use <strong>Skip</strong> to move to the next task.</div>
+      <div class="auto-verdict" style="opacity:0.7;"><span class="auto-loading-dots"><span>.</span><span>.</span><span>.</span></span> Watching for file changes from Copilot. If the response is complete, click <strong>Approve</strong> or <strong>Reject</strong>.</div>
     </div>`;
   } else if (currentItem?.status === 'sending') {
     checkpointDetail = `<div class="auto-checkpoint-detail">

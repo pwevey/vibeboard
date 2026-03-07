@@ -2984,6 +2984,20 @@ textarea:focus-visible {
   color: var(--vscode-foreground);
 }
 
+.auto-loading-dots span {
+  animation: dotPulse 1.4s infinite ease-in-out both;
+  display: inline-block;
+  font-size: 18px;
+  line-height: 1;
+}
+.auto-loading-dots span:nth-child(1) { animation-delay: 0s; }
+.auto-loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.auto-loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dotPulse {
+  0%, 80%, 100% { opacity: 0.2; }
+  40% { opacity: 1; }
+}
+
 .auto-files {
   font-size: 10px;
   color: var(--vscode-descriptionForeground);
