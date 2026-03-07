@@ -26,8 +26,14 @@ import { MAX_RETRY_COUNT } from '../storage/models';
 /** How long to wait after the last file change before capturing (ms). */
 const CHANGE_DEBOUNCE_MS = 8000;
 
-/** Maximum time to wait for changes after sending to Copilot (ms). */
-const CHANGE_TIMEOUT_MS = 120_000; // 2 minutes
+/** Maximum time to wait for the first file change after sending to Copilot (ms).
+ *  If no workspace file changes are detected within this period, we assume
+ *  Copilot responded without making edits and move straight to checkpoint. */
+const NO_ACTIVITY_TIMEOUT_MS = 30_000; // 30 seconds
+
+/** Absolute maximum time to wait for changes after the first change is detected (ms).
+ *  This covers cases where Copilot agent makes slow, incremental edits. */
+const CHANGE_TIMEOUT_MS = 90_000; // 90 seconds
 
 /** Minimum confidence to auto-approve without checkpoint (read from settings). */
 function getAutoApproveThreshold(): number {
@@ -390,6 +396,7 @@ export class AutomationService {
   private waitForChanges(cwd: string, item: AutomationQueueItem, task: VBTask): Promise<void> {
     return new Promise<void>((resolve) => {
       let resolved = false;
+      let sawWorkspaceChange = false;
       const done = () => {
         if (resolved) { return; }
         resolved = true;
@@ -407,6 +414,19 @@ export class AutomationService {
       this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
 
       const resetDebounce = () => {
+        // First workspace change — extend to the full timeout
+        if (!sawWorkspaceChange) {
+          sawWorkspaceChange = true;
+          if (this.timeoutTimer) { clearTimeout(this.timeoutTimer); }
+          this.timeoutTimer = setTimeout(async () => {
+            if (resolved) { return; }
+            done();
+            item.status = 'checkpoint';
+            item.result = 'No file changes detected within timeout. Please verify manually.';
+            this.state = 'reviewing';
+            this.broadcastProgress();
+          }, CHANGE_TIMEOUT_MS);
+        }
         if (this.changeTimer) { clearTimeout(this.changeTimer); }
         this.changeTimer = setTimeout(async () => {
           // Changes settled — capture and verify
@@ -432,15 +452,16 @@ export class AutomationService {
         }
       });
 
-      // Timeout: if no changes within CHANGE_TIMEOUT_MS, go to checkpoint anyway
+      // Initial timeout: if no workspace changes at all within NO_ACTIVITY_TIMEOUT_MS,
+      // Copilot likely responded without making edits — go to checkpoint quickly.
       this.timeoutTimer = setTimeout(async () => {
         if (resolved) { return; }
         done();
         item.status = 'checkpoint';
-        item.result = 'No file changes detected within timeout. Please verify manually.';
+        item.result = 'No file changes detected — Copilot may have responded without edits. Please verify manually.';
         this.state = 'reviewing';
         this.broadcastProgress();
-      }, CHANGE_TIMEOUT_MS);
+      }, NO_ACTIVITY_TIMEOUT_MS);
     });
   }
 
