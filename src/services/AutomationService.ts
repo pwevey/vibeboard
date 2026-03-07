@@ -45,6 +45,8 @@ export class AutomationService {
   private queue: AutomationQueueItem[] = [];
   private currentIndex = 0;
   private startedAt: string | undefined;
+  /** Monotonic counter incremented on each start/cancel to invalidate stale async flows. */
+  private runId = 0;
 
   private fileWatcher: vscode.FileSystemWatcher | undefined;
   private docChangeListener: vscode.Disposable | undefined;
@@ -101,6 +103,7 @@ export class AutomationService {
     this.currentIndex = 0;
     this.state = 'running';
     this.startedAt = new Date().toISOString();
+    this.runId++;
 
     vscode.window.showInformationMessage(
       `Build Board: Automation started with ${tasks.length} task${tasks.length === 1 ? '' : 's'}.`
@@ -130,6 +133,7 @@ export class AutomationService {
 
   /** Cancel the automation run entirely. */
   cancel(): void {
+    this.runId++;
     this.cleanup();
     // Mark remaining pending tasks as skipped
     for (const item of this.queue) {
@@ -204,10 +208,20 @@ export class AutomationService {
     current.completedAt = new Date().toISOString();
     current.result = 'Rejected by user';
 
-    this.state = 'paused';
     this.currentIndex++;
-    this.broadcastProgress();
-    vscode.window.showInformationMessage('Build Board: Task rejected. Automation paused — resume to continue with next task.');
+
+    // If all remaining tasks are resolved, finish instead of pausing
+    const allResolved = this.queue.every((q) =>
+      q.status === 'done' || q.status === 'skipped' || q.status === 'failed'
+    );
+    if (allResolved) {
+      this.runId++;
+      this.finish();
+    } else {
+      this.state = 'paused';
+      this.broadcastProgress();
+      vscode.window.showInformationMessage('Build Board: Task rejected. Automation paused — resume to continue with next task.');
+    }
   }
 
   /** Retry a failed task by re-queuing it with an enhanced prompt. */
@@ -321,6 +335,7 @@ export class AutomationService {
 
   private async processNext(): Promise<void> {
     if (this.state === 'paused') { return; }
+    const myRunId = this.runId;
 
     // Check if we're done
     if (this.currentIndex >= this.queue.length) {
@@ -403,15 +418,15 @@ export class AutomationService {
       await this.sendToCopilot(prompt, [], task.tag);
     }
 
-    // Guard: if automation was cancelled/reset while awaiting sendToCopilot, bail out
-    if (this.state === 'idle') { return; }
+    // Guard: if this run was superseded while awaiting sendToCopilot, bail out
+    if (this.runId !== myRunId) { return; }
 
     // Step 2: Watch for file changes
     item.status = 'waiting';
     this.broadcastProgress();
 
     if (cwd) {
-      await this.waitForChanges(cwd, item, task);
+      await this.waitForChanges(cwd, item, task, myRunId);
     } else {
       // No workspace — go straight to checkpoint
       item.status = 'checkpoint';
@@ -422,7 +437,7 @@ export class AutomationService {
   }
 
   /** Wait for file changes, then verify. */
-  private waitForChanges(cwd: string, item: AutomationQueueItem, task: VBTask): Promise<void> {
+  private waitForChanges(cwd: string, item: AutomationQueueItem, task: VBTask, myRunId: number): Promise<void> {
     return new Promise<void>((resolve) => {
       let resolved = false;
       let sawWorkspaceChange = false;
@@ -454,7 +469,7 @@ export class AutomationService {
           this.timeoutTimer = setTimeout(async () => {
             if (resolved) { return; }
             done();
-            if (this.state === 'idle') { return; }
+            if (this.runId !== myRunId) { return; }
             item.status = 'checkpoint';
             item.result = 'No file changes detected within timeout. Please verify manually.';
             this.state = 'reviewing';
@@ -465,8 +480,8 @@ export class AutomationService {
         this.changeTimer = setTimeout(async () => {
           // Changes settled — capture and verify
           done();
-          if (this.state === 'idle') { return; }
-          await this.captureAndVerify(cwd, item, task);
+          if (this.runId !== myRunId) { return; }
+          await this.captureAndVerify(cwd, item, task, myRunId);
         }, CHANGE_DEBOUNCE_MS);
       };
 
@@ -492,8 +507,8 @@ export class AutomationService {
       this.timeoutTimer = setTimeout(async () => {
         if (resolved) { return; }
         done();
-        // Guard: don't modify state if automation was cancelled
-        if (this.state === 'idle') { return; }
+        // Guard: don't modify state if this run was superseded
+        if (this.runId !== myRunId) { return; }
         item.status = 'checkpoint';
         item.result = 'No file changes detected — Copilot may have responded without edits. Please verify manually.';
         this.state = 'reviewing';
@@ -503,8 +518,8 @@ export class AutomationService {
   }
 
   /** Capture git diff and verify with LM API. */
-  private async captureAndVerify(cwd: string, item: AutomationQueueItem, task: VBTask): Promise<void> {
-    if (this.state === 'idle') { return; }
+  private async captureAndVerify(cwd: string, item: AutomationQueueItem, task: VBTask, myRunId: number): Promise<void> {
+    if (this.runId !== myRunId) { return; }
     item.status = 'verifying';
     this.broadcastProgress();
 
@@ -516,8 +531,8 @@ export class AutomationService {
         getDiffStat(cwd),
       ]);
 
-      // Guard: if cancelled while awaiting git operations, bail out
-      if (this.state === 'idle') { return; }
+      // Guard: if this run was superseded while awaiting git operations, bail out
+      if (this.runId !== myRunId) { return; }
 
       item.changedFiles = changedFiles;
       item.diffSummary = diffStat;
@@ -546,7 +561,7 @@ export class AutomationService {
       }
 
       if (changedFiles.length === 0) {
-        if (this.state === 'idle') { return; }
+        if (this.runId !== myRunId) { return; }
         item.status = 'checkpoint';
         item.result = 'No file changes detected. Verify manually.';
         this.state = 'reviewing';
@@ -565,8 +580,8 @@ export class AutomationService {
         changedFiles
       );
 
-      // Guard: if cancelled while awaiting verification, bail out
-      if (this.state === 'idle') { return; }
+      // Guard: if this run was superseded while awaiting verification, bail out
+      if (this.runId !== myRunId) { return; }
 
       item.result = `${verification.explanation} (Confidence: ${verification.confidence}%)`;
 
@@ -590,17 +605,17 @@ export class AutomationService {
         this.broadcastProgress();
 
         // Check for pause before next
-        if (this.state === 'paused' || this.state === 'idle') { return; }
+        if (this.state === 'paused' || this.runId !== myRunId) { return; }
         await this.processNext();
       } else {
         // Low confidence or not completed — checkpoint for user review
-        if (this.state === 'idle') { return; }
+        if (this.runId !== myRunId) { return; }
         item.status = 'checkpoint';
         this.state = 'reviewing';
         this.broadcastProgress();
       }
     } catch {
-      if (this.state === 'idle') { return; }
+      if (this.runId !== myRunId) { return; }
       item.status = 'checkpoint';
       item.result = 'Verification error — please review manually.';
       this.state = 'reviewing';
