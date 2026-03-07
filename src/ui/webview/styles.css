@@ -1399,7 +1399,7 @@ body.is-dragging .task-card:not(.dragging) {
 /* Settings dialog */
 .settings-dialog {
   min-width: 280px;
-  max-width: 420px;
+  max-width: 480px;
   max-height: 80vh;
   overflow-y: auto;
 }

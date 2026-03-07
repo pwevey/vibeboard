@@ -2332,17 +2332,19 @@ function showSettingsDialog(): void {
     <div class="settings-section-divider"></div>
     <h4 class="settings-section-title">&#9881; Automation</h4>
     <p class="settings-section-desc">Default settings for the automation task picker. These values are pre-filled when you open the Run Automation dialog.</p>
-    <div class="start-settings">
-      <label class="start-setting-row">
-        <span class="start-setting-label">Auto-Approve Threshold</span>
-        <input type="number" class="setting-number" data-setting="automationAutoApproveThreshold" value="${extensionSettings.automationAutoApproveThreshold}" min="0" max="100" />
-        <span class="start-setting-desc">% &mdash; Minimum AI confidence to auto-approve (0 = always auto-approve, 100 = always review)</span>
+    <div class="auto-threshold" style="margin-bottom:8px;padding:8px;background:var(--vscode-editor-background);border-radius:4px;">
+      <label style="font-size:12px;display:flex;align-items:center;gap:8px;">
+        <span>Auto-approve threshold:</span>
+        <input type="range" class="setting-slider" data-setting="automationAutoApproveThreshold" min="0" max="100" value="${extensionSettings.automationAutoApproveThreshold}" step="5" style="flex:1;" />
+        <span class="setting-slider-value" data-slider-for="automationAutoApproveThreshold" style="font-weight:600;min-width:36px;text-align:right;">${extensionSettings.automationAutoApproveThreshold}%</span>
       </label>
-      <label class="start-setting-row">
-        <span class="start-setting-label">No-Activity Timeout</span>
-        <input type="number" class="setting-number" data-setting="automationNoActivityTimeout" value="${extensionSettings.automationNoActivityTimeout}" min="5" max="300" />
-        <span class="start-setting-desc">seconds &mdash; Wait time for file changes before auto-approving or checkpointing</span>
+      <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:4px 0 0;">Tasks verified with confidence &ge; this value are auto-completed. Set to 100% to always review manually.</p>
+      <label style="font-size:12px;display:flex;align-items:center;gap:8px;margin-top:8px;">
+        <span>No-activity timeout:</span>
+        <input type="range" class="setting-slider" data-setting="automationNoActivityTimeout" min="5" max="300" value="${extensionSettings.automationNoActivityTimeout}" step="5" style="flex:1;" />
+        <span class="setting-slider-value" data-slider-for="automationNoActivityTimeout" style="font-weight:600;min-width:36px;text-align:right;">${extensionSettings.automationNoActivityTimeout}s</span>
       </label>
+      <p style="font-size:10px;color:var(--vscode-descriptionForeground);margin:4px 0 0;">Seconds to wait for file changes after sending a task to Copilot. Increase for complex tasks that need more Copilot thinking time.</p>
     </div>
     <div class="settings-section-divider"></div>
     <h4 class="settings-section-title">&#127919; Jira Integration</h4>
@@ -2563,6 +2565,15 @@ function showSettingsDialog(): void {
       (extensionSettings as Record<string, unknown>)[key] = val;
     });
 
+    // 4. Persist slider inputs
+    overlay.querySelectorAll<HTMLInputElement>('.setting-slider').forEach((input) => {
+      const key = input.dataset.setting;
+      if (!key) { return; }
+      const val = parseInt(input.value, 10);
+      vscode.postMessage({ type: 'updateSetting', payload: { key, value: val } });
+      (extensionSettings as Record<string, unknown>)[key] = val;
+    });
+
     // Show saved confirmation near the clicked button
     const statusId = clickedBtn?.id === 'settings-save-top' ? '#settings-save-status-top' : '#settings-save-status';
     const status = overlay.querySelector(statusId) as HTMLElement | null;
@@ -2575,6 +2586,18 @@ function showSettingsDialog(): void {
   // Bind both Save buttons to the unified save function
   overlay.querySelectorAll<HTMLButtonElement>('.settings-save-all-btn').forEach((btn) => {
     btn.addEventListener('click', () => saveAllSettings(btn));
+  });
+
+  // Slider value labels — update displayed value as user drags
+  overlay.querySelectorAll<HTMLInputElement>('.setting-slider').forEach((slider) => {
+    const key = slider.dataset.setting;
+    if (!key) { return; }
+    const label = overlay.querySelector(`.setting-slider-value[data-slider-for="${key}"]`) as HTMLElement | null;
+    if (!label) { return; }
+    const suffix = key === 'automationNoActivityTimeout' ? 's' : '%';
+    slider.addEventListener('input', () => {
+      label.textContent = slider.value + suffix;
+    });
   });
 
   // Clear placeholder dots when user focuses the token field
