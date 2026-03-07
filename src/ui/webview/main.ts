@@ -357,6 +357,7 @@ function render(): void {
 
   // Preserve quick-add textarea value across re-renders
   const prevInput = (document.getElementById('quick-add-input') as HTMLTextAreaElement | null)?.value ?? '';
+  const quickAddWasFocused = document.activeElement?.id === 'quick-add-input';
   // Capture current dropdown values into state variables (so renderQuickAdd uses them)
   const curTag = (document.getElementById('quick-add-tag') as HTMLSelectElement | null)?.value;
   const curPriority = (document.getElementById('quick-add-priority') as HTMLSelectElement | null)?.value;
@@ -371,6 +372,8 @@ function render(): void {
   // Restore quick-add values
   const restoredInput = document.getElementById('quick-add-input') as HTMLTextAreaElement | null;
   if (restoredInput && prevInput) { restoredInput.value = prevInput; }
+  // Re-focus the quick-add input if it was focused before re-render (e.g. after adding a task)
+  if (quickAddWasFocused && restoredInput) { restoredInput.focus(); }
   // Restore follow-up textarea value
   const restoredFollowUp = document.getElementById('follow-up-input') as HTMLTextAreaElement | null;
   if (restoredFollowUp && prevFollowUp) { restoredFollowUp.value = prevFollowUp; }
