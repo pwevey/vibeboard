@@ -329,6 +329,15 @@ export class AutomationService {
     }
 
     const item = this.queue[this.currentIndex];
+
+    // Skip items that were pre-skipped from the queue
+    if (item.status === 'skipped') {
+      this.currentIndex++;
+      this.broadcastProgress();
+      await this.processNext();
+      return;
+    }
+
     const data = this.storage.getData();
     const task = data.tasks.find((t) => t.id === item.taskId);
 
