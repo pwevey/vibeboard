@@ -28,8 +28,12 @@ const CHANGE_DEBOUNCE_MS = 8000;
 
 /** Maximum time to wait for the first file change after sending to Copilot (ms).
  *  If no workspace file changes are detected within this period, we assume
- *  Copilot responded without making edits and move straight to checkpoint. */
-const NO_ACTIVITY_TIMEOUT_MS = 30_000; // 30 seconds
+ *  Copilot responded without making edits and move straight to checkpoint.
+ *  Configurable via buildboard.automationNoActivityTimeout (seconds). */
+function getNoActivityTimeoutMs(): number {
+  const seconds = vscode.workspace.getConfiguration('buildboard').get<number>('automationNoActivityTimeout', 30);
+  return seconds * 1000;
+}
 
 /** Absolute maximum time to wait for changes after the first change is detected (ms).
  *  This covers cases where Copilot agent makes slow, incremental edits. */
@@ -50,8 +54,6 @@ export class AutomationService {
 
   private fileWatcher: vscode.FileSystemWatcher | undefined;
   private docChangeListener: vscode.Disposable | undefined;
-  /** Listener for any text document change (including chat panels) to detect Copilot activity. */
-  private chatActivityListener: vscode.Disposable | undefined;
   private changeTimer: ReturnType<typeof setTimeout> | undefined;
   private timeoutTimer: ReturnType<typeof setTimeout> | undefined;
   /** Resolver to cancel waitForChanges from outside (e.g. skip/cancel). */
@@ -510,24 +512,7 @@ export class AutomationService {
         }
       });
 
-      // Watch ALL document changes (including chat panels) to detect Copilot activity.
-      // When Copilot is streaming a response, this keeps resetting the no-activity timeout
-      // so we don't prematurely conclude that Copilot is done.
-      this.chatActivityListener = vscode.workspace.onDidChangeTextDocument((e) => {
-        if (resolved || sawWorkspaceChange) { return; }
-        if (e.contentChanges.length > 0) {
-          // Reset the no-activity timer — Copilot is still active
-          if (this.timeoutTimer) { clearTimeout(this.timeoutTimer); }
-          this.timeoutTimer = setTimeout(async () => {
-            if (resolved) { return; }
-            done();
-            if (this.runId !== myRunId) { return; }
-            await this.handleNoChanges(item, task, myRunId);
-          }, NO_ACTIVITY_TIMEOUT_MS);
-        }
-      });
-
-      // Initial timeout: if no workspace changes at all within NO_ACTIVITY_TIMEOUT_MS,
+      // Initial timeout: if no workspace changes at all within the no-activity timeout,
       // Copilot likely responded without making edits — go to checkpoint or auto-approve.
       this.timeoutTimer = setTimeout(async () => {
         if (resolved) { return; }
@@ -535,7 +520,7 @@ export class AutomationService {
         // Guard: don't modify state if this run was superseded
         if (this.runId !== myRunId) { return; }
         await this.handleNoChanges(item, task, myRunId);
-      }, NO_ACTIVITY_TIMEOUT_MS);
+      }, getNoActivityTimeoutMs());
     });
   }
 
@@ -715,10 +700,6 @@ export class AutomationService {
     if (this.docChangeListener) {
       this.docChangeListener.dispose();
       this.docChangeListener = undefined;
-    }
-    if (this.chatActivityListener) {
-      this.chatActivityListener.dispose();
-      this.chatActivityListener = undefined;
     }
   }
 

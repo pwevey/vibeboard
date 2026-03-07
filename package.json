@@ -89,6 +89,13 @@
           "maximum": 100,
           "description": "Minimum AI confidence percentage (0-100) to auto-approve a task without requiring manual review. Set to 100 to always require manual approval."
         },
+        "buildboard.automationNoActivityTimeout": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "maximum": 300,
+          "description": "Seconds to wait for file changes after sending a task to Copilot. If no workspace edits are detected within this period, the task is auto-approved (at 0% threshold) or checkpointed for review."
+        },
         "buildboard.autoBackup": {
           "type": "boolean",
           "default": true,
