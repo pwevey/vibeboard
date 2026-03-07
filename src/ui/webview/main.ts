@@ -1222,6 +1222,8 @@ function renderTaskEditCard(task: VBTask): string {
     </div>`).join('')}
     <div class="edit-subtask-add-row">
       <input type="text" class="edit-subtask-new" data-edit-subtask-new="${task.id}" placeholder="+ Add subtask…" />
+      <button class="edit-subtask-add-confirm" data-edit-subtask-add-confirm="${task.id}" title="Add subtask">&#10003;</button>
+      <button class="edit-subtask-add-clear" data-edit-subtask-add-clear="${task.id}" title="Clear">&#10005;</button>
     </div>
   </div>`;
 
@@ -2412,17 +2414,40 @@ function bindEditEvents(): void {
       vscode.postMessage({ type: 'deleteTask', payload: { id } });
     });
   });
-  // Add new subtask from edit card
+  // Add new subtask from edit card — Enter key or confirm button
   document.querySelectorAll<HTMLInputElement>('[data-edit-subtask-new]').forEach((input) => {
     const parentId = input.dataset.editSubtaskNew!;
+    /** Submit the subtask value */
+    const submit = () => {
+      const title = input.value.trim();
+      if (title) {
+        vscode.postMessage({ type: 'addSubtask', payload: { parentTaskId: parentId, title } });
+      }
+    };
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      if (e.key === 'Escape') { input.value = ''; input.blur(); }
+    });
+  });
+  // Confirm button (✓) for edit-card subtask input
+  document.querySelectorAll<HTMLElement>('[data-edit-subtask-add-confirm]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const parentId = (btn as HTMLElement).dataset.editSubtaskAddConfirm!;
+      const input = document.querySelector(`[data-edit-subtask-new="${parentId}"]`) as HTMLInputElement | null;
+      if (input) {
         const title = input.value.trim();
         if (title) {
           vscode.postMessage({ type: 'addSubtask', payload: { parentTaskId: parentId, title } });
         }
       }
+    });
+  });
+  // Clear button (✕) for edit-card subtask input
+  document.querySelectorAll<HTMLElement>('[data-edit-subtask-add-clear]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const parentId = (btn as HTMLElement).dataset.editSubtaskAddClear!;
+      const input = document.querySelector(`[data-edit-subtask-new="${parentId}"]`) as HTMLInputElement | null;
+      if (input) { input.value = ''; input.focus(); }
     });
   });
 }

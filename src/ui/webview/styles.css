@@ -4005,10 +4005,13 @@ textarea:focus-visible {
   color: var(--vscode-errorForeground, #f14c4c);
 }
 .edit-subtask-add-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-top: 4px;
 }
 .edit-subtask-new {
-  width: 100%;
+  flex: 1;
   padding: 4px 6px;
   font-size: 12px;
   border: 1px solid var(--vscode-input-border, rgba(255,255,255,0.15));
@@ -4016,12 +4019,33 @@ textarea:focus-visible {
   color: var(--vscode-input-foreground, #ccc);
   border-radius: 3px;
   outline: none;
+  min-width: 0;
 }
 .edit-subtask-new:focus {
   border-color: var(--vscode-focusBorder, #007acc);
 }
 .edit-subtask-new::placeholder {
   color: var(--vscode-input-placeholderForeground, #888);
+}
+.edit-subtask-add-confirm,
+.edit-subtask-add-clear {
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0.6;
+  line-height: 1;
+}
+.edit-subtask-add-confirm:hover {
+  opacity: 1;
+  color: var(--vscode-testing-iconPassed, #73c991);
+}
+.edit-subtask-add-clear:hover {
+  opacity: 1;
+  color: var(--vscode-errorForeground, #f14c4c);
 }
 
 /* ── Quick-Add Subtasks ────────────────────────── */

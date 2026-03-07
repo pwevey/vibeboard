@@ -327,6 +327,8 @@ export class MessageHandler {
         const data = this.storage.getData();
         const task = data.tasks.find((t) => t.id === message.payload.taskId);
         if (!task) { break; }
+        // Snapshot existing subtask IDs so we only track newly created ones
+        const existingSubtaskIds = new Set(data.tasks.filter((t) => t.parentTaskId === task.id).map((t) => t.id));
         this.webview?.postMessage({ type: 'aiResult', payload: { action: 'breakdown', result: '...', taskId: task.id } });
         this.aiService.breakdownTask(task.title, task.description).then((subtasks) => {
           // Create subtasks as real tasks linked to the parent via parentTaskId
@@ -346,12 +348,12 @@ export class MessageHandler {
             }
             this.sendStateUpdate();
           }
-          // Collect created subtask IDs so the webview can undo them if the user cancels
+          // Collect only the NEWLY created subtask IDs (exclude pre-existing ones)
           const createdData = this.storage.getData();
-          const createdIds = createdData.tasks
-            .filter((t) => t.parentTaskId === task.id)
+          const newIds = createdData.tasks
+            .filter((t) => t.parentTaskId === task.id && !existingSubtaskIds.has(t.id))
             .map((t) => t.id);
-          this.webview?.postMessage({ type: 'aiResult', payload: { action: 'breakdown', result: subtasks, taskId: task.id, subtaskIds: createdIds } });
+          this.webview?.postMessage({ type: 'aiResult', payload: { action: 'breakdown', result: subtasks, taskId: task.id, subtaskIds: newIds } });
         });
         break;
       }
