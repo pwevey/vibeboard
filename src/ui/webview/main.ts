@@ -117,7 +117,21 @@ const MIME_TO_EXT: Record<string, string> = {
 
 /** Derive a file extension from a MIME type, falling back to 'bin'. */
 function extFromMime(mime: string): string {
+  if (mime === 'application/octet-stream') { return 'bin'; }
   return MIME_TO_EXT[mime] || mime.split('/').pop()?.replace(/[^a-z0-9]/gi, '') || 'bin';
+}
+
+/**
+ * Build a filename for a pasted clipboard blob.
+ * Prefers the original blob.name (if it has a real extension), otherwise
+ * falls back to a timestamp-based name derived from the MIME type.
+ */
+function pasteFilename(blob: File, mime: string): string {
+  if (blob.name && blob.name !== '' && blob.name.includes('.')) {
+    // Clipboard provided an original filename with extension — use it
+    return blob.name;
+  }
+  return `paste-${Date.now()}.${extFromMime(mime)}`;
 }
 
 // ============================================================
@@ -2131,10 +2145,9 @@ function bindQuickAdd(): void {
           if (dataUri) {
             const mimeMatch = dataUri.match(/^data:([^;]+);/);
             const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
-            const ext = extFromMime(mimeType);
             pendingQuickAddAttachments.push({
               id: 'qa-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-              filename: `paste-${Date.now()}.${ext}`,
+              filename: pasteFilename(blob, mimeType),
               mimeType,
               dataUri,
               addedAt: new Date().toISOString(),
@@ -2394,10 +2407,9 @@ function bindEditEvents(): void {
             if (taskId && dataUri) {
               const mimeMatch = dataUri.match(/^data:([^;]+);/);
               const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
-              const ext = extFromMime(mime);
               vscode.postMessage({
                 type: 'pasteAttachment',
-                payload: { taskId, dataUri, filename: `paste-${Date.now()}.${ext}` },
+                payload: { taskId, dataUri, filename: pasteFilename(blob, mime) },
               });
             }
           };
@@ -2577,10 +2589,9 @@ function bindFollowUpEvents(): void {
           if (dataUri) {
             const mimeMatch = dataUri.match(/^data:([^;]+);/);
             const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
-            const ext = extFromMime(mimeType);
             pendingFollowUpAttachments.push({
               id: 'fu-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-              filename: `paste-${Date.now()}.${ext}`,
+              filename: pasteFilename(blob, mimeType),
               mimeType,
               dataUri,
               addedAt: new Date().toISOString(),
