@@ -521,10 +521,10 @@ function renderAutomationBar(): string {
   if (autoState === 'running') {
     const stepStatus = currentItem?.status || 'pending';
     if (stepStatus === 'waiting') {
-      // During waiting, show Pause + Approve/Revise/Reject so user can interact with Copilot
+      // During waiting, show Pause + Revise/Approve/Reject so user can interact with Copilot
       actions = `<button class="auto-bar-btn" id="btn-auto-pause" title="Pause automation">&#9208;</button>
-        <button class="auto-bar-btn success" id="btn-auto-approve" title="Copilot is done — approve and complete">&#10003; Approve</button>
         <button class="auto-bar-btn" id="btn-auto-revise" title="Send revision feedback to Copilot">&#9998; Revise</button>
+        <button class="auto-bar-btn success" id="btn-auto-approve" title="Copilot is done — approve and complete">&#10003; Approve</button>
         <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject changes">&#10007; Reject</button>
         <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
     } else {
@@ -546,8 +546,8 @@ function renderAutomationBar(): string {
     actions = `${retryBtn}<button class="auto-bar-btn primary" id="btn-auto-resume" title="${resumeTitle}">${resumeLabel}</button>
       <button class="auto-bar-btn danger" id="btn-auto-cancel" title="Cancel automation">Cancel</button>`;
   } else if (autoState === 'reviewing') {
-    actions = `<button class="auto-bar-btn success" id="btn-auto-approve" title="Approve and complete task">&#10003; Approve</button>
-      <button class="auto-bar-btn" id="btn-auto-revise" title="Send revision feedback to Copilot">&#9998; Revise</button>
+    actions = `<button class="auto-bar-btn" id="btn-auto-revise" title="Send revision feedback to Copilot">&#9998; Revise</button>
+      <button class="auto-bar-btn success" id="btn-auto-approve" title="Approve and complete task">&#10003; Approve</button>
       <button class="auto-bar-btn danger" id="btn-auto-reject" title="Reject and skip">&#10007; Reject</button>`;
   }
 
@@ -814,6 +814,10 @@ function showAutomationTaskPicker(): void {
     // Persist branching setting before starting
     vscode.postMessage({ type: 'updateSetting', payload: { key: 'automationBranching', value: branching } });
     extensionSettings.automationBranching = branching;
+    // Warn if branching is enabled — git must be available
+    if (branching) {
+      showAIToast('Git branch isolation is enabled — make sure this folder is a git repository.', false);
+    }
     vscode.postMessage({ type: 'startAutomation', payload: { taskIds: selected, threshold, timeout } });
   });
 

@@ -344,6 +344,11 @@ export class AutomationService {
     const task = data.tasks.find((t) => t.id === current.taskId);
     if (!task) { return; }
 
+    // Log the revision in the task's copilotLog for history
+    if (!task.copilotLog) { task.copilotLog = []; }
+    task.copilotLog.push({ prompt: `[Revision] ${feedback}`, timestamp: new Date().toISOString() });
+    this.storage.setData(data);
+
     // Stay on the same branch — just re-send with feedback
     current.status = 'sending';
     this.state = 'running';
