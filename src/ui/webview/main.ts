@@ -957,7 +957,6 @@ function renderQuickAdd(): string {
 
   return `<div class="quick-add">
     <textarea id="quick-add-input" placeholder="Add a task... (Enter to submit, Shift+Enter for new line)" rows="2" aria-label="New task title"></textarea>
-    ${pendingThumbs}
     <div class="quick-add-subtasks">
       ${pendingQuickAddSubtasks.map((s, i) => `<div class="quick-add-subtask-item">
         <span class="quick-add-subtask-text">${escapeHtml(s)}</span>
@@ -969,6 +968,7 @@ function renderQuickAdd(): string {
         <button class="quick-add-subtask-clear" id="btn-subtask-clear" title="Clear">&#10005;</button>
       </div>
     </div>
+    ${pendingThumbs}
     <div class="quick-add-controls">
       <select id="quick-add-tag" aria-label="Task tag">
         <option value="feature" ${quickAddTag === 'feature' ? 'selected' : ''}>Feature</option><option value="bug" ${quickAddTag === 'bug' ? 'selected' : ''}>Bug</option>
