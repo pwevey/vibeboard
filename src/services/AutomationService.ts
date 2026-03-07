@@ -50,6 +50,8 @@ export class AutomationService {
 
   private fileWatcher: vscode.FileSystemWatcher | undefined;
   private docChangeListener: vscode.Disposable | undefined;
+  /** Listener for any text document change (including chat panels) to detect Copilot activity. */
+  private chatActivityListener: vscode.Disposable | undefined;
   private changeTimer: ReturnType<typeof setTimeout> | undefined;
   private timeoutTimer: ReturnType<typeof setTimeout> | undefined;
   /** Resolver to cancel waitForChanges from outside (e.g. skip/cancel). */
@@ -478,10 +480,7 @@ export class AutomationService {
             if (resolved) { return; }
             done();
             if (this.runId !== myRunId) { return; }
-            item.status = 'checkpoint';
-            item.result = 'No file changes detected within timeout. Please verify manually.';
-            this.state = 'reviewing';
-            this.broadcastProgress();
+            await this.handleNoChanges(item, task, myRunId);
           }, CHANGE_TIMEOUT_MS);
         }
         if (this.changeTimer) { clearTimeout(this.changeTimer); }
@@ -510,17 +509,31 @@ export class AutomationService {
         }
       });
 
+      // Watch ALL document changes (including chat panels) to detect Copilot activity.
+      // When Copilot is streaming a response, this keeps resetting the no-activity timeout
+      // so we don't prematurely conclude that Copilot is done.
+      this.chatActivityListener = vscode.workspace.onDidChangeTextDocument((e) => {
+        if (resolved || sawWorkspaceChange) { return; }
+        if (e.contentChanges.length > 0) {
+          // Reset the no-activity timer — Copilot is still active
+          if (this.timeoutTimer) { clearTimeout(this.timeoutTimer); }
+          this.timeoutTimer = setTimeout(async () => {
+            if (resolved) { return; }
+            done();
+            if (this.runId !== myRunId) { return; }
+            await this.handleNoChanges(item, task, myRunId);
+          }, NO_ACTIVITY_TIMEOUT_MS);
+        }
+      });
+
       // Initial timeout: if no workspace changes at all within NO_ACTIVITY_TIMEOUT_MS,
-      // Copilot likely responded without making edits — go to checkpoint quickly.
+      // Copilot likely responded without making edits — go to checkpoint or auto-approve.
       this.timeoutTimer = setTimeout(async () => {
         if (resolved) { return; }
         done();
         // Guard: don't modify state if this run was superseded
         if (this.runId !== myRunId) { return; }
-        item.status = 'checkpoint';
-        item.result = 'No file changes detected — Copilot may have responded without edits. Please verify manually.';
-        this.state = 'reviewing';
-        this.broadcastProgress();
+        await this.handleNoChanges(item, task, myRunId);
       }, NO_ACTIVITY_TIMEOUT_MS);
     });
   }
@@ -570,10 +583,7 @@ export class AutomationService {
 
       if (changedFiles.length === 0) {
         if (this.runId !== myRunId) { return; }
-        item.status = 'checkpoint';
-        item.result = 'No file changes detected. Verify manually.';
-        this.state = 'reviewing';
-        this.broadcastProgress();
+        await this.handleNoChanges(item, task, myRunId);
         return;
       }
 
@@ -631,6 +641,48 @@ export class AutomationService {
     }
   }
 
+  /**
+   * Handle the "no file changes detected" scenario.
+   * If the auto-approve threshold is 0%, treat it as auto-complete (confidence 0%).
+   * Otherwise, checkpoint for manual review.
+   */
+  private async handleNoChanges(
+    item: AutomationQueueItem,
+    task: { id: string; title: string },
+    myRunId: number
+  ): Promise<void> {
+    const threshold = getAutoApproveThreshold();
+
+    if (threshold === 0) {
+      // 0% threshold means "always auto-approve" — treat no-changes as 0% confidence pass
+      item.status = 'done';
+      item.result = 'No file changes detected. (Confidence: 0%)';
+      item.completedAt = new Date().toISOString();
+
+      const data = this.storage.getData();
+      const t = data.tasks.find((x) => x.id === item.taskId);
+      if (t) { t.sentToCopilot = false; }
+      this.storage.setData(data);
+      this.taskManager.completeTask(item.taskId);
+
+      vscode.window.showInformationMessage(
+        `Build Board: Auto-completed "${task.title}" — no changes detected (0% threshold).`
+      );
+
+      this.currentIndex++;
+      this.broadcastProgress();
+
+      if (this.state === 'paused' || this.runId !== myRunId) { return; }
+      await this.processNext();
+    } else {
+      // Threshold > 0 — require human review
+      item.status = 'checkpoint';
+      item.result = 'No file changes detected. (Confidence: 0%) — verify manually.';
+      this.state = 'reviewing';
+      this.broadcastProgress();
+    }
+  }
+
   /** Automation run complete. */
   private finish(): void {
     this.cleanup();
@@ -662,6 +714,10 @@ export class AutomationService {
     if (this.docChangeListener) {
       this.docChangeListener.dispose();
       this.docChangeListener = undefined;
+    }
+    if (this.chatActivityListener) {
+      this.chatActivityListener.dispose();
+      this.chatActivityListener = undefined;
     }
   }
 
